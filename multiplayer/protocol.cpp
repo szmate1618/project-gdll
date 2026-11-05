@@ -103,6 +103,7 @@ void movement(Wire& w, viewer::FPSState& s) {
 }
 void firearmShot(Wire& w, FirearmShot& shot) {
     w.integer(shot.slot);
+    w.number(shot.aimOffsetDegrees.x); w.number(shot.aimOffsetDegrees.y);
     w.flag(shot.predictedMist);
     const auto validMuzzle = [](glm::vec3 point) {
         return std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z) &&

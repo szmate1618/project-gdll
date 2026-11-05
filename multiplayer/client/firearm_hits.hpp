@@ -22,6 +22,7 @@ FirearmShot reportFirearmHits(std::uint8_t slot, const viewer::WeaponConfig& wea
     glm::vec3 origin, glm::vec3 direction,
     const std::function<std::optional<viewer::ZombieShotTrace>(glm::vec3, glm::vec3)>& trace,
     std::vector<FirearmImpact>* impacts = nullptr,
-    const std::function<std::optional<viewer::DogShotTrace>(glm::vec3, glm::vec3)>& dogTrace = {});
+    const std::function<std::optional<viewer::DogShotTrace>(glm::vec3, glm::vec3)>& dogTrace = {},
+    glm::vec2 aimOffsetDegrees = {0, 0});
 
 } // namespace multiplayer

@@ -8,6 +8,8 @@ automatic = false
 has_scope = false
 pellets = 1
 spread_degrees = 0.0
+# Per-axis normal standard deviation: standing still, walking, forward running.
+hip_fire_inaccuracy_degrees = [0.5, 1, 2]
 magazine_capacity = 12
 ammo_per_shot = 1
 # Center of the barrel's front cap, in model-local meters (X right, Y up, -Z forward).

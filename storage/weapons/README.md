@@ -56,6 +56,18 @@ of a weapon gameplay reference.
 `name` is the inventory display name. No icon, texture, font or model asset is
 specified here.
 
+## Hip-fire accuracy
+
+Firearm gameplay files can define `hip_fire_inaccuracy_degrees = [0.5, 1.0, 2.0]`:
+the per-axis normal angular standard deviations in degrees while standing still,
+walking at full speed, and running forward at full speed. Entries must be finite,
+nondecreasing, and in `[0, 30)`. Omitting the field preserves exact aiming.
+Actual horizontal speed and continuous posture interpolate between these values;
+stationary crouch/prone are exact and reach the standing-still value while moving
+at their full stance speed. Scoped sniper fire uses its separate breathing sway.
+The sampled offset applies once to a whole shot, including a shotgun's pellet
+pattern. See [viewer accuracy behavior](../../docs/VIEWER.md#prototype-weapons-and-inventory).
+
 ## Tags files
 
 Tags are read from `<id>.tags.txt`, independently of the inventory TOML:

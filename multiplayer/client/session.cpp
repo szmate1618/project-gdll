@@ -13,6 +13,7 @@
 #include "boid/replica.hpp"
 #include "camera.hpp"
 #include "weapon_motion.hpp"
+#include "weapon_accuracy.hpp"
 #include "action_selection.hpp"
 
 #include "vehicle_player.hpp"
@@ -53,6 +54,7 @@ namespace {
 struct Input {
     viewer::Camera camera;
     viewer::WeaponMotion weaponMotion;
+    viewer::ShotInaccuracy shotInaccuracy;
     viewer::ActionSelection actionSelection;
     viewer::ActionShortcuts actions;
     bool suppressLeftUntilRelease = false, suppressRightUntilRelease = false, weaponSwitching = false, weaponReloading = false;
@@ -501,6 +503,12 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
     auto weaponDefinitions = scene.initialWeapons;
     auto inventoryWeapons = scene.initialWeapons;
 #ifdef MP_GRAPHICS
+    const auto hipFireSpread = [&] {
+        const auto& controller = prediction.controller();
+        return viewer::hipFireInaccuracy(weaponDefinitions.equipped().config, playerSpeed,
+            controller.movementState().posture, controller.config(),
+            in.camera.viewMode() != viewer::Camera::ViewMode::original);
+    };
     if (in.hud) in.hud->setGroundItems(*scene.groundItems, inventoryWeapons, *scene.collision);
 #endif
     while (!graphics.closed() && !in.leave) {
@@ -682,7 +690,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                                 return graphics.renderer->traceZombieShot(origin, direction, *scene.collision);
                             }, &frameFirearmImpacts, [&](glm::vec3 origin, glm::vec3 direction) {
                                 return graphics.renderer->traceDogShot(origin,direction,*scene.collision);
-                            });
+                            }, in.shotInaccuracy.sample(hipFireSpread()));
                     nextCommand.firearmShot = frameFirearmShot;
                 }
                 // Predict presentation before enqueueing so its mist marker is
@@ -846,7 +854,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     graphics.weapon->draw(ownState.slot, renderWidth, renderHeight, flash,
                                           in.weaponMotion.pose(ownState.slot, now, in.temporaryHandling()));
                 const auto overlayViewport = renderer.beginOverlay(width, height);
-                if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height);
+                if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height,
+                    viewer::inaccuracyCrosshairRadius(hipFireSpread(), viewCamera.projection(renderAspect)[1][1]));
                 viewer::HudState hudState;
                 hudState.seconds = now;
                 hudState.screen = in.hudScreen;

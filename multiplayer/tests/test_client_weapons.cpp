@@ -41,7 +41,10 @@ std::size_t differences(std::size_t a, std::size_t b) {
                 (x > 310 && x < 970 && y > 95 && y < 135);
             // Object handling now adds a vertical equipment tab at the right edge.
             const bool equipmentTab = x >= frameWidth - 36 && y > frameHeight * .35f && y < frameHeight * .65f;
-            if (hud || equipmentTab) continue;
+            // Equipment comparisons isolate the held model; each firearm now
+            // has its own legitimate hip-fire crosshair expansion.
+            const bool reticle = std::abs(x - frameWidth / 2) < 60 && std::abs(y - frameHeight / 2) < 60;
+            if (hud || equipmentTab || reticle) continue;
             const auto i = static_cast<std::size_t>(y * frameWidth + x) * 3;
             if (std::abs(int(frames[a][i]) - int(frames[b][i])) > 8 ||
                 std::abs(int(frames[a][i+1]) - int(frames[b][i+1])) > 8 ||

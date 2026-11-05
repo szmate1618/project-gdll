@@ -17,7 +17,8 @@ public:
     ReticleOverlay(const ReticleOverlay&) = delete;
     ReticleOverlay& operator=(const ReticleOverlay&) = delete;
 
-    void draw(Camera::ViewMode mode, int width, int height);
+    // Expansion radius uses vertical NDC units, projected from angular spread.
+    void draw(Camera::ViewMode mode, int width, int height, float inaccuracyRadius = 0);
 
 private:
     void release() noexcept;
@@ -26,6 +27,7 @@ private:
     GLuint vao_ = 0;
     GLint modeLocation_ = -1;
     GLint aspectLocation_ = -1;
+    GLint inaccuracyLocation_ = -1;
 };
 
 }  // namespace viewer

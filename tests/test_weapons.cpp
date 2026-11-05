@@ -230,13 +230,16 @@ void fixtures(const std::filesystem::path& scratch) {
     const std::string customConfig =
         "name = 'Test pistol'\nammo_type = 'pistol_rounds'\ncaliber = 'high'\nshot_interval_seconds = 2\ndraw_time_seconds = 0.45\nreload_time_seconds = 1.25\n"
         "automatic = false\nhas_scope = false\npellets = 1\nspread_degrees = 0\n"
-        "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n";
+        "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n"
+        "hip_fire_inaccuracy_degrees = [0.25, 0.5, 1]\n";
     std::ofstream(scratch / "weapons/pistol.gameplay.toml") << customConfig;
     viewer::Weapons doubleShot(scratch / "weapons", inventory);
     require(doubleShot.equipped().config.caliber == viewer::ShotCaliber::high,
             "TOML caliber must configure the shot damage category");
     require(doubleShot.equipped().config.drawTimeSeconds == .45, "Draw time must come from gameplay TOML");
     require(doubleShot.equipped().config.reloadTimeSeconds == 1.25, "Reload time must come from gameplay TOML");
+    require(doubleShot.equipped().config.hipFireInaccuracyDegrees == glm::vec3(.25f, .5f, 1),
+            "Hip-fire standard deviations must come from gameplay TOML");
     require(glm::distance(doubleShot.equipped().config.muzzlePosition, glm::vec3(.01f, .02f, -.3f)) < 1e-6f,
             "TOML muzzle coordinates must preserve all three model-local axes");
     click(doubleShot);
@@ -271,6 +274,11 @@ void fixtures(const std::filesystem::path& scratch) {
              {"draw_time_seconds = 0.45", "draw_time_seconds = 'fast'"},
              {"pellets = 1", "pellets = 65"},
              {"spread_degrees = 0", "spread_degrees = 90"},
+             {"hip_fire_inaccuracy_degrees = [0.25, 0.5, 1]", "hip_fire_inaccuracy_degrees = [0, 1]"},
+             {"hip_fire_inaccuracy_degrees = [0.25, 0.5, 1]", "hip_fire_inaccuracy_degrees = [-1, 0, 1]"},
+             {"hip_fire_inaccuracy_degrees = [0.25, 0.5, 1]", "hip_fire_inaccuracy_degrees = [0, nan, 1]"},
+             {"hip_fire_inaccuracy_degrees = [0.25, 0.5, 1]", "hip_fire_inaccuracy_degrees = [1, 0.5, 2]"},
+             {"hip_fire_inaccuracy_degrees = [0.25, 0.5, 1]", "hip_fire_inaccuracy_degrees = [0, 1, 30]"},
              {"magazine_capacity = 7", "magazine_capacity = 1"},
              {"ammo_per_shot = 2", "ammo_per_shot = 0"},
              {"automatic = false", "automatic = 'false'"},

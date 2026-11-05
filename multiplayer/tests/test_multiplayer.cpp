@@ -239,10 +239,14 @@ void prediction() {
     localEffect.left = true;
     localEffect.firearmShot = FirearmShot{0, {}, true};
     localEffect.firearmShot->muzzlePosition = glm::vec3(1, 2, 3);
+    localEffect.firearmShot->aimOffsetDegrees = {.625f, -1.25f};
     const auto numbered = client.advance(localEffect, collision);
     require(numbered.sequence == localEffect.sequence, "Presentation prediction used a different command number");
     const auto retry = encode(client.commandsToSend());
     const auto decoded = std::get<Commands>(decode(retry.data(), retry.size()));
+    require(decoded.commands.back().firearmShot &&
+            decoded.commands.back().firearmShot->aimOffsetDegrees == glm::vec2(.625f, -1.25f),
+            "Retransmitted firearm command lost its shared random aim offset");
     require(decoded.commands.back().sequence == numbered.sequence &&
             decoded.commands.back().firearmShot && decoded.commands.back().firearmShot->predictedMist &&
             decoded.commands.back().firearmShot->muzzlePosition == glm::vec3(1, 2, 3),

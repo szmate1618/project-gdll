@@ -5,6 +5,7 @@
 #include "simulation_clock.hpp"
 #include "zombie_animation.hpp"
 #include "vehicle_player.hpp"
+#include "weapon_accuracy.hpp"
 #include <random>
 #include <algorithm>
 #include <cmath>
@@ -28,6 +29,8 @@ glm::vec3 shotMuzzlePosition(const ServerPlayer& player, const Command& command)
 
 bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Command& command) {
     if (!command.firearmShot || command.firearmShot->slot != player.weapons.slot()) return false;
+    if (!std::isfinite(command.firearmShot->aimOffsetDegrees.x) ||
+        !std::isfinite(command.firearmShot->aimOffsetDegrees.y)) return false;
     const auto& reports = command.firearmShot->hits;
     const auto pellets = static_cast<std::size_t>(player.weapons.equipped().config.pellets);
     if (reports.size()+command.firearmShot->dogHits.size() > pellets || pellets > maxFirearmHits) return false;
@@ -384,7 +387,8 @@ void World::step() {
                         throw std::logic_error("Accepted grenade throw failed");
                     player.weaponReload.begin(player.weapons, player.inventory, now);
                 } else if (player.weapons.slot() != viewer::punchSlot)
-                    shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()),
+                    shots.push_back({player.camera.position(), viewer::weaponShotDirections(config,
+                        viewer::inaccurateShotDirection(player.camera.direction(), command.firearmShot->aimOffsetDegrees)),
                         config.caliber, command.firearmShot->hits, command.firearmShot->dogHits, command.firearmShot->predictedMist ? id : 0});
             }
             player.held = command;

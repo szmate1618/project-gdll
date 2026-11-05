@@ -55,6 +55,19 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
         config.magazineCapacity < config.ammoPerShot || !std::isfinite(spread) || spread < 0 || spread >= 90)
         throw std::runtime_error(path.string() + ": invalid weapon configuration (check counts, interval, and spread)");
     config.spreadDegrees = static_cast<float>(spread);
+    if (table.contains("hip_fire_inaccuracy_degrees")) {
+        const auto* values = table["hip_fire_inaccuracy_degrees"].as_array();
+        if (!values || values->size() != 3)
+            throw std::runtime_error(path.string() + ": hip_fire_inaccuracy_degrees must contain three angular standard deviations");
+        double previous = 0;
+        for (int i = 0; i < 3; ++i) {
+            const auto value = (*values)[static_cast<std::size_t>(i)].value<double>();
+            if (!value || !std::isfinite(*value) || *value < previous || *value >= 30)
+                throw std::runtime_error(path.string() + ": hip_fire_inaccuracy_degrees must be nondecreasing, finite and in [0, 30)");
+            previous = *value;
+            config.hipFireInaccuracyDegrees[i] = static_cast<float>(*value);
+        }
+    }
     const auto kind = table.contains("kind") ? required<std::string>(table, "kind", path) : "firearm";
     if (kind == "he_grenade") {
         const auto positive = [&](const char* key, double maximum) {

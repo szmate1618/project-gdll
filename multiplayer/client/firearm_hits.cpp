@@ -1,5 +1,6 @@
 #include "firearm_hits.hpp"
 #include "weapons.hpp"
+#include "weapon_accuracy.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -12,14 +13,16 @@ FirearmShot reportFirearmHits(std::uint8_t slot, const viewer::WeaponConfig& wea
         glm::vec3 origin, glm::vec3 direction,
         const std::function<std::optional<viewer::ZombieShotTrace>(glm::vec3, glm::vec3)>& trace,
         std::vector<FirearmImpact>* impacts,
-        const std::function<std::optional<viewer::DogShotTrace>(glm::vec3, glm::vec3)>& dogTrace) {
+        const std::function<std::optional<viewer::DogShotTrace>(glm::vec3, glm::vec3)>& dogTrace,
+        glm::vec2 aimOffsetDegrees) {
     if (slot >= viewer::punchSlot || weapon.grenade || !trace)
         throw std::invalid_argument("Firearm hit reporting requires an equipped firearm and scene query");
-    const auto directions = viewer::weaponShotDirections(weapon, direction);
+    const auto directions = viewer::weaponShotDirections(weapon, viewer::inaccurateShotDirection(direction, aimOffsetDegrees));
     if (directions.size() > maxFirearmHits)
         throw std::invalid_argument("Firearm pellet count exceeds report capacity");
     FirearmShot result;
     result.slot = slot;
+    result.aimOffsetDegrees = aimOffsetDegrees;
     std::vector<FirearmImpact> presentation;
     for (std::size_t pellet = 0; pellet < directions.size(); ++pellet) {
         const auto hit = trace(origin,directions[pellet]);

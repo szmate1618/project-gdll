@@ -81,6 +81,7 @@ ReticleOverlay::ReticleOverlay(const std::filesystem::path& shaderDirectory) {
         program_ = createProgram(shaderDirectory);
         modeLocation_ = glGetUniformLocation(program_, "uMode");
         aspectLocation_ = glGetUniformLocation(program_, "uAspect");
+        inaccuracyLocation_ = glGetUniformLocation(program_, "uInaccuracyRadius");
         glGenVertexArrays(1, &vao_);
     } catch (...) {
         glBindVertexArray(static_cast<GLuint>(previousVao));
@@ -97,7 +98,7 @@ void ReticleOverlay::release() noexcept {
     if (program_) glDeleteProgram(program_);
 }
 
-void ReticleOverlay::draw(Camera::ViewMode mode, int width, int height) {
+void ReticleOverlay::draw(Camera::ViewMode mode, int width, int height, float inaccuracyRadius) {
     if (width <= 0 || height <= 0) return;
 
     GLint previousProgram = 0, previousVao = 0;
@@ -123,6 +124,7 @@ void ReticleOverlay::draw(Camera::ViewMode mode, int width, int height) {
     glUseProgram(program_);
     glUniform1i(modeLocation_, shaderMode(mode));
     glUniform1f(aspectLocation_, static_cast<float>(width) / static_cast<float>(height));
+    glUniform1f(inaccuracyLocation_, std::max(0.f, inaccuracyRadius));
     glBindVertexArray(vao_);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 

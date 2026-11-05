@@ -5,6 +5,7 @@ out vec4 fragColor;
 
 uniform int uMode;
 uniform float uAspect;
+uniform float uInaccuracyRadius;
 
 float band(float value, float halfWidth) {
     float edge = fwidth(value) + 0.001;
@@ -27,7 +28,8 @@ void main() {
     // Scaling X produces circular geometry on non-square framebuffers.
     vec2 point = vec2(vNdc.x * uAspect, vNdc.y);
     if (uMode == 0) {
-        float mark = crosshair(point, 0.100, 0.0010, 0.052);
+        float gap = 0.008 + uInaccuracyRadius;
+        float mark = crosshair(point, gap + 0.025, 0.0010, gap);
         fragColor = vec4(vec3(0.95), mark * 0.90);
         return;
     }

@@ -421,7 +421,7 @@ target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus:
 viewer_warnings(viewer_weapon_config)
 include(cmake/Inventory.cmake)
 
-add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_switch.cpp src/action_selection.cpp)
+add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_accuracy.cpp src/weapon_switch.cpp src/action_selection.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
@@ -772,6 +772,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_weapon_motion)
     add_test(NAME viewer_weapon_motion COMMAND test_weapon_motion)
 
+    add_executable(test_weapon_accuracy tests/test_weapon_accuracy.cpp)
+    target_link_libraries(test_weapon_accuracy PRIVATE viewer_weapons)
+    viewer_warnings(test_weapon_accuracy)
+    add_test(NAME viewer_weapon_accuracy COMMAND test_weapon_accuracy "${PROJECT_SOURCE_DIR}/storage/weapons")
+
     add_executable(test_muzzle_flash tests/test_muzzle_flash.cpp)
     target_link_libraries(test_muzzle_flash PRIVATE viewer_sun_lighting)
     viewer_warnings(test_muzzle_flash)
@@ -862,6 +867,14 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_weapon_overlay)
     add_test(NAME viewer_weapon_overlay COMMAND test_weapon_overlay)
     set_tests_properties(viewer_weapon_overlay PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_reticle tests/test_reticle.cpp src/reticle_overlay.cpp)
+    target_link_libraries(test_reticle PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_reticle PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_reticle)
+    add_test(NAME viewer_reticle COMMAND test_reticle "${CMAKE_CURRENT_BINARY_DIR}/reticle-check")
+    set_tests_properties(viewer_reticle PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_weapon_models tests/test_weapon_models.cpp)
     target_link_libraries(test_weapon_models PRIVATE viewer_model viewer_weapons)

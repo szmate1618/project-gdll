@@ -29,6 +29,7 @@
 #include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "weapons.hpp"
+#include "weapon_accuracy.hpp"
 #include "action_selection.hpp"
 #include "weapon_switch.hpp"
 #include "weapon_reload.hpp"
@@ -495,6 +496,7 @@ struct AppState {
     viewer::WeaponSwitch weaponSwitch;
     viewer::WeaponReload weaponReload;
     viewer::WeaponMotion weaponMotion;
+    viewer::ShotInaccuracy shotInaccuracy;
     viewer::PlayerVitals vitals;
     double lastDamageSeconds = -1;
     viewer::DoorLayer* doors = nullptr;
@@ -801,9 +803,14 @@ bool updateWeapons(AppState& app, double seconds) {
     } else if (app.audio) app.audio->shot(app.weapons.slot());
     if (!config.grenade) {
         const auto origin = app.rig.camera().position();
+        const float sigma = viewer::hipFireInaccuracy(config,
+            glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z)),
+            app.rig.player().movementState().posture, app.rig.player().config(),
+            aim.viewMode() != viewer::Camera::ViewMode::original);
+        const auto shotDirection = viewer::inaccurateShotDirection(aim.direction(), app.shotInaccuracy.sample(sigma));
         if (app.zombies) app.zombies->makeNoise(origin,110);
         if (app.dogs) app.dogs->makeNoise(origin,110);
-        for (const auto direction : viewer::weaponShotDirections(config,aim.direction())) {
+        for (const auto direction : viewer::weaponShotDirections(config,shotDirection)) {
             const auto dog = app.dogs ? app.dogs->traceShot(origin,direction,app.world,app.displayedAnimationSeconds) : std::nullopt;
             // Keep the nearest species on the ray; a pellet cannot hit both.
             bool nearerZombie = false;
@@ -1072,6 +1079,13 @@ void inputSelfTest(GLFWwindow* window) {
             wall.indices = {0, 1, 2, 0, 2, 3};
             fixture.primitives.push_back(std::move(wall)); fixture.draws.push_back({});
         }
+        viewer::Primitive ground;
+        for (const auto p : {glm::vec3(-5, 0, -1), {-5, 0, 12}, {5, 0, 12}, {5, 0, -1}}) {
+            viewer::Vertex vertex; vertex.position = p; ground.vertices.push_back(vertex);
+        }
+        ground.indices = {0, 1, 2, 0, 2, 3};
+        fixture.draws.push_back({fixture.primitives.size(), glm::mat4(1), "terrain"});
+        fixture.primitives.push_back(std::move(ground));
         const viewer::CollisionWorld world(fixture);
         viewer::ZombieLayer zombies;
         zombies.assets.emplace_back(); zombies.instances.emplace_back();
@@ -1080,6 +1094,10 @@ void inputSelfTest(GLFWwindow* window) {
         zombie.restTransform = zombie.restRoot = zombie.transform;
         zombies.behaviors.create(0, viewer::SimulationClock::instance().seconds(), glm::vec3(zombie.restRoot[3]));
         AppState shot(world, fixture); shot.zombies = &zombies;
+        // This fixture isolates occlusion and damage using exact crouched aim.
+        if (!shot.rig.enterWalking(glm::vec3(0, 1.7f, 0)))
+            throw std::runtime_error("Shooting self-test could not place a crouched player");
+        shot.rig.update(.5f, 0, 0, 0, false, false, true);
         shot.rig.camera().setPosition({0, .9f, 0}); shot.rig.camera().setOrientation(90, 0);
         shot.weapons.equip(0); shot.weapons.trigger(true);
         const auto rounds = shot.weapons.equipped().loaded;
@@ -2053,7 +2071,13 @@ int run(const Options& options) {
                 weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
                                    app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds(), app.temporaryHandling()));
             const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
-            reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height);
+            const float sigma = viewer::hipFireInaccuracy(heldWeapon.config,
+                glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z)),
+                app.rig.player().movementState().posture, app.rig.player().config(),
+                viewCamera.viewMode() != viewer::Camera::ViewMode::original);
+            const float projectionY = viewCamera.projection(float(overlayViewport.width) / overlayViewport.height)[1][1];
+            reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height,
+                viewer::inaccuracyCrosshairRadius(sigma, projectionY));
         }
         viewer::HudState hudState;
         hudState.seconds = simulationClock.seconds();

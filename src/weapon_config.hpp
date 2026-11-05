@@ -18,6 +18,7 @@ struct WeaponConfig {
     bool automatic = false, hasScope = false;
     int pellets = 1, magazineCapacity = 1, ammoPerShot = 1;
     float spreadDegrees = 0; // Cone half-angle about the camera's forward ray.
+    glm::vec3 hipFireInaccuracyDegrees{0}; // Normal sigma: standing still, walking, forward running.
     ShotCaliber caliber = ShotCaliber::low; // Base damage per bullet/pellet: low 1, high 2.
     glm::vec3 muzzlePosition{0}; // Model-local meters: X right, Y up, muzzle -Z.
     std::optional<GrenadeConfig> grenade; // A thrown body instead of hitscan.

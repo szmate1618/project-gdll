@@ -2284,6 +2284,34 @@ each shell. Empty clicks and grenade throws do not trigger firearm motion.
 Models keep their existing vertices and one draw per held weapon; part motion
 uses a pump mask and a translation in the vertex shader. Reload uses the configured weapon and storage access timer.
 
+Unscoped firearms apply a zero-mean normal angular error to each shot, with
+independent horizontal and vertical components. The values below are per-axis
+standard deviations in degrees, configured by `hip_fire_inaccuracy_degrees`
+in each weapon's gameplay TOML:
+
+| Firearm | Standing still | Walking at 3 m/s | Forward running at 6 m/s |
+| --- | ---: | ---: | ---: |
+| Pistol | 0.5° | 1° | 2° |
+| Submachine gun | 0.8° | 1.6° | 3.2° |
+| Shotgun | 0.6° | 1.2° | 2.4° |
+| Sniper, unscoped | 1° | 2° | 4° |
+
+Stationary crouch and prone have zero random angular error. Moving in either
+stance interpolates up to the standing-still value at full crouch/crawl speed.
+Standing movement interpolates between the three speed entries. Physical posture
+blends adjacent stance values linearly, so acceleration, braking and partial
+stance transitions all change accuracy continuously. Speed uses actual horizontal
+travel. Every shotgun shell samples one offset for its whole authored pellet
+pattern; the existing 4° pellet cone remains centered on that displaced axis.
+Multiplayer commands retain the sampled offset for retries and authoritative
+pellet directions (protocol 49).
+
+The hip-fire crosshair's four arms move outward with the projected radius
+containing roughly 95% of shot centers. Arm lengths stay fixed, and the compact
+center gap returns as accuracy improves. Normal-distribution tails can land
+beyond that indication; the shotgun's separate pellet cone is not included.
+Scoped aiming retains its breathing sway rather than adding this random error.
+
 Scoped sniper views have breathing sway and a short upward firing kick,
 scaled with zoom for comparable screen motion at both magnifications. The former
 breathing amplitude (roughly 20 pixels from center at 720p) is the **1×** baseline
@@ -2302,7 +2330,8 @@ integration and never accumulates into the mouse/controller camera. Single
 player uses the simulation clock. Multiplayer recoil starts on confirmed shots;
 sway is computed locally and the resulting aim uses the existing command angles,
 without extra animation messages. The muzzle light follows the animated barrel.
-Presentation profiles are in `src/weapon_motion.cpp`; there are no new item fields.
+Presentation profiles are in `src/weapon_motion.cpp`; hip-fire accuracy is
+configured separately in weapon gameplay TOMLs.
 Eye-relative positioning uses the configured standing body dimensions: a
 two-handed pistol hold and shoulder-seated stocks, with estimated shoulder
 width and arm reach. Crouching and prone preserve these upper-body proportions.
@@ -2394,6 +2423,8 @@ Each [weapon TOML](../storage/weapons/) defines `name`, `ammo_type`,
 (cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
 Firearms also require `caliber = "low"` or `"high"`. The pistol and SMG use low,
 the sniper uses high, and the shotgun uses low per pellet (1 body / 2 head damage).
+The optional `hip_fire_inaccuracy_degrees` array supplies the standing, walking
+and running normal standard deviations described above; omitted values default to zero.
 The muzzle is a required three-number array in the prepared model's local meters:
 X right, Y up, forward -Z. Its position is the center of the barrel's front cap,
 before applying the eye-relative weapon pose and camera-to-world transform.
@@ -3350,6 +3381,7 @@ storage/weapons/*.tags.txt       Comma-separated item categories
 inventory.toml             Starting weapons, loaded rounds, and ammo reserves
 src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pellet rays
 src/weapon_overlay.{hpp,cpp} Batched camera-local firearm meshes
+src/weapon_accuracy.{hpp,cpp} Normal hip-fire shot offsets and projected crosshair spread
 src/weapon_view_pose.{hpp,cpp} Eye-relative hand and shoulder weapon placement
 assets/weapons/models.json  CC0 Durango mesh source and modified M14 sniper
 tools/build_weapon_assets.py Offline GLB builder for firearms and the HE grenade

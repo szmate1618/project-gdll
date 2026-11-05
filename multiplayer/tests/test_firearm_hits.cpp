@@ -1,5 +1,6 @@
 #include "client/firearm_hits.hpp"
 #include "weapons.hpp"
+#include "weapon_accuracy.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -9,6 +10,39 @@
 namespace {
 void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
+}
+
+void sharedShotgunOffset() {
+    viewer::WeaponConfig weapon;
+    weapon.id = "shotgun"; weapon.pellets = 8; weapon.spreadDegrees = 4;
+    const glm::vec2 offset{3, -2};
+    std::vector<glm::vec3> rays;
+    const auto report = multiplayer::reportFirearmHits(2, weapon, {0, 0, 0}, {0, 0, -1},
+        [&](glm::vec3, glm::vec3 direction) -> std::optional<viewer::ZombieShotTrace> {
+            rays.push_back(direction); return {};
+        }, nullptr, {}, offset);
+    require(rays.size() == 8 && rays.front().x > 0 && rays.front().y < 0,
+            "A shotgun's centered pellet must receive the sampled angular offset");
+    for (std::size_t i = 1; i < rays.size(); ++i) {
+        const float angle = glm::degrees(std::acos(glm::clamp(glm::dot(rays.front(), rays[i]), -1.f, 1.f)));
+        require(std::abs(angle - 4) < .001f,
+                "Shotgun pellets must keep their authored cone around one inaccurate shot center");
+    }
+    multiplayer::Command command; command.sequence = 7; command.left = true; command.slot = 2; command.firearmShot = report;
+    const auto bytes = multiplayer::encode(multiplayer::Commands{{command}});
+    const auto decoded = std::get<multiplayer::Commands>(multiplayer::decode(bytes.data(), bytes.size()));
+    const auto& retained = *decoded.commands.front().firearmShot;
+    require(retained.aimOffsetDegrees == offset, "Shot retries must preserve the original normal sample");
+    const auto authoritative = viewer::weaponShotDirections(weapon,
+        viewer::inaccurateShotDirection({0, 0, -1}, retained.aimOffsetDegrees));
+    for (std::size_t i = 0; i < rays.size(); ++i)
+        require(glm::distance(rays[i], authoritative[i]) < .000001f,
+                "Client traces and server damage must use the same inaccurate pellet directions");
+    command.firearmShot->aimOffsetDegrees.x = std::numeric_limits<float>::quiet_NaN();
+    bool rejected = false;
+    try { multiplayer::encode(multiplayer::Commands{{command}}); }
+    catch (const std::exception&) { rejected = true; }
+    require(rejected, "The protocol must reject nonfinite random shot offsets");
 }
 
 void worldImpacts() {
@@ -155,7 +189,7 @@ int main() {
         const auto miss = multiplayer::reportFirearmHits(2, weapon, origin, forward,
             [](glm::vec3, glm::vec3) -> std::optional<viewer::ZombieShotTrace> { return {}; });
         require(miss.hits.empty() && miss.slot == 2, "A complete miss did not retain its firing weapon");
-        worldImpacts(); pelletImpacts(); impactSizes(); atomicOutput();
+        worldImpacts(); pelletImpacts(); impactSizes(); atomicOutput(); sharedShotgunOffset();
         std::cout << "Client firearm reports and presentation impacts preserve world/local frames, pellets and misses\n";
         return 0;
     } catch (const std::exception& error) {
