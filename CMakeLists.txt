@@ -1235,6 +1235,11 @@ if(BUILD_TESTING AND GD_VIEWER)
         VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/storage/weapons"
         VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
 
+    add_executable(test_player_health tests/test_player_health.cpp)
+    target_include_directories(test_player_health PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    viewer_warnings(test_player_health)
+    add_test(NAME viewer_player_health COMMAND test_player_health)
+
     add_executable(test_character_step tests/test_character_step.cpp)
     target_link_libraries(test_character_step PRIVATE viewer_fps viewer_zombies)
     viewer_warnings(test_character_step)

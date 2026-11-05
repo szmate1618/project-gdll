@@ -1402,6 +1402,26 @@ Zero health does not introduce death, control restrictions or respawning.
 Standalone applies lunge hit events locally. Multiplayer applies them on the
 server and transmits authoritative health; clients only present the result.
 
+`PlayerHealth` in `src/player_health.hpp` is the foundation for localized injuries.
+It stores health on the existing **0–100** scale, pain tolerance on **0–1**, and
+an owned list of `PlayerInjury` records. Each injury has a required `InjuryBodyPart`
+and `InjuryType`, plus independent **0–1** pain and weakness scores (**1 = 100%**).
+Several injuries can affect the same part. Invalid ranges and non-finite values
+are rejected. New state starts at 100 health, zero pain tolerance and no injuries.
+Pain tolerance is stored without applying a pain-reduction formula yet.
+
+Health locations have left/right hand, forearm, upper arm, wrist, elbow, shoulder,
+foot, lower leg, upper leg, ankle, knee and hip, plus pelvis, lower torso, upper
+torso, head and neck. These 29 locations are separate from physics/render parts.
+Injury types are cut, abrasion, puncture, bruise, blunt trauma, sprain (including
+a rolled joint), strain, dislocation, fracture, crush and burn. Bleeding, swelling
+and infection are independent modifiers attached to each injury.
+
+This is a storage model: combat still uses `PlayerVitals`. No automatic injury
+creation, bleeding damage, healing, aggregate pain/weakness effects or network
+replication is implemented yet. The model can later be owned by the existing
+server-authoritative health system and presented by clients.
+
 The custom-rig lunge fallback uses incoming world-space velocities in meters/second:
 `10 * length(zombieVelocity - playerVelocity) / baseLungeSpeed`, where
 `baseLungeSpeed = 1.5 / 0.15 = 10 m/s`. Use the velocity immediately before
@@ -3324,6 +3344,8 @@ returns, misses, one-hit cycles, and relative-velocity damage scaling.
 `viewer_player_vitals` checks fractional health, independent players, zero
 clamping and invalid damage. `multiplayer_zombie_attacks` checks server-owned
 damage and health snapshots.
+`viewer_player_health` checks localized injury storage, independent ownership,
+combined modifiers and normalized score validation.
 
 `viewer_character_step` runs both controllers against raised road sheets,
 downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.
