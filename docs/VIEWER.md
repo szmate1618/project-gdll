@@ -2080,6 +2080,8 @@ normal time immediately; completing sleep never automatically starts another.
 After waking, an eight-second notice gives the reason in a short story message,
 followed by **Sleep ended**. Arrivals and departures use distinct radio announcements;
 nearby threats interrupt rest with the sound of shuffling feet.
+Each arrival notice randomly chooses between the boots-on-the-ground and operative
+announcements, keeping that wording for the whole notice.
 
 During accelerated sleep, scenario travellers advance on their individual stored
 paths every half simulation second, at their ordinary 1.2 m/s route speed.

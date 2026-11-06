@@ -30,6 +30,8 @@ private:
     glm::vec2 pointer_{-1};
     std::uint16_t minutes_ = minimumSleepMinutes;
     std::uint64_t revision_ = 0;
+    double arrivalEndedAt_ = -1;
+    const char* arrivalMessage_ = nullptr; // String literal, chosen once per arrival wake notice.
     bool open_ = false, notice_ = false, available_ = false;
     std::string pressed_;
     std::optional<SleepAction> action_;

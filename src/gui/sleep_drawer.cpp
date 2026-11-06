@@ -4,6 +4,7 @@
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <array>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -15,6 +16,13 @@ constexpr std::array<const char*, 12> controls{{"sleep-tab", "sleep-close", "sle
     "sleep-suggest", "sleep-accept", "sleep-guard", "sleep-cancel", "sleep-notice-accept",
     "sleep-notice-guard", "sleep-notice-another", "sleep-roster"}};
 std::string dayLabel(std::uint64_t day) { return "DAY " + std::to_string(day); }
+const char* chooseArrivalMessage() {
+    constexpr std::array<const char*, 2> messages{{
+        "Radio: Attention, all survivors. Another pair of boots has hit the ground in the area of operations.",
+        "Radio: All survivors, be advised. Another operative has been deployed to the area of operations."}};
+    static std::mt19937 random{std::random_device{}()};
+    return messages[std::uniform_int_distribution<std::size_t>{0, messages.size() - 1}(random)];
+}
 }
 SleepDrawer::SleepDrawer(Rml::ElementDocument& document) : document_(document) {
     for (const char* id : {"sleep-drawer", "sleep-panel", "sleep-tab", "sleep-close", "sleep-day", "sleep-clock",
@@ -75,7 +83,13 @@ void SleepDrawer::update(const HudState& state) {
         case SleepWakeReason::Threat: wakeMessage = "Restless feet drag across the earth. Their shuffling leaves no room for dreams."; break;
         case SleepWakeReason::Damage: wakeMessage = "Pain tears you from your dreams. The world demands your attention."; break;
         case SleepWakeReason::Cancelled: wakeMessage = "The watch is over. It is time to open your eyes."; break;
-        case SleepWakeReason::PlayerJoined: wakeMessage = "Radio: Attention, all survivors. Another pair of boots has hit the ground in the area of operations."; break;
+        case SleepWakeReason::PlayerJoined:
+            if (!arrivalMessage_ || arrivalEndedAt_ != plan.endedAt) {
+                arrivalMessage_ = chooseArrivalMessage();
+                arrivalEndedAt_ = plan.endedAt;
+            }
+            wakeMessage = arrivalMessage_;
+            break;
         case SleepWakeReason::PlayerLeft: wakeMessage = "Radio: Attention, all survivors. One of your own has left the area of operations."; break;
         default: break;
         }
