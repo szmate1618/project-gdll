@@ -664,16 +664,22 @@ duration. The server shares the proposal and each player's response, rejects
 responses to superseded proposals, and asks everyone again when the duration
 changes. Plans can be cancelled or responses withdrawn. Agreement blacks out
 accepted sleepers' screens, with a remaining-time display and Wake up control;
-Escape also wakes everyone. Guards keep normal time and can join sleep later.
-When all players sleep, the authority targets 30× normal speed, retaining fixed
-physics ticks and sending snapshots at 20 Hz of wall time. Sleeping players'
+Escape also wakes everyone. Guards use the same blackout on automatic watch,
+with Go to sleep and Wake up controls. Guarded sleep also targets 30× normal speed,
+retaining fixed physics ticks and sending snapshots at 20 Hz of wall time. All participants'
 input sequences continue to be acknowledged while gameplay actions are blocked.
 Waking resets presentation timing so the client resumes at the new world time.
-Danger within 60 metres, damage, group changes or the selected deadline end
+Danger within 60 metres of a sleeper, damage, group changes or the selected deadline end
 sleep. Distant travellers use coarse path progress with no obstacle checks;
 normal movement and terrain placement resume on waking. Stamina and strain
 recover, but sleep does not heal injuries. Clients and servers must both use
-protocol version 54. Wake notices show a short story reason above **Sleep ended**
+protocol version 55. The handshake includes the selected character's name for
+guard alerts. Each guard checks the nearest 20 living zombies every five simulated
+seconds, within 50 m at night and 100 m by day with a twilight blend. A visible
+head and movement roughly toward the guard wake the group. The spotting guard
+faces the detected zombie; everyone sees the guard's name and compass direction.
+Guards recover stamina at the standing rate and receive no sleep strain recovery.
+Wake notices show a short story reason above **Sleep ended**
 for eight seconds, with distinct radio announcements for arrivals and departures.
 
 F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases

@@ -83,6 +83,7 @@ struct ZombiePlayer {
     std::optional<std::string_view> house = std::nullopt;
     // Prone head/torso geometry; upright targets use the dimensions above.
     std::optional<CollisionBox> collisionBox = std::nullopt;
+    bool sleepGuard = false; // Automatic watch uses sight checks rather than the sleeper proximity tripwire.
 };
 
 // Horizontal +Z is the character's forward direction; ignores vertical offset.

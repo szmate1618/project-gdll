@@ -123,7 +123,7 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
                     if (!network.send(c, configuration, true)) throw std::runtime_error("Cannot send session settings");
                 } else if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
                     if (peer.id || hello->fingerprint != scene.fingerprint) throw std::runtime_error("Content mismatch or duplicate hello");
-                    peer.id = world.join();
+                    peer.id = world.join(hello->characterName);
                     appearances.join(peer.id);
                     if (!network.send(c, multiplayer::Welcome{peer.id}, true)) throw std::runtime_error("Cannot send welcome");
                     sendState(c, peer.id);

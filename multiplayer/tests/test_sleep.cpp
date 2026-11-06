@@ -3,6 +3,7 @@
 #include "sleep_plan.hpp"
 #include "simulation_clock.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -55,8 +56,9 @@ void lifecycle() {
     plan.apply(1, {SleepActionKind::Suggest, 0, 480});
     require(!plan.begin(10, {12,1200}), "Sleep began before the group answered");
     plan.apply(2, {SleepActionKind::Guard, 1, 30});
-    require(plan.begin(10, {12,1200}) && plan.state().asleep(1) && !plan.state().asleep(2) && plan.state().rate() == 1,
-        "A guard must stay awake at normal simulation speed");
+    require(plan.begin(10, {12,1200}) && plan.state().asleep(1) && plan.state().guarding(2) &&
+        plan.state().inSleepSession(2) && plan.state().rate() == 30,
+        "Automatic watch must suspend guard controls while allowing accelerated sleep");
     require(plan.state().endsAt == 410, "Eight game hours must equal 400 simulation seconds on the default clock");
     plan.apply(2, {SleepActionKind::Accept,1,30},20);
     require(plan.state().rate() == 30, "The last guard joining sleep must permit acceleration");
@@ -83,9 +85,26 @@ void lifecycle() {
     player.restSleeping(400,8);
     require(player.feet() == movement.feet && player.exertion().strain == 0 && player.exertion().stamina == 1,
         "Sleep recovery must restore exertion without moving or healing the player");
+    player.restoreMovement(movement); player.standGuard(400);
+    require(player.feet() == movement.feet && player.exertion().strain == 1,
+        "Automatic watch must not move the guard or award sleep strain recovery");
+    plan.apply(1,{SleepActionKind::Suggest,plan.state().revision,30});
+    plan.apply(2,{SleepActionKind::Guard,plan.state().revision,30});
+    require(plan.begin(504,{12,1200}), "Cannot start another guarded sleep");
+    plan.guardSpotted({1,"Sleeper",1,{0,1.7f,-75}},505);
+    require(plan.state().sleeping, "A sleeping player spoofed a guard sighting");
+    plan.guardSpotted({2,"Bandi",1,{0,1.7f,-75}},505);
+    require(!plan.state().sleeping && plan.state().rate() == 1 &&
+        plan.state().wakeReason == SleepWakeReason::GuardSpotted && plan.state().guardAlert.name == "Bandi",
+        "Guard sighting must wake the entire group and preserve the named alert");
 }
 void wire() {
     using namespace multiplayer;
+    const Hello hello{std::string(64,'a'), "Bandi"};
+    auto handshake = encode(hello);
+    require(std::get<Hello>(decode(handshake.data(),handshake.size())).characterName == "Bandi", "Character name missing from handshake");
+    rejects([&] { encode(Hello{hello.fingerprint,std::string(33,'a')}); });
+    rejects([&] { encode(Hello{hello.fingerprint,"Bandi\nspoof"}); });
     Command command; command.sequence = 1;
     command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Suggest, 42, 720};
     auto bytes = encode(Commands{{command}});
@@ -107,7 +126,16 @@ void wire() {
         require(std::get<Snapshot>(decode(bytes.data(), bytes.size())).sleepPlan.wakeReason == reason,
             "Arrival/departure wake reason lost in transit");
     }
-    snapshot.sleepPlan.wakeReason = static_cast<viewer::SleepWakeReason>(7);
+    snapshot.sleepPlan.wakeReason = viewer::SleepWakeReason::GuardSpotted;
+    snapshot.sleepPlan.guardAlert = {2,"Bandi",1,{28,1.7f,-70}};
+    bytes = encode(snapshot);
+    const auto alert = std::get<Snapshot>(decode(bytes.data(),bytes.size())).sleepPlan.guardAlert;
+    require(alert.guard == 2 && alert.name == "Bandi" && alert.bearing == 1 && alert.target == glm::vec3(28,1.7f,-70),
+        "Named directional guard alert lost in transit");
+    snapshot.sleepPlan.guardAlert.bearing = 16; rejects([&] { encode(snapshot); });
+    snapshot.sleepPlan.guardAlert.bearing = 1; snapshot.sleepPlan.guardAlert.guard = 0;
+    rejects([&] { encode(snapshot); });
+    snapshot.sleepPlan.wakeReason = static_cast<viewer::SleepWakeReason>(8);
     rejects([&] { encode(snapshot); });
     Snapshots snapshots; snapshots.push(restored, 0);
     snapshot.tick = 101; snapshot.sleepPlan = {44, 2, 30, {{1, viewer::SleepResponse::Pending}, {2, viewer::SleepResponse::Accept}}};
@@ -136,7 +164,7 @@ void server(const char* map) {
     world.submit(second, Commands{{command}});
     for (int i = 0; i < 10; ++i) world.step();
     require(world.snapshot(first).sleepPlan.ready(), "Remote guard response did not reach proposer");
-    require(world.snapshot(first).sleepPlan.sleeping && world.simulationRate() == 1, "Guarded sleep must start at normal speed");
+    require(world.snapshot(first).sleepPlan.sleeping && world.simulationRate() == 30, "Guarded sleep must permit acceleration");
     require(!world.players().at(first).inventory.held(), "Sleep left an unfinished inventory transaction attached to the player");
     command.sequence = 2; command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Accept, proposal.revision, 30};
     world.submit(second,Commands{{command}});
@@ -169,11 +197,60 @@ void server(const char* map) {
     require(!world.snapshot(second).sleepPlan.sleeping && world.snapshot(second).sleepPlan.wakeReason == viewer::SleepWakeReason::Threat,
         "A living zombie inside the 60-metre boundary did not wake the sleeper");
 }
+void guardedWake(const char* map) {
+    using namespace multiplayer;
+    Options options; options.map = map; options.trees = options.forests = options.cars = false; options.zombieCount = 0;
+    Scene scene(options); scene.dayNight = {12,1200}; scene.zombies.setPerceptionEnabled(false);
+    World world(scene);
+    const auto sleeper = world.join("Almos"), guard = world.join("Bandi"), otherGuard = world.join("Juli");
+    Command command; command.sequence = 1;
+    command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Suggest,0,240};
+    world.submit(sleeper,Commands{{command}});
+    for (int i = 0; i < 10 && !world.snapshot(sleeper).sleepPlan.proposer; ++i) world.step();
+    command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Guard,world.snapshot(sleeper).sleepPlan.revision,30};
+    world.submit(guard,Commands{{command}}); world.submit(otherGuard,Commands{{command}}); world.step();
+    require(world.simulationRate() == 30, "Guards prevented shared fast-forward");
+    const auto feet = world.players().at(guard).controller.feet();
+    const auto eyes = world.players().at(guard).controller.eyePosition();
+    glm::vec3 target{}; bool clear = false;
+    for (int sector = 1; sector <= 16 && !clear; ++sector) {
+        const float angle = glm::radians(float(sector) * 22.5f);
+        target = eyes + 75.f * glm::vec3(std::sin(angle),0,-std::cos(angle));
+        clear = scene.collision->lineOfSight(eyes,target);
+    }
+    require(clear,"Guard fixture needs a clear 75-metre sight line");
+    viewer::AnimatedModel asset; viewer::SkeletonBone head; head.name = "head";
+    head.referenceWorld = glm::translate(glm::mat4(1),glm::vec3(0,eyes.y-feet.y,0));
+    asset.skeleton.push_back(head); asset.ragdollBones[std::size_t(viewer::RagdollPart::head)] = 0;
+    viewer::ZombieInstance threat; threat.asset = scene.zombies.assets.size();
+    scene.zombies.assets.push_back(std::move(asset));
+    const auto zombieFeet = target - glm::vec3(0,eyes.y-feet.y,0);
+    threat.restRoot = threat.restTransform = threat.transform = glm::translate(glm::mat4(1),zombieFeet);
+    threat.locomotionVelocity = glm::normalize(feet-zombieFeet);
+    scene.zombies.instances.push_back(threat); scene.zombies.rebuildSpatialIndex();
+    command.sequence = 2; command.sleepAction.reset(); command.movement.forward = 1; command.movement.jump = true; command.left = true;
+    world.submit(guard,Commands{{command}});
+    for (int i = 0; i < 290; ++i) world.step();
+    require(world.snapshot(sleeper).sleepPlan.sleeping && world.players().at(guard).controller.feet() == feet,
+        "Guard moved during automatic watch or scanned before the five-second deadline");
+    for (int i = 0; i < 15 && world.snapshot(sleeper).sleepPlan.sleeping; ++i) world.step();
+    const auto plan = world.snapshot(sleeper).sleepPlan;
+    require(!plan.sleeping && world.simulationRate() == 1 && plan.wakeReason == viewer::SleepWakeReason::GuardSpotted &&
+        plan.guardAlert.guard == guard && plan.guardAlert.name == "Bandi" &&
+        plan.guardAlert.bearing == viewer::sleepGuardBearing(target-eyes),
+        "A guard's visible incoming threat did not wake the whole group with a named directional alert");
+    require(world.snapshot(otherGuard).sleepPlan.guardAlert.name == "Bandi", "Other guards missed the shared wake alert");
+    const auto angles = viewer::sleepGuardLookAngles(eyes,target);
+    const auto state = world.snapshot(guard);
+    const auto player = std::find_if(state.players.begin(),state.players.end(),[&](const auto& p) { return p.id == guard; });
+    require(player != state.players.end() && std::abs(player->yaw-angles.x) < .001f && std::abs(player->pitch-angles.y) < .001f,
+        "Spotting guard did not face the detected head on waking");
+}
 }
 int main(int argc, char** argv) {
     try {
         calendar(); planning(); lifecycle(); wire();
-        require(argc == 2, "Expected test map"); server(argv[1]);
+        require(argc == 2, "Expected test map"); server(argv[1]); guardedWake(argv[1]);
         std::cout << "Sleep planning, calendar, protocol and server checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

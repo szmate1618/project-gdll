@@ -348,11 +348,11 @@ target_include_directories(viewer_day_night_clock PUBLIC "${CMAKE_CURRENT_SOURCE
 viewer_warnings(viewer_day_night_clock)
 
 add_library(viewer_sleep STATIC src/sleep_plan.cpp)
-target_link_libraries(viewer_sleep PUBLIC viewer_day_night_clock)
+target_link_libraries(viewer_sleep PUBLIC viewer_day_night_clock glm::glm)
 viewer_warnings(viewer_sleep)
 
-add_library(viewer_sleep_world STATIC src/sleep_threat.cpp)
-target_link_libraries(viewer_sleep_world PUBLIC viewer_sleep viewer_zombies viewer_dogs)
+add_library(viewer_sleep_world STATIC src/sleep_threat.cpp src/sleep_watch.cpp)
+target_link_libraries(viewer_sleep_world PUBLIC viewer_sleep viewer_zombies viewer_dogs viewer_sun_lighting)
 viewer_warnings(viewer_sleep_world)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp src/interior_zombie_placement.cpp src/interior_zombies.cpp src/zombie_interior_behavior.cpp
@@ -1309,6 +1309,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_day_night PRIVATE viewer_sun_lighting)
     viewer_warnings(test_day_night)
     add_test(NAME viewer_day_night COMMAND test_day_night)
+
+    add_executable(test_sleep_watch tests/test_sleep_watch.cpp)
+    target_link_libraries(test_sleep_watch PRIVATE viewer_sleep_world)
+    viewer_warnings(test_sleep_watch)
+    add_test(NAME viewer_sleep_watch COMMAND test_sleep_watch)
 
     add_executable(test_shadow_renderer tests/test_shadow_renderer.cpp)
     target_link_libraries(test_shadow_renderer PRIVATE viewer_renderer glfw)

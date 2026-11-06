@@ -70,6 +70,15 @@ void sleepApproximation() {
     const auto path = approach.navigation()->pathFor(0);
     approach.setSleepTravel(false,world);
     require(path && approach.navigation()->pathFor(0) == path, "Waking destroyed the prepared route");
+    auto guarded = traveler({70,7,0},{50,5,0});
+    guarded.setPerceptionEnabled(false); guarded.setSleepTravel(true,world);
+    auto guard = viewer::ZombiePlayer{{0,0,0}}; guard.sleepGuard = true;
+    for (int i = 0; i < 1200; ++i) {
+        viewer::SimulationClock::instance().advance(dt);
+        guarded.updateBehaviorForPlayers(dt,{guard,far},world,viewer::SimulationClock::instance().seconds());
+        require(!guarded.takeSleepTravelThreat(), "Coarse travel bypassed guard visibility with a proximity wake-up");
+    }
+    require(guarded.scenarioFinished(0), "Automatic watch prevented coarse travel past a guard");
     auto ordinary = traveler({-10,-1,0},{10,1,0});
     advance(ordinary,world,viewer::ZombiePlayer{{-10,-1,10}});
     require(!ordinary.scenarioDestination(0), "Fixture failed to hand a traveller to ordinary perception");

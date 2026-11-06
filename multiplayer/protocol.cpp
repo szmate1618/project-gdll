@@ -238,6 +238,15 @@ template<class T> void uniqueIds(const std::vector<T>& values) {
     std::set<std::uint32_t> ids;
     for (const auto& item : values) if (!ids.insert(item.id).second) throw std::runtime_error("Duplicate multiplayer entity ID");
 }
+void characterName(Wire& w, std::string& name) {
+    w.text(name, 128);
+    std::size_t characters = 0;
+    for (const unsigned char c : name) {
+        if (c < 32 || c == 127) throw std::runtime_error("Invalid character name");
+        if ((c & 0xc0) != 0x80) ++characters;
+    }
+    if (characters > 32) throw std::runtime_error("Character name too long");
+}
 void payload(Wire& w, Hello& hello) {
     if (w.reading) hello.fingerprint.resize(64);
     if (hello.fingerprint.size() != 64) throw std::runtime_error("Invalid content fingerprint");
@@ -245,6 +254,7 @@ void payload(Wire& w, Hello& hello) {
         auto n = static_cast<std::uint8_t>(c); w.integer(n); c = static_cast<char>(n);
         if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) throw std::runtime_error("Invalid content fingerprint");
     }
+    characterName(w, hello.characterName);
 }
 void payload(Wire& w, Welcome& welcome) {
     w.integer(welcome.player);
@@ -456,10 +466,16 @@ void sleepPlan(Wire& w, viewer::SleepPlanState& sleep) {
         throw std::runtime_error("Invalid sleep proposer");
     w.flag(sleep.sleeping); w.number(sleep.startedAt); w.number(sleep.endsAt); w.number(sleep.endedAt);
     auto reason = static_cast<std::uint8_t>(sleep.wakeReason); w.integer(reason);
-    if (reason > static_cast<std::uint8_t>(viewer::SleepWakeReason::PlayerLeft) ||
+    if (reason > static_cast<std::uint8_t>(viewer::SleepWakeReason::GuardSpotted) ||
         (sleep.sleeping && (!sleep.ready() || sleep.startedAt < 0 || sleep.endsAt <= sleep.startedAt)))
         throw std::runtime_error("Invalid sleep lifecycle");
     sleep.wakeReason = static_cast<viewer::SleepWakeReason>(reason);
+    if (sleep.wakeReason == viewer::SleepWakeReason::GuardSpotted) {
+        auto& alert = sleep.guardAlert;
+        w.integer(alert.guard); characterName(w, alert.name); w.integer(alert.bearing); w.vector(alert.target);
+        if (sleep.sleeping || !alert.guard || alert.name.empty() || alert.bearing >= 16)
+            throw std::runtime_error("Invalid guard alert");
+    } else if (w.reading) sleep.guardAlert = {};
 }
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);

@@ -1340,6 +1340,28 @@ int main(int argc, char** argv) {
                 "Blackout wake button must send an authoritative wake action");
             sleeping.apply(1,*action,100); rest.sleepPlan = sleeping.state(); draw();
             if(argc>1) capture((std::string(argv[1])+"-sleep-woke.ppm").c_str(),pixels(1280,720),1280,720);
+            viewer::SleepPlan watch; watch.join(1); watch.join(2);
+            watch.apply(2,{viewer::SleepActionKind::Suggest,0,480});
+            watch.apply(1,{viewer::SleepActionKind::Guard,watch.state().revision,30});
+            watch.begin(100,rest.dayNight); rest.sleepPlan = watch.state(); draw(); draw();
+            require(isColor(colorAt(pixels(1280,720),1280,720,1210,60),{0,0,0}),
+                "Automatic guard watch must black out the world and ordinary HUD");
+            if (argc > 1) {
+                capture((std::string(argv[1])+"-sleep-guard-blackout.ppm").c_str(),pixels(1280,720),1280,720);
+                clear(); hud.draw(rest,960,540); checkState();
+                capture((std::string(argv[1])+"-sleep-guard-blackout-540p.ppm").c_str(),pixels(960,540),960,540);
+                draw();
+            }
+            click(560,450); action = hud.takeSleepAction();
+            require(action && action->kind == viewer::SleepActionKind::Accept,
+                "Guard blackout must let the player join sleep");
+            watch.guardSpotted({1,"Bandi",1,{28,1.7f,-70}},100); rest.sleepPlan = watch.state(); draw();
+            if (argc > 1) {
+                capture((std::string(argv[1])+"-sleep-guard-alert.ppm").c_str(),pixels(1280,720),1280,720);
+                clear(); hud.draw(rest,960,540); checkState();
+                capture((std::string(argv[1])+"-sleep-guard-alert-540p.ppm").c_str(),pixels(960,540),960,540);
+                draw();
+            }
             if (argc > 1) {
                 for (const auto reason : {viewer::SleepWakeReason::PlayerJoined, viewer::SleepWakeReason::PlayerLeft,
                     viewer::SleepWakeReason::Threat, viewer::SleepWakeReason::Damage, viewer::SleepWakeReason::Rested}) {

@@ -103,7 +103,9 @@ void check(const std::filesystem::path& path) {
     require(multiplayer::loadSavedCharacterAppearance(root, path).rgb == appearance.rgb,
             "Saving a different character must not change the appearance uploaded for a session");
     collection.use(selected.id);
-    const auto nextSession = multiplayer::loadSavedCharacterAppearance(root, path);
+    std::string sessionName;
+    const auto nextSession = multiplayer::loadSavedCharacterAppearance(root, path, &sessionName);
+    require(sessionName == "Another survivor", "Guard alerts must use the selected roster character's name");
     const auto backCorner = std::size_t(256 * 256 * 3);
     require(nextSession.rgb[backCorner] == 9 && nextSession.rgb[backCorner + 1] == 8 && nextSession.rgb[backCorner + 2] == 7,
             "Sessions must upload the explicitly chosen roster character");

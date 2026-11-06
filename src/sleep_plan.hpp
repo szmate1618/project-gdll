@@ -1,6 +1,7 @@
 #pragma once
 
 #include "day_night_clock.hpp"
+#include <glm/vec3.hpp>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -22,7 +23,14 @@ GameCalendarTime gameCalendarTime(const DayNightCycle& cycle, double seconds, in
 
 enum class SleepResponse : std::uint8_t { Pending, Accept, Guard };
 enum class SleepActionKind : std::uint8_t { Suggest, Accept, Guard, Cancel };
-enum class SleepWakeReason : std::uint8_t { None, Rested, Threat, Damage, Cancelled, PlayerJoined, PlayerLeft };
+enum class SleepWakeReason : std::uint8_t { None, Rested, Threat, Damage, Cancelled, PlayerJoined, PlayerLeft, GuardSpotted };
+struct SleepGuardAlert {
+    std::uint32_t guard = 0;
+    std::string name;
+    std::uint8_t bearing = 0;
+    glm::vec3 target{0}; // Spotted head in runtime world metres, for the guard's wake-up view.
+};
+const char* sleepGuardDirection(std::uint8_t bearing);
 struct SleepAction {
     SleepActionKind kind = SleepActionKind::Suggest;
     std::uint64_t revision = 0; // Respond only to the proposal actually seen.
@@ -40,14 +48,18 @@ struct SleepPlanState {
     bool sleeping = false;
     double startedAt = 0, endsAt = 0, endedAt = -1; // Simulation seconds.
     SleepWakeReason wakeReason = SleepWakeReason::None;
+    SleepGuardAlert guardAlert{};
     SleepResponse response(std::uint32_t player) const;
     bool ready() const; // Everyone answered, with at least one accepting sleeper.
     bool asleep(std::uint32_t player) const { return sleeping && response(player) == SleepResponse::Accept; }
+    bool guarding(std::uint32_t player) const { return sleeping && response(player) == SleepResponse::Guard; }
+    // Both sleeping and automatic watch suspend direct control and black out the screen.
+    bool inSleepSession(std::uint32_t player) const { return asleep(player) || guarding(player); }
     int rate() const;
 };
 
 // Authority-owned agreement and sleep lifecycle. Time is supplied by the world;
-// guards keep the simulation at real time while accepted sleepers rest.
+// guards watch automatically while the shared simulation accelerates.
 class SleepPlan {
 public:
     const SleepPlanState& state() const { return state_; }
@@ -57,6 +69,7 @@ public:
     bool begin(double now, const DayNightCycle& cycle);
     void update(double now);
     void wake(SleepWakeReason reason, double now);
+    void guardSpotted(SleepGuardAlert alert, double now);
 private:
     void cancel();
     SleepPlanState state_;

@@ -18,6 +18,7 @@
 #include "player_vitals.hpp"
 #include "melee_combat.hpp"
 #include "vehicle_zombie_collision.hpp"
+#include "sleep_watch.hpp"
 #include <map>
 #include <deque>
 #include <set>
@@ -52,11 +53,13 @@ struct ServerPlayer {
     viewer::PlayerHouseState house;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
     float sleepHealth = 100;
+    std::string characterName;
+    viewer::SleepGuardWatch sleepWatch;
 };
 class World {
 public:
     explicit World(Scene& scene);
-    std::uint32_t join();
+    std::uint32_t join(const std::string& characterName = {});
     void leave(std::uint32_t id);
     void submit(std::uint32_t id, const Commands& commands);
     void step();

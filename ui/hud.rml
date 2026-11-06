@@ -74,10 +74,11 @@
     </div>
     <div id="sleep-blackout">
         <div id="sleep-blackout-content">
-            <div class="sleep-blackout-title">RESTING</div>
+            <div id="sleep-rest-title" class="sleep-blackout-title">RESTING</div>
             <div id="sleep-rest-clock"></div><div id="sleep-rest-day"></div>
             <div id="sleep-rest-remaining"></div><div id="sleep-rest-rate"></div>
             <div id="sleep-rest-wake" class="sleep-button">Wake up</div>
+            <div id="sleep-rest-sleep" class="sleep-button">Go to sleep</div>
             <div class="sleep-rest-hint">TAB · FREE CURSOR TO WAKE</div>
         </div>
     </div>

@@ -132,10 +132,11 @@ World::World(Scene& scene) : scene_(scene), birds_(scene), vehicleSeats_(scene),
         }
     }
 }
-std::uint32_t World::join() {
+std::uint32_t World::join(const std::string& characterName) {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
     const auto id = nextPlayer_++;
     auto& player = players_.try_emplace(id, scene_.initialWeapons, scene_.initialInventory, scene_.physics).first->second;
+    player.characterName = characterName.empty() ? "Player " + std::to_string(id) : characterName;
     player.undergrowth = viewer::UndergrowthEmitter(id);
     auto spawn = scene_.spawnEye;
     spawn.x += static_cast<float>((id - 1) % maxPlayers) * 1.0f;
@@ -210,7 +211,8 @@ void World::step() {
         applyInventoryActions(player, scene_, player.held.objectHandling);
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
-                           id, player.velocity, player.controller.bodyRadius(), player.house.house(), player.controller.collisionBox()});
+                           id, player.velocity, player.controller.bodyRadius(), player.house.house(), player.controller.collisionBox(),
+                           sleepPlan_.state().guarding(id)});
         scentEmitters.push_back({player.controller.feet(),player.vitals.bleeding(),player.house.outside()});
     }
     // Advance living poses from the start-of-tick player state before aim and
@@ -269,18 +271,21 @@ void World::step() {
             const bool wasAsleep = sleepPlan_.state().asleep(id);
             if (command.sleepAction) sleepPlan_.apply(id, *command.sleepAction, now);
             if (!wasAsleep && sleepPlan_.state().asleep(id)) player.sleepHealth = player.vitals.health();
-            if (sleepPlan_.state().asleep(id)) {
+            if (sleepPlan_.state().inSleepSession(id)) {
                 player.weapons.cancelTrigger();
                 player.interaction.cancel();
                 player.inventoryDrag.cancel();
                 player.pendingInventoryActions.clear();
                 player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
-                player.controller.restSleeping(tickSeconds / inputs,
-                    static_cast<float>(tickSeconds / inputs * 24 / scene_.dayNight.dayLengthSeconds));
+                if (sleepPlan_.state().asleep(id))
+                    player.controller.restSleeping(tickSeconds / inputs,
+                        static_cast<float>(tickSeconds / inputs * 24 / scene_.dayNight.dayLengthSeconds));
+                else player.controller.standGuard(tickSeconds / inputs);
                 player.velocity = {};
                 player.body.follow(player.camera.position(), player.camera.direction(), false);
                 // Acknowledge incoming sequences while suppressing gameplay actions.
                 command.left = command.right = false; command.inventoryActions.clear(); command.firearmShot.reset();
+                command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
                 player.held = command;
                 continue;
             }
@@ -496,12 +501,26 @@ void World::step() {
         }
     }
     if (sleepPlan_.begin(now, scene_.dayNight))
-        for (auto& [id, player] : players_) { (void)id; player.sleepHealth = player.vitals.health(); }
+        for (auto& [id, player] : players_) {
+            (void)id; player.sleepHealth = player.vitals.health(); player.sleepWatch.reset();
+        }
+    for (auto& [id, player] : players_) {
+        if (!sleepPlan_.state().guarding(id)) { player.sleepWatch.reset(); continue; }
+        if (player.vitals.health() <= 0 || player.vitals.health() < player.sleepHealth) continue;
+        const auto sighting = player.sleepWatch.update(scene_.zombies, *scene_.collision,
+            player.controller.feet(), player.controller.eyePosition(), now, scene_.dayNight.hourAt(now));
+        if (!sighting) continue;
+        const auto angles = viewer::sleepGuardLookAngles(player.controller.eyePosition(), sighting->head);
+        player.camera.setOrientation(angles.x, angles.y);
+        player.held.movement.yawDegrees = angles.x; player.held.pitch = angles.y;
+        sleepPlan_.guardSpotted({id, player.characterName, sighting->bearing, sighting->head}, now);
+    }
     for (const auto& [id, player] : players_) {
-        if (!sleepPlan_.state().asleep(id)) continue;
+        if (!sleepPlan_.state().inSleepSession(id)) continue;
         if (player.vitals.health() <= 0 || player.vitals.health() < player.sleepHealth)
             sleepPlan_.wake(viewer::SleepWakeReason::Damage, now);
-        else if (viewer::sleepThreatNearby(&scene_.zombies, scene_.dogs, player.controller.feet(), sleepThreatCandidates_))
+        else if (sleepPlan_.state().asleep(id) &&
+            viewer::sleepThreatNearby(&scene_.zombies, scene_.dogs, player.controller.feet(), sleepThreatCandidates_))
             sleepPlan_.wake(viewer::SleepWakeReason::Threat, now);
     }
     // Publish restored ground placement in the first awake snapshot.

@@ -74,6 +74,9 @@
 #sleep-rest-remaining { margin-top: 22dp; font-size: 14dp; }
 #sleep-rest-rate { margin-top: 8dp; font-size: 11dp; color: #a6b69f; }
 #sleep-rest-wake { position: absolute; top: 194dp; left: 100dp; width: 160dp; height: 32dp; }
+#sleep-rest-sleep { display: none; position: absolute; top: 194dp; left: 25dp; width: 150dp; height: 32dp; }
+.guarding #sleep-rest-sleep { display: block; }
+.guarding #sleep-rest-wake { left: 185dp; width: 150dp; }
 .sleep-rest-hint { position: absolute; top: 238dp; width: 100%; font-size: 9dp; color: #a6b69f; }
 #sleep-wake-notice { position: absolute; top: 100dp; left: 50%; width: 420dp; margin-left: -210dp; text-align: center; color: #d3dfab; font-size: 14dp; }
 #sleep-wake-reason { line-height: 20dp; }

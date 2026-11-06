@@ -1,8 +1,10 @@
 #include "sleep_plan.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 namespace viewer {
 bool validSleepDuration(std::uint16_t minutes) {
@@ -32,8 +34,13 @@ bool SleepPlanState::ready() const {
         [](const auto& member) { return member.response == SleepResponse::Accept; });
 }
 int SleepPlanState::rate() const {
-    return sleeping && std::all_of(participants.begin(), participants.end(),
-        [](const auto& member) { return member.response == SleepResponse::Accept; }) ? sleepAcceleration : 1;
+    return sleeping ? sleepAcceleration : 1;
+}
+const char* sleepGuardDirection(std::uint8_t bearing) {
+    constexpr std::array<const char*, 16> names{{"north", "north-northeast", "northeast", "east-northeast",
+        "east", "east-southeast", "southeast", "south-southeast", "south", "south-southwest", "southwest",
+        "west-southwest", "west", "west-northwest", "northwest", "north-northwest"}};
+    return names.at(bearing);
 }
 bool SleepPlan::begin(double now, const DayNightCycle& cycle) {
     if (state_.sleeping || !state_.ready() || cycle.dayLengthSeconds <= 0) return false;
@@ -42,6 +49,7 @@ bool SleepPlan::begin(double now, const DayNightCycle& cycle) {
     state_.startedAt = now;
     state_.endsAt = now + cycle.dayLengthSeconds * state_.minutes / 1440;
     state_.wakeReason = SleepWakeReason::None;
+    state_.guardAlert = {};
     return true;
 }
 void SleepPlan::update(double now) {
@@ -51,8 +59,14 @@ void SleepPlan::wake(SleepWakeReason reason, double now) {
     if (!state_.sleeping) return;
     state_.sleeping = false;
     state_.wakeReason = reason;
+    state_.guardAlert = {};
     state_.endedAt = now;
     cancel();
+}
+void SleepPlan::guardSpotted(SleepGuardAlert alert, double now) {
+    if (!state_.guarding(alert.guard)) return;
+    wake(SleepWakeReason::GuardSpotted, now);
+    state_.guardAlert = std::move(alert);
 }
 void SleepPlan::join(std::uint32_t player, double now) {
     if (!player || std::any_of(state_.participants.begin(), state_.participants.end(),
@@ -91,6 +105,7 @@ bool SleepPlan::apply(std::uint32_t player, const SleepAction& action, double no
         state_.proposer = player;
         state_.minutes = action.minutes;
         state_.wakeReason = SleepWakeReason::None;
+        state_.guardAlert = {};
         for (auto& member : state_.participants) member.response = SleepResponse::Pending;
         found->response = SleepResponse::Accept;
         return true;

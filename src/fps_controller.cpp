@@ -341,6 +341,14 @@ void FPSController::restSeated(float dt) {
         accumulator_ -= config_.fixedDt;
     }
 }
+void FPSController::standGuard(float dt) {
+    if (!std::isfinite(dt) || dt <= 0) return;
+    noises_.clear();
+    horizontalVelocity_ = {}; verticalVelocity_ = 0; movementIntent_ = {};
+    jumpHeld_ = jumpQueued_ = proneQueued_ = false;
+    exertion_.decay(dt, config_.exertion);
+    exertion_.advance(dt, false, 1, config_.exertion);
+}
 void FPSController::restSleeping(float dt, float gameHours) {
     if (!std::isfinite(dt) || dt <= 0 || !std::isfinite(gameHours) || gameHours < 0) return;
     noises_.clear();

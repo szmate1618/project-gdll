@@ -17,12 +17,13 @@ CharacterAppearance flatten(const CharacterCanvas& canvas) {
 }
 }
 CharacterAppearance defaultCharacterAppearance() { return flatten(CharacterCanvas{}); }
-CharacterAppearance loadSavedCharacterAppearance(const std::filesystem::path& root, const std::filesystem::path& profile) {
+CharacterAppearance loadSavedCharacterAppearance(const std::filesystem::path& root, const std::filesystem::path& profile,
+    std::string* name) {
     CharacterCanvas canvas; std::string face;
     const auto faces = loadCharacterFaces(root);
     auto icon = faces.begin();
     const auto active = activeCharacterProfile(profile);
-    if (active && loadCharacterProfile(*active, canvas, face)) {
+    if (active && loadCharacterProfile(*active, canvas, face, name)) {
         icon = std::find_if(faces.begin(), faces.end(), [&](const auto& candidate) { return candidate.id == face; });
         if (icon == faces.end()) throw std::runtime_error("Saved character face is unavailable");
     }

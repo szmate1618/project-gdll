@@ -6,6 +6,7 @@
 #include "character_appearances.hpp"
 #include "character_skin.hpp"
 #include "character_profile.hpp"
+#include "sleep_watch.hpp"
 #include "resources.hpp"
 #include "prediction.hpp"
 #include "snapshots.hpp"
@@ -78,7 +79,7 @@ struct Input {
     bool leave = false;
     std::vector<viewer::InventoryDragAction> inventoryActions;
     std::optional<viewer::SleepAction> sleepAction;
-    bool sleeping = false;
+    bool inSleepSession = false; // Sleeping or standing automatic watch; both suspend direct control.
     std::uint64_t sleepRevision = 0;
 #ifdef MP_GRAPHICS
     bool distantSceneCache = false;
@@ -113,7 +114,7 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
 }
 void key(GLFWwindow* window, int code, int, int action, int) {
     auto& in = input(window);
-    if (in.sleeping && code != GLFW_KEY_TAB && code != GLFW_KEY_HOME) {
+    if (in.inSleepSession && code != GLFW_KEY_TAB && code != GLFW_KEY_HOME) {
         if (code == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
             in.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Cancel, in.sleepRevision, 30};
         return;
@@ -200,7 +201,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
-    if (in.sleeping && in.capture) { in.firstMouse = true; return; }
+    if (in.inSleepSession && in.capture) { in.firstMouse = true; return; }
     if (in.hudScreen != viewer::HudScreen::Gameplay || !in.capture) {
         hudPointer(window, in.hud, x, y);
         if (in.equipmentCursor && !in.firstMouse)
@@ -415,7 +416,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
     c.flashlight = in.flashlight;
-    if (in.sleeping) { c.cancelInteraction = true; return c; }
+    if (in.inSleepSession) { c.cancelInteraction = true; return c; }
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
     c.cancelInteraction = true;
     if (!window) return c;
@@ -495,8 +496,9 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
     multiplayer::CharacterAppearanceOutbox appearanceUpload;
     multiplayer::ClientCharacterAppearances appearances;
     auto localAppearance = multiplayer::defaultCharacterAppearance();
+    std::string characterName;
     try {
-        localAppearance = multiplayer::loadSavedCharacterAppearance(multiplayer::resourceRoot(), multiplayer::characterProfilePath());
+        localAppearance = multiplayer::loadSavedCharacterAppearance(multiplayer::resourceRoot(), multiplayer::characterProfilePath(), &characterName);
     } catch (const std::exception& error) {
         std::cerr << "Character appearance: " << error.what() << "; using the default character\n";
     }
@@ -506,6 +508,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
     const auto start = Clock::now(); auto previous = start;
     double accumulator = 0, lastSnapshot = 0;
     std::uint32_t self = 0;
+    double facedGuardAlertAt = -1;
     std::size_t received = 0, mostPlayers = 0;
     std::map<std::uint32_t, glm::vec3> remoteOrigins;
     float remoteTravel = 0;
@@ -565,7 +568,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
         const auto messages = network.receive();
         for (const auto& event : network.events) {
             if (event.state == k_ESteamNetworkingConnectionState_Connected) {
-                if (!network.send(connection, multiplayer::Hello{scene.fingerprint}, true)) throw std::runtime_error("Cannot send handshake");
+                if (!network.send(connection, multiplayer::Hello{scene.fingerprint, characterName}, true)) throw std::runtime_error("Cannot send handshake");
             } else if (event.state == k_ESteamNetworkingConnectionState_ClosedByPeer || event.state == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
                 throw std::runtime_error("Connection ended: " + event.reason);
         }
@@ -588,18 +591,18 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                 if (!self || !snapshots.push(*snapshot, now, network.estimatedOneWaySeconds(connection))) continue;
                 lastSnapshot = now; ++received; mostPlayers = std::max(mostPlayers, snapshot->players.size());
-                const bool wasSleeping = in.sleeping;
-                in.sleeping = snapshot->sleepPlan.asleep(self);
+                const bool wasResting = in.inSleepSession;
+                in.inSleepSession = snapshot->sleepPlan.inSleepSession(self);
                 in.sleepRevision = snapshot->sleepPlan.revision;
 #ifdef MP_GRAPHICS
-                if (in.sleeping && !wasSleeping) {
+                if (in.inSleepSession && !wasResting) {
                     in.equipmentGripHeld = false; in.cancelInteraction = true; in.drag = {};
                     in.suppressLeftUntilRelease |= in.leftHeld; in.suppressRightUntilRelease |= in.rightHeld;
                     in.firstMouse = true;
                 }
-                if (in.sleeping) { in.hudScreen = viewer::HudScreen::Gameplay; in.cancelSignal(); in.actionSelection.close(); in.altHeld.fill(false); }
+                if (in.inSleepSession) { in.hudScreen = viewer::HudScreen::Gameplay; in.cancelSignal(); in.actionSelection.close(); in.altHeld.fill(false); }
 #else
-                (void)wasSleeping;
+                (void)wasResting;
 #endif
                 for (const auto& p : snapshot->players) if (p.id != self) {
                     const auto origin = remoteOrigins.emplace(p.id, p.movement.feet).first->second;
@@ -669,6 +672,14 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                         in.slot = p.slot;
                         if (!options.explicitLook) in.camera.setOrientation(p.yaw, p.pitch);
                         std::cout << "Spawned as player " << self << std::endl;
+                    }
+                    const auto& sleep = snapshot->sleepPlan;
+                    if (sleep.wakeReason == viewer::SleepWakeReason::GuardSpotted && sleep.guardAlert.guard == self &&
+                        facedGuardAlertAt != sleep.endedAt) {
+                        const auto angles = viewer::sleepGuardLookAngles(prediction.eye(), sleep.guardAlert.target);
+                        in.camera.setOrientation(angles.x, angles.y);
+                        in.firstMouse = true;
+                        facedGuardAlertAt = sleep.endedAt;
                     }
                     const auto correction = before - prediction.eye();
                     if (ready && walking && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
@@ -857,7 +868,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 const auto lighting = viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds()));
                 const auto dayNightTint = viewer::dayNightDisplayTint(lighting);
                 renderer.setDayNightLighting(lighting);
-                if (!in.sleeping) renderer.updateZombies(scene.zombies);
+                if (!in.inSleepSession) renderer.updateZombies(scene.zombies);
                 viewer::PlayerBodyPose ownBody;
                 if (prediction.ready() && !in.driver.occupied() && !in.handling() && in.slot==viewer::punchSlot && ownState.slot==viewer::punchSlot) {
                     // Local hands use the newest confirmed pose, without the
@@ -873,7 +884,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 graphics.gpuTimer->begin();
                 const auto renderStart = Clock::now();
                 renderer.updateFloorplans(*scene.floorplans);
-                if (in.sleeping) renderer.renderBlack();
+                if (in.inSleepSession) renderer.renderBlack();
                 else renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()),
                                          dayNightTint);
@@ -881,13 +892,13 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                                            snapshots.animationSeconds(), dayNightTint);
                     graphics.body->drawPose(ownBody,viewCamera.projection(renderAspect)*viewCamera.view(),renderWidth,renderHeight);
                 });
-                if (!in.sleeping && prediction.ready() && !in.driver.occupied() && in.equippedSlot != viewer::handlingSlot &&
+                if (!in.inSleepSession && prediction.ready() && !in.driver.occupied() && in.equippedSlot != viewer::handlingSlot &&
                     in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                     !in.weaponSwitching && viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
                     graphics.weapon->draw(ownState.slot, renderWidth, renderHeight, flash,
                                           in.weaponMotion.pose(ownState.slot, now, in.temporaryHandling()));
                 const auto overlayViewport = renderer.beginOverlay(width, height);
-                if (!in.sleeping && !in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height,
+                if (!in.inSleepSession && !in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height,
                     viewer::inaccuracyCrosshairRadius(hipFireSpread(), viewCamera.projection(renderAspect)[1][1]));
                 viewer::HudState hudState;
                 hudState.seconds = now;

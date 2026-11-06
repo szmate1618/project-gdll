@@ -70,8 +70,8 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
         if (sleepTravelSeconds_ < .5f) return;
         const float elapsed = std::exchange(sleepTravelSeconds_, 0.f);
         std::vector<glm::vec3> sleepers;
-        if (players) { for (const auto& observer : *players) sleepers.push_back(observer.feet); }
-        else sleepers.push_back(player.feet);
+        if (players) { for (const auto& observer : *players) if (!observer.sleepGuard) sleepers.push_back(observer.feet); }
+        else if (!player.sleepGuard) sleepers.push_back(player.feet);
         for (auto& [id, route] : scenarioRoutes_) {
             auto& instance = instances[id];
             if (route.finished || route.overridden || instance.removed || instance.ragdoll) continue;
