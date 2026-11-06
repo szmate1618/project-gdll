@@ -10,6 +10,7 @@
 #include "skills_view.hpp"
 #include "loadout_navigation.hpp"
 #include "graphics_view.hpp"
+#include "health_view.hpp"
 #include "gui/map_view.hpp"
 #include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
@@ -104,6 +105,7 @@ struct Hud::Impl {
     std::array<Rml::ElementDocument*, 5> screens{};
     GraphicsSettings graphicsSettings;
     std::unique_ptr<GraphicsView> graphicsView;
+    std::unique_ptr<HealthView> healthView;
     PlayerInventory& inventory;
     GroundItems* ground = nullptr;
     Weapons* weapons = nullptr;
@@ -179,6 +181,7 @@ struct Hud::Impl {
     ~Impl() { shutdown(); }
     void shutdown() {
         graphicsView.reset();
+        healthView.reset();
         navigation.reset();
         commandWheel.reset();
         mapView.reset();
@@ -240,6 +243,7 @@ struct Hud::Impl {
                 if (selected == HudScreen::Skills)
                     populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
                 if (selected == HudScreen::Graphics) graphicsView = std::make_unique<GraphicsView>(*page, graphicsSettings);
+                if (selected == HudScreen::Health) healthView = std::make_unique<HealthView>(*page);
                 if (selected == HudScreen::Map) {
                     mapView = std::make_unique<MapViewUi>(*page, renderer);
                     mapView->setSource(mapSource);
@@ -280,6 +284,7 @@ struct Hud::Impl {
             return;
         }
         if (screen != HudScreen::Gameplay) {
+            if (screen == HudScreen::Health) healthView->update(state, inventory);
             sleepDrawer->close();
             if (backdrop) backdrop->reset();
             lastBackdropTime.reset();

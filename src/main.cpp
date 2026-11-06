@@ -2135,6 +2135,8 @@ int run(const Options& options) {
         hudState.health = app.vitals.health();
         hudState.stamina = app.rig.player().exertion().stamina;
         hudState.strain = app.rig.player().exertion().strain;
+        hudState.weariness = app.vitals.weariness();
+        if (app.hudScreen == viewer::HudScreen::Health) hudState.medical = app.vitals.healthState();
         hudState.lastDamageSeconds = app.lastDamageSeconds;
         hudState.screen = app.hudScreen;
         hudState.feet = app.driver.occupied() ? app.driver.eyePosition(cars) - glm::vec3(0, 1.65f, 0) : app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position() - glm::vec3(0, 1.65f, 0);

@@ -4,6 +4,7 @@
 #include "command_wheel.hpp"
 #include "graphics_settings.hpp"
 #include "sleep_plan.hpp"
+#include "player_health.hpp"
 #include "../map_view.hpp"
 #include <filesystem>
 #include <memory>
@@ -37,6 +38,8 @@ struct HudState {
     std::optional<int> loaded, reserve;
     std::optional<float> health; // Unknown while connecting.
     std::optional<float> stamina, strain; // Normalized stamina; unbounded strain index.
+    std::optional<float> weariness; // Normalized long-term fatigue; separate from strain.
+    std::optional<PlayerHealth> medical; // Owned presentation copy; absent if records are unavailable.
     double lastDamageSeconds = -1; // Successful health loss, in the same clock as seconds.
     int slot = -1; // Equipment slots 0..4; fists are 5. -1 means unconfirmed.
     bool mouseCaptured = true;

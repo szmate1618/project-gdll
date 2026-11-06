@@ -1,0 +1,43 @@
+/* The shared 1280 x 720 loadout frame scales as one unit. */
+.health .main-panel { height: 590dp; }
+#health-vitals { left: 0dp; width: 228dp; }
+#health-panel { left: 248dp; width: 606dp; }
+#health-medical { left: 874dp; width: 336dp; }
+#health-stats { position: absolute; top: 56dp; left: 20dp; right: 20dp; }
+.health-stat { position: relative; height: 88dp; }
+.health-stat-label { font-size: 10dp; letter-spacing: 1dp; color: #f5f6f299; }
+.health-stat-value { margin-top: 5dp; font-size: 24dp; }
+.health-stat-track { position: relative; margin-top: 8dp; height: 4dp; background-color: #2b2d2f; }
+.health-stat-fill { height: 4dp; }
+.health-footnote { position: absolute; left: 20dp; right: 20dp; bottom: 18dp; font-size: 10dp; line-height: 16dp; color: #f5f6f280; }
+.health-scroll { position: absolute; overflow-y: auto; overflow-x: hidden; }
+#health-body-scroll { top: 65dp; left: 8dp; right: 8dp; bottom: 60dp; }
+#health-body { position: relative; width: 580dp; }
+.health-orientation { position: absolute; top: 47dp; left: 20dp; right: 20dp; text-align: center; font-size: 8dp; letter-spacing: 1dp; color: #f5f6f280; }
+.health-orientation span { margin-left: 44dp; margin-right: 44dp; }
+.health-part { position: absolute; box-sizing: border-box; border-width: 2dp; background-color: #2b2d2fb0; text-align: center; font-size: 8dp; color: #f5f6f2bf; }
+.health-part-label { position: absolute; top: 50%; left: 0dp; right: 0dp; margin-top: -5dp; line-height: 10dp; }
+.health-injury-note { position: absolute; width: 180dp; box-sizing: border-box; padding: 6dp 8dp; border-left-width: 2dp; background-color: #2b2d2f99; }
+.health-injury-part { margin-bottom: 4dp; font-size: 9dp; letter-spacing: 1dp; }
+.health-injury-entry { margin-top: 5dp; padding-top: 4dp; border-top-width: 1dp; border-color: #f5f6f21a; }
+.health-injury-type { font-size: 11dp; line-height: 14dp; }
+.health-injury-scores { font-size: 9dp; line-height: 14dp; color: #f5f6f299; }
+.health-injury-flags { font-size: 9dp; line-height: 14dp; color: #e7cd65; }
+.health-injury-link { position: absolute; height: 1dp; background-color: #f5f6f233; }
+.health-legend { position: absolute; bottom: 33dp; left: 20dp; right: 20dp; text-align: center; font-size: 9dp; color: #f5f6f299; }
+.health-legend span { display: inline-block; width: 8dp; height: 8dp; margin-left: 12dp; margin-right: 4dp; }
+.legend-green { background-color: #59c49c; }
+.legend-yellow { background-color: #e7cd65; }
+.legend-red { background-color: #ec6962; }
+.health-record-status { position: absolute; bottom: 12dp; left: 20dp; right: 20dp; text-align: center; font-size: 10dp; color: #f5f6f280; }
+.health-medical-caption { position: absolute; left: 20dp; top: 47dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f280; }
+#health-medical-scroll { left: 16dp; right: 12dp; top: 73dp; bottom: 60dp; }
+.health-medical-item { position: relative; min-height: 66dp; box-sizing: border-box; margin-bottom: 8dp; padding: 10dp 12dp 10dp 46dp; border-width: 1dp; border-color: #f5f6f24d; background-color: #2b2d2f66; }
+.health-medical-square { position: absolute; top: 14dp; left: 12dp; width: 20dp; height: 24dp; box-sizing: border-box; border-width: 1dp; border-color: #59c49c; background-color: #59c49c26; }
+.health-medical-name { font-size: 13dp; line-height: 18dp; word-break: break-word; }
+.health-medical-location { margin-top: 4dp; font-size: 9dp; line-height: 14dp; color: #f5f6f280; word-break: break-word; }
+.health-empty { margin: 24dp 8dp; font-size: 12dp; line-height: 20dp; color: #f5f6f280; }
+.health-scroll scrollbarvertical { width: 8dp; margin-left: 4dp; }
+.health-scroll scrollbarvertical slidertrack { background-color: #2b2d2f; }
+.health-scroll scrollbarvertical sliderbar { min-height: 20dp; background-color: #f5f6f280; }
+.health-scroll scrollbarvertical sliderarrowdec, .health-scroll scrollbarvertical sliderarrowinc { height: 0dp; }

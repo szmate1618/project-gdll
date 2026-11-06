@@ -138,8 +138,8 @@ a red heartbeat icon, percentage and fill. Its value is unbounded (100% = one st
 fill extends beyond the original frame above 100% (150% uses 1.5 times the frame
 width). The frame's original 100% edge stays visible. Health, stamina and strain
 labels round to whole percentages; their fills retain fractional precision.
-Weariness retains its original yellow palette for its future display on the
-Health screen and remains reserved in the player data. Coordinates use local metres
+Weariness uses its original yellow palette on the Health screen and remains
+reserved in the player data. Coordinates use local metres
 rather than inferred latitude and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
 with `.venv/bin/python tools/prepare_hud_icons.py`; see [icon sources and credits](../gui/README.md).
 The downloaded archive is reused, and no icon artwork is generated.
@@ -293,7 +293,27 @@ After building `test_hud`, capture the screens without loading town data:
 # Writes build/loadout-{inventory,skills,health,map}.ppm, plus small captures.
 ```
 
-[health.rml](../ui/health.rml) is an empty content panel. [map.rml](../ui/map.rml)
+[health.rml](../ui/health.rml) shows health, stamina, strain, weariness and pain
+tolerance alongside a front-facing diagram of all 29 medical body locations.
+Each location is a labelled rectangle; the player's right appears on the left.
+Borders interpolate from green through yellow to red using the highest raw pain
+or weakness on that part. Recorded injuries have a minimum display score of 15%;
+bleeding or swelling raises that minimum to 50%, and infection to 75%. These
+presentation scores introduce no medical effects. Injury notes beside the
+relevant parts show every injury, pain, weakness and condition, with connecting
+lines. Crowded notes scroll without overlapping. Percentages retain unbounded
+strain values; the Health page's compact tracks cap their visual fill at 100%.
+
+The right-hand list uses the inventory's scrolling style and includes only
+carried items with the exact `medical` tag, showing quantities and storage
+locations. Empty stacks are omitted. No existing items receive the tag yet;
+the list shows an empty state until medical items are defined. This screen
+presents supplies without adding treatment actions. Standalone reads the
+player's medical records and weariness. Multiplayer currently supplies health,
+stamina and strain; missing medical records have neutral borders and an
+unavailable label, while unknown stats show `--`.
+
+[map.rml](../ui/map.rml)
 shows the entire published Sentinel image, fitted without cropping or changing
 its aspect ratio. It borrows the same terrain texture as the minimap, uses
 nearest filtering and original RGB colors, and draws no road overlay.
@@ -1970,7 +1990,7 @@ build directory when run by CTest.
 | Enter | Enter a nearby stopped car from walking mode; exit beside it when stopped and clear |
 | Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
 | C | Toggle prone in walking mode; an airborne press waits for landing |
-| F3 | Open / close the empty Health screen |
+| F3 | Open / close Health: vitals, body injuries and medical supplies |
 | F4 | Open / close the full Sentinel map |
 | F10 | Toggle collision visualization |
 | Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |

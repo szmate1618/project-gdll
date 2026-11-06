@@ -8,6 +8,7 @@
 #include "opengl.hpp"
 #include "presentation_viewport.hpp"
 #include <GLFW/glfw3.h>
+#include <RmlUi/Core.h>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -612,8 +613,7 @@ int main(int argc, char** argv) {
             require(isColor(colorAt(imagePixels, 1280, 720, 51, 596), {0,0,0}),
                 "Transparent file texels must leave the scene unchanged");
         }
-        // All loadout pages share clickable tabs, including the otherwise empty
-        // Health page. Navigation uses fitted presentation coordinates.
+        // All loadout pages share clickable tabs and fitted presentation coordinates.
         {
             auto inventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
@@ -782,11 +782,96 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-graphics-small.ppm").c_str(), pixels(640, 360), 640, 360);
             state.screen = viewer::HudScreen::Health;
+            state.health = 72.5f; state.stamina = .6f; state.strain = 1.5f; state.weariness = .25f;
+            state.medical.emplace();
+            state.medical->setPainTolerance(.4f);
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto health = pixels(1280, 720);
             if (argc > 1) capture((std::string(argv[1]) + "-health.ppm").c_str(), health, 1280, 720);
-            require(colorAt(health, 1280, 720, 100, 200) == colorAt(health, 1280, 720, 640, 360),
-                    "Empty health panel contains unexpected content");
+            auto* context = Rml::GetContext("game-hud");
+            Rml::ElementDocument* healthPage = nullptr;
+            for (int i = 0; i < context->GetNumDocuments(); ++i)
+                if (auto* page = context->GetDocument(i); page->GetElementById("health-body")) healthPage = page;
+            require(healthPage, "Health document must be loaded");
+            const auto healthElement = [&](const char* id) { return healthPage->GetElementById(id); };
+            Rml::ElementList parts;
+            healthPage->GetElementsByClassName(parts, "health-part");
+            require(parts.size() == static_cast<std::size_t>(viewer::InjuryBodyPart::Count),
+                    "Health diagram must include every medical body location");
+            for (int i = 0; i < static_cast<int>(viewer::InjuryBodyPart::Count); ++i)
+                require(healthPage->GetElementById("health-part-" + std::to_string(i)), "Missing body location");
+            const auto stats = healthElement("health-stats")->GetInnerRML();
+            for (const char* text : {"73%", "60%", "150%", "25%", "40%"})
+                require(stats.find(text) != std::string::npos, "Health screen must show all five live stats");
+            require(healthElement("health-medical-count")->GetInnerRML() == "0 ITEMS",
+                    "Untagged inventory must not appear as medical supplies");
+            const auto partColor = [&](viewer::InjuryBodyPart part) {
+                return healthPage->GetElementById("health-part-" + std::to_string(static_cast<int>(part)))->
+                    GetProperty<Rml::Colourb>("border-top-color");
+            };
+            require(partColor(viewer::InjuryBodyPart::Head) == Rml::Colourb(89,196,156),
+                    "Uninjured body parts must have green borders");
+            state.medical->addInjury({viewer::InjuryBodyPart::Head, viewer::InjuryType::Cut, .5f, .2f, {true, false, false}});
+            state.medical->addInjury({viewer::InjuryBodyPart::LeftKnee, viewer::InjuryType::Fracture, 1, .8f, {false, true, false}});
+            state.medical->addInjury({viewer::InjuryBodyPart::LeftKnee, viewer::InjuryType::Abrasion, .1f, 0, {false, false, true}});
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(partColor(viewer::InjuryBodyPart::Head) == Rml::Colourb(231,205,101) &&
+                    partColor(viewer::InjuryBodyPart::LeftKnee) == Rml::Colourb(236,105,98) &&
+                    partColor(viewer::InjuryBodyPart::RightKnee) == Rml::Colourb(89,196,156),
+                    "Moderate and severe injuries must tint only their own body parts yellow and red");
+            const auto notes = healthElement("health-body")->GetInnerRML();
+            for (const char* text : {"Cut", "Fracture", "Abrasion", "Bleeding", "Swelling", "Infected", "Weakness 80%"})
+                require(notes.find(text) != std::string::npos, "Every injury and condition must remain visible in the body notes");
+
+            // Synthetic tag fixtures exercise filtering without changing the player's item definitions.
+            auto medicalContents = inventory_fixture::contents(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            for (auto& [id, item] : medicalContents.owned) {
+                const auto& config = item.inventory();
+                if (!config.stackable) continue;
+                auto tags = item.tags(); tags.push_back("medical");
+                item = viewer::Item(id, config, item.gameplay(), tags);
+            }
+            require(hudInventory.synchronizeContents(medicalContents), "Medical tag fixture must synchronize");
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(healthElement("health-medical-count")->GetInnerRML() == "11 ITEMS" &&
+                    healthElement("health-medical-items")->GetInnerRML().find("Submachine gun") == std::string::npos,
+                    "Medical list must include only tagged owned items");
+            if (argc > 1) capture((std::string(argv[1]) + "-health-injured.ppm").c_str(), pixels(1280,720), 1280,720);
+            auto* medicalScroll = healthElement("health-medical-scroll");
+            require(medicalScroll->GetScrollHeight() > medicalScroll->GetClientHeight(),
+                    "Medical supplies must overflow into a scrollable list");
+            hud.pointerMove(1100.f / 1280, 400.f / 720); hud.mouseWheel(-4);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(medicalScroll->GetScrollTop() > 0, "Mouse wheel must scroll medical supplies");
+            require(hudInventory.consume("pistol_rounds_1", hudInventory.quantity("pistol_rounds_1")), "Fixture consumption failed");
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(healthElement("health-medical-count")->GetInnerRML() == "10 ITEMS" && medicalScroll->GetScrollTop() > 0,
+                    "Consumed stacks must disappear while retaining a scrolled list");
+            const auto* firstMedicalRow = healthElement("health-medical-items")->GetChild(0);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(healthElement("health-medical-items")->GetChild(0) == firstMedicalRow && medicalScroll->GetScrollTop() > 0,
+                    "Unchanged health frames must retain medical list scroll position");
+            state.medical.reset(); state.weariness.reset();
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(healthElement("health-record-status")->GetInnerRML() == "Medical records unavailable" &&
+                    partColor(viewer::InjuryBodyPart::Head) == Rml::Colourb(245,246,242,77),
+                    "Missing medical records must clear stale injuries and show neutral body parts");
+            state.medical.emplace();
+            for (int i = 0; i < static_cast<int>(viewer::InjuryBodyPart::Count); ++i)
+                state.medical->addInjury({static_cast<viewer::InjuryBodyPart>(i), viewer::InjuryType::Bruise, .3f, .2f});
+            clear(); hud.draw(state, 1280, 720); checkState();
+            Rml::ElementList injuryEntries;
+            healthPage->GetElementsByClassName(injuryEntries, "health-injury-entry");
+            require(injuryEntries.size() == 29, "Crowded notes must retain all injuries");
+            require(healthElement("health-body-scroll")->GetScrollHeight() > healthElement("health-body-scroll")->GetClientHeight(),
+                    "Crowded injury notes must remain scrollable");
+            hud.pointerMove(600.f / 1280, 400.f / 720); hud.mouseWheel(-5);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(healthElement("health-body-scroll")->GetScrollTop() > 0, "Mouse wheel must scroll crowded injury notes");
+            if (argc > 1) capture((std::string(argv[1]) + "-health-crowded.ppm").c_str(), pixels(1280,720), 1280,720);
+            clear(); hud.draw(state, 640, 360); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-health-small.ppm").c_str(), pixels(640,360), 640,360);
+            state.health.reset(); state.stamina.reset(); state.strain.reset(); state.medical.reset();
             state.screen = viewer::HudScreen::Map;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto noMap = pixels(1280, 720);

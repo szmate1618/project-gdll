@@ -1,8 +1,23 @@
 <rml>
-<head><title>Health</title><link type="text/template" href="loadout.rml" /></head>
+<head><title>Health</title><link type="text/template" href="loadout.rml" /><link type="text/rcss" href="health.rcss" /></head>
 <body template="loadout" class="loadout health">
-    <div id="health-panel" class="panel main-panel full-panel">
-        <div class="panel-heading">HEALTH</div>
+    <div id="health-vitals" class="panel main-panel">
+        <div class="panel-heading">CONDITION</div>
+        <div id="health-stats"></div>
+        <div class="health-footnote">Strain reduces your stamina capacity.<br />Weariness tracks long-term fatigue.</div>
+    </div>
+    <div id="health-panel" class="panel main-panel">
+        <div class="panel-heading">BODY CONDITION</div><div id="health-injury-count" class="panel-meta"></div>
+        <div class="health-orientation">YOUR RIGHT <span>FRONT VIEW</span> YOUR LEFT</div>
+        <div id="health-body-scroll" class="health-scroll"><div id="health-body"></div></div>
+        <div class="health-legend"><span class="legend-green"></span> CLEAR <span class="legend-yellow"></span> MODERATE <span class="legend-red"></span> SEVERE</div>
+        <div id="health-record-status" class="health-record-status"></div>
+    </div>
+    <div id="health-medical" class="panel main-panel">
+        <div class="panel-heading">MEDICAL ITEMS</div><div id="health-medical-count" class="panel-meta"></div>
+        <div class="health-medical-caption">CARRIED SUPPLIES</div>
+        <div id="health-medical-scroll" class="health-scroll"><div id="health-medical-items"></div></div>
+        <div class="health-footnote">Medical supplies in your inventory.</div>
     </div>
 </body>
 </rml>

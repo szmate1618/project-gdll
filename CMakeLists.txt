@@ -679,7 +679,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_test(NAME viewer_ground_item_renderer COMMAND test_ground_item_renderer)
     set_tests_properties(viewer_ground_item_renderer PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_hud tests/test_hud.cpp)
-    target_link_libraries(test_hud PRIVATE viewer_hud viewer_objects glfw)
+    target_link_libraries(test_hud PRIVATE viewer_hud viewer_objects RmlUi::Core glfw)
     target_compile_definitions(test_hud PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
         VIEWER_HUD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui")
     viewer_warnings(test_hud)
