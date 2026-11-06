@@ -184,6 +184,21 @@ past 0.12 radians, crossing back into the 0.035-radian closed region at a closin
 speed of at least 0.8 rad/s, and a 0.4-second debounce. Slowly closing doors,
 initially closed doors, and closed-stop jitter stay silent. The last pre-impact
 angular speed also counts because the hinge solver can clamp the final sample.
+The same detector runs on authoritative fixed physics steps for gameplay noise,
+independently of audio settings and camera distance. Source level is
+`min(70, 60 + 20 * log10(closing_speed / 2))` dB at one metre: roughly 54 dB
+at 1 rad/s, 60 at 2 rad/s, and 66 at 4 rad/s. Playback gain scales with speed too.
+Closures below 0.8 rad/s emit no event. A broken restraint has no closed stop
+and cannot produce these slam events.
+
+Breaking a door restraint emits one **75 dB player-only** event. Zombie strike
+contacts with a player or solid scene geometry also emit player-only impacts,
+with 55 dB at 2 m/s and a 70 dB cap; contact speeds below 0.8 m/s are silent.
+Animation alone, missed swings and visibility-only rejection do not emit impacts.
+Physical attacks use actual hit events from the shared physics world.
+Physical items struck by living attack bodies also emit player-only noise. These
+events reuse wood/soft material impact playback and cannot feed back into AI
+hearing; replicated door state never originates authoritative noise.
 
 ## Gameplay hearing stays independent
 
@@ -261,6 +276,16 @@ AI noise. Conversely, playing a gunshot, reload, or zombie sound does not itself
 create an AI hearing event. Standalone and multiplayer firearm handlers separately
 emit AI noise for accepted shots, independently of playback.
 
+`NoiseEvent::audience` separates ordinary gameplay noise from `playersOnly`
+events. Both zombies and dogs reject player-only events before hearing logic.
+All authoritative gameplay noises also test sleeping players and automatic
+guards at their **ear positions** using the same distance attenuation. A
+received level **strictly above 30 dB** wakes the whole group and restores normal
+time; a 60 dB slam therefore wakes a player within about 32 metres. Walls do not
+attenuate this distance-only model. A player hearing a bang does not create a
+second sound event. Rendering, audio gain, muting and unavailable sound files
+cannot change the wake-up decision.
+
 ## Multiplayer playback
 
 The graphical game client shares the same clips, HRTF playback, 24-effect pool,
@@ -332,7 +357,8 @@ or asset quality.
   listener, voice priority, and streaming queues.
 - `src/scene_audio.hpp/.cpp`: Camera/gameplay routing and indexed zombie selection.
 - `src/zombie_audio.hpp/.cpp`: Deterministic reaction, moan, and footstep scheduling.
-- `src/door_audio.hpp/.cpp`: Presentation-only slam detection.
+- `src/door_slam.hpp/.cpp`: Shared closure thresholds and speed-scaled slam levels.
+- `src/door_audio.hpp/.cpp`: Nearby playback tracking using the shared slam detector.
 - `src/undergrowth.hpp/.cpp`: Indexed contact volumes, swept movement and AI noise events.
 - `src/undergrowth_audio.hpp/.cpp`: Recorded shrub effect selection and playback.
 - `multiplayer/client/audio_playback.hpp/.cpp`: Local playback and bounded ambient candidates.

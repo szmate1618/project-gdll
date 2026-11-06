@@ -81,6 +81,23 @@ struct RestraintFixture {
     }
 };
 
+void physicalSlamNoise() {
+    RestraintFixture fixture(false);
+    fixture.doors.setAngle(0,.5f); fixture.world->step(1.f/60);
+    require(fixture.doors.takeNoises().empty(),"Opening a door must not emit a slam noise");
+    fixture.doors.applyImpulse(0,{0,0,-20},fixture.edge());
+    bool heard = false;
+    for (int i = 0; i < 180; ++i) {
+        fixture.world->step(1.f/60);
+        for (const auto& noise : fixture.doors.takeNoises()) {
+            require(noise.kind == viewer::NoiseEvent::Kind::doorSlam && noise.audience == viewer::NoiseAudience::everyone &&
+                noise.decibels >= 52 && noise.decibels <= 70,"Physical slam produced the wrong audience or source level");
+            heard = true;
+        }
+    }
+    require(heard,"A real fast closure must emit gameplay noise without an audio system");
+}
+
 double pressureBreakTime(bool inward, float force, float applicationStep = 1.f / 60) {
     RestraintFixture fixture(inward);
     double elapsed = 0;
@@ -91,12 +108,21 @@ double pressureBreakTime(bool inward, float force, float applicationStep = 1.f /
             require(!fixture.doors.restraint(0).broken, "Sustained pressure must not immediately release the restraint");
     }
     require(fixture.doors.restraint(0).broken, "A sustained overload must eventually release the restraint");
+    const auto noises = fixture.doors.takeNoises();
+    const auto breaking = std::count_if(noises.begin(),noises.end(),[](const auto& noise) {
+        return noise.kind == viewer::NoiseEvent::Kind::doorBreak && noise.audience == viewer::NoiseAudience::playersOnly &&
+            noise.decibels == viewer::doorBreakDecibels;
+    });
+    require(breaking == 1,"Breaking a restraint must emit one player-only noise without needing audio playback");
     for (const float sign : {-1.f, 1.f}) {
         fixture.doors.setAngle(0, 0);
         fixture.doors.applyImpulse(0, sign * fixture.panel.outward * 20.f, fixture.edge());
         fixture.settle(60);
         require(sign * fixture.doors.angle(0) > .2f, "A released door must swing freely in both directions");
     }
+    const auto after = fixture.doors.takeNoises();
+    require(std::none_of(after.begin(),after.end(),[](const auto& noise) { return noise.kind == viewer::NoiseEvent::Kind::doorBreak; }),
+        "A broken restraint must not keep emitting break sounds");
     return elapsed;
 }
 
@@ -172,6 +198,7 @@ void replicatedRestraint() {
     for (int i = 0; i < 60; ++i) world->step(1.f / 60);
     require(doors.restraint(id).maxFlexMeters == .03f && !doors.restraint(id).broken,
             "Replicas must not invent strain damage from local physics");
+    require(doors.takeNoises().empty(),"Replica pose updates must not originate simulation noises");
     doors.evictRuntimeDoor(id);
     doors.setRestraint(id, {.05f, true});
     doors.installRuntimeDoor(id, panel);
@@ -213,6 +240,7 @@ int main(int argc, char** argv) {
             rejects([&] { viewer::validateDoorConfig({invalid}); });
         require(viewer::DoorConfig{}.maxClosedFlexMeters == .02f, "Default elastic travel must be two centimeters");
         configuredClosedTravel(path);
+        physicalSlamNoise();
         physicalRestraint();
         replicatedRestraint();
         std::cout << "Door configuration tests passed\n";

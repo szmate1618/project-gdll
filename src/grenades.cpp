@@ -154,8 +154,9 @@ void Grenades::prepare(PhysicsScene& scene, DoorLayer& doors) {
         doors.activateNear(center, glm::length(travel) + 3);
     }
 }
-void Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* zombies, double animationSeconds) {
-    if (!std::isfinite(seconds)) return;
+std::vector<NoiseEvent> Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* zombies, double animationSeconds) {
+    std::vector<NoiseEvent> noises;
+    if (!std::isfinite(seconds)) return noises;
     auto& events = impl_->events;
     events.erase(std::remove_if(events.begin(), events.end(), [&](const auto& e) { return seconds - e.seconds > 1; }), events.end());
     auto& active = impl_->active;
@@ -172,10 +173,11 @@ void Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* 
         it = active.erase(it);
         if (zombies) {
             zombies->explode(position, blastRadius, animationSeconds, world);
-            zombies->makeNoise(position, 130);
         }
         blastBodies(*impl_->physics, world, position, blastRadius);
+        noises.push_back({position,130});
     }
+    return noises;
 }
 std::vector<GrenadePose> Grenades::poses() const {
     std::vector<GrenadePose> result;

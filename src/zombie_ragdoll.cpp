@@ -1,4 +1,5 @@
 #include "zombie_ragdoll.hpp"
+#include "physics_impacts.hpp"
 #include "physics_world.hpp"
 #include "zombie_detached_parts.hpp"
 
@@ -182,6 +183,7 @@ public:
         for (const auto body : bodies_) {
             detached_.forget(body);
             simulation_.untrackBodyMotion(body);
+            simulation_.impacts().untrack(body);
             if (b3Body_IsValid(body)) b3DestroyBody(body);
         }
         if (b3Body_IsValid(ground_)) b3DestroyBody(ground_);
@@ -350,6 +352,7 @@ public:
                 shape.filter = b3Shape_GetFilter(existing);
                 const b3Sphere sphere{handPoints_[part == lowerArmRight], .10f};
                 handShapes_[part == lowerArmRight] = b3CreateSphereShape(bodies_[part], &shape, &sphere);
+                simulation_.impacts().trackZombieImpact(bodies_[part]);
             }
             driven_ = true;
         }
@@ -388,6 +391,7 @@ public:
         for (const auto shape : handShapes_) if (b3Shape_IsValid(shape)) b3DestroyShape(shape, true);
         handShapes_ = {};
         for (const auto body : bodies_) {
+            simulation_.impacts().untrack(body);
             b3Body_SetType(body, b3_dynamicBody);
             std::vector<b3ShapeId> shapes(b3Body_GetShapeCount(body));
             const int count = b3Body_GetShapes(body, shapes.data(), static_cast<int>(shapes.size()));

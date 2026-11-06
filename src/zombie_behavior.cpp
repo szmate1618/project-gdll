@@ -96,7 +96,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
                   bool staggerPerception, ZombieBehaviorStats& stats, ZombieCrowd& crowd,
                   ZombieHouseInvestigation& houses,
                   const std::vector<ZombiePlayer>* players,
-                  bool scenarioFallback, std::vector<ZombieAttackHit>& hits) {
+                  bool scenarioFallback, std::vector<ZombieAttackHit>& hits, std::vector<NoiseEvent>& noises) {
     if (behavior.state == ZombieState::midnight) {
         stopZombieLocomotion(instance);
         return true; // No perception, hearing-driven turns, attacks or travel before midnight.
@@ -177,10 +177,10 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         if (behavior.lunge.animated)
             stepZombieMeleeAttack(behavior.lunge, instance, asset, world, behavior.zombie,
                 players ? players->data() : &player, players ? players->size() : 1,
-                seconds, now, hits, stats.attackRays);
+                seconds, now, hits, stats.attackRays, &noises);
         else stepZombieLunge(behavior.lunge, instance, world, crowd, behavior.zombie,
                 players ? players->data() : &player, players ? players->size() : 1,
-                seconds, now, hits, stats.attackRays);
+                seconds, now, hits, stats.attackRays, &noises);
     };
     auto feet = glm::vec3(instance.restRoot[3]);
     const bool eligible = attackEligible(behavior, instance, player, world, now, stats);
@@ -359,6 +359,9 @@ void ZombieLayer::reactToDamage(std::size_t id, glm::vec3 incomingDirection) {
     changeState(*behavior, ZombieState::looking, now);
 }
 
+void ZombieLayer::makeNoise(const NoiseEvent& noise) {
+    if (noise.audience == NoiseAudience::everyone) makeNoise(noise.position, noise.decibels);
+}
 void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!perceptionEnabled_ || !finite(position) || !std::isfinite(decibels)) return;
     const double now = SimulationClock::instance().seconds();
@@ -416,6 +419,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     zombie_profile::Timer timer(zombie_profile::Stage::behaviorDispatch);
     zombie_profile::PhaseTimer phase(&zombie_profile::Profile::behaviorSeconds);
     attackHits_.clear();
+    attackNoises_.clear();
     if (!std::isfinite(seconds) || seconds <= 0) return;
     if (!perceptionEnabled_) {
         behaviorStats_ = {};
@@ -549,7 +553,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         const auto previousChase = instance.chaseRevision;
         const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, houseInvestigations_, players,
-                     scenarioFallback, attackHits_);
+                     scenarioFallback, attackHits_, attackNoises_);
         if (instance.chaseRevision != previousChase) {
             interiorBehaviors_.erase(id); // A discovered ambusher becomes an ordinary pursuer permanently.
             recordReaction(id, now, true);

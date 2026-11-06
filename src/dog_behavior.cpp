@@ -27,6 +27,9 @@ int sight(const DogInstance& dog, const ZombiePlayer& player, const CollisionWor
     return clear == 3 ? 2 : clear ? 1 : 0;
 }
 }
+void DogLayer::makeNoise(const NoiseEvent& noise) {
+    if (noise.audience == NoiseAudience::everyone) makeNoise(noise.position, noise.decibels);
+}
 void DogLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!finite(position) || !std::isfinite(decibels)) return;
     for (std::size_t id = 0; id < behaviors.size(); ++id) {

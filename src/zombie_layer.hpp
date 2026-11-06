@@ -16,6 +16,7 @@
 #include "zombie_wounds.hpp"
 #include "blood_mist.hpp"
 #include "blood_particles.hpp"
+#include "noise.hpp"
 
 #include <memory>
 #include <deque>
@@ -153,6 +154,7 @@ struct ZombieLayer {
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
     void makeNoise(glm::vec3 position, float decibels);
+    void makeNoise(const NoiseEvent& noise);
     // Bounded presentation notifications, independent of AI noise propagation.
     // A consumer drains these; an absent consumer retains at most 256 events.
     std::vector<ZombieReactionEvent> takeReactionEvents();
@@ -179,6 +181,7 @@ struct ZombieLayer {
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     // Hits from the latest behavior update only; consume before updating again.
     const std::vector<ZombieAttackHit>& attackHits() const { return attackHits_; }
+    const std::vector<NoiseEvent>& attackNoises() const { return attackNoises_; }
     const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
     // Only cold scenario loading enables navigation. Ordinary zombies and
     // replicated clients never load a mesh or request routes.
@@ -339,6 +342,7 @@ private:
     bool perceptionEnabled_ = true;
     ZombieBehaviorStats behaviorStats_;
     std::vector<ZombieAttackHit> attackHits_;
+    std::vector<NoiseEvent> attackNoises_;
 };
 
 bool hasZombieModels(const std::filesystem::path& source);

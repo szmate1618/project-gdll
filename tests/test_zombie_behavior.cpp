@@ -228,6 +228,9 @@ void hearingThresholdAndEligibility() {
     layer.behaviors.find(5)->state = ZombieState::attacking;
     layer.instances[6].ragdoll = true;
     layer.behaviors.remove(7);
+    layer.makeNoise({{0,0,0},110,viewer::NoiseEvent::Kind::zombieImpact,viewer::NoiseAudience::playersOnly});
+    require(state(layer,0) == ZombieState::idle && layer.instances[0].heardNoiseRevision == 0,
+        "Player-only zombie impacts must not enter AI hearing or consume a hearing reaction");
     layer.makeNoise({0, 0, 0}, viewer::walkingFootstepDecibels);
     require(state(layer, 0) == ZombieState::looking, "Walking noise is audible at exactly 10 m");
     require(layer.instances[0].heardNoiseRevision == 1 && layer.instances[1].heardNoiseRevision == 0 &&

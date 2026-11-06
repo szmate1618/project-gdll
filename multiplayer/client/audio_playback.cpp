@@ -152,8 +152,8 @@ void ClientAudio::update(const viewer::Camera& camera, const Scene& scene, const
     pending_.clear();
     std::vector<viewer::DoorAudioSample> samples;
     for (const auto& door : scene.doors->colliders(camera.position() - glm::vec3(40), camera.position() + glm::vec3(40)))
-        samples.push_back({door.door, scene.doors->angle(door.door), door.center});
-    for (const auto position : doors_.update(seconds, samples)) system_.play(viewer::AudioEffect::doorSlam, position, .8f);
+        samples.push_back({door.door, scene.doors->angle(door.door), door.center, scene.doors->restraint(door.door).broken});
+    for (const auto& slam : doors_.update(seconds, samples)) system_.play(viewer::AudioEffect::doorSlam, slam.position, slam.gain);
     system_.update();
 }
 } // namespace multiplayer

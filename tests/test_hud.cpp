@@ -1364,7 +1364,8 @@ int main(int argc, char** argv) {
             }
             if (argc > 1) {
                 for (const auto reason : {viewer::SleepWakeReason::PlayerJoined, viewer::SleepWakeReason::PlayerLeft,
-                    viewer::SleepWakeReason::Threat, viewer::SleepWakeReason::Damage, viewer::SleepWakeReason::Rested}) {
+                    viewer::SleepWakeReason::Threat, viewer::SleepWakeReason::Damage, viewer::SleepWakeReason::Rested,
+                    viewer::SleepWakeReason::Noise}) {
                     rest.sleepPlan.wakeReason = reason;
                     draw();
                     const auto prefix = std::string(argv[1]) + "-sleep-wake-" + std::to_string(static_cast<int>(reason));

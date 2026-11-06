@@ -10,6 +10,7 @@ struct ZombieInstance;
 struct ZombiePlayer;
 class CollisionWorld;
 class ZombieCrowd;
+struct NoiseEvent;
 
 // Shared attack-cycle targeting/cooldown. The legacy lunge moves the root;
 // zombie_melee_attack drives authored clips with the same cycle phases.
@@ -41,5 +42,5 @@ void stepZombieLunge(ZombieLunge& lunge, ZombieInstance& instance,
                      const CollisionWorld& world, ZombieCrowd& crowd, std::size_t zombie,
                      const ZombiePlayer* players, std::size_t playerCount,
                      float seconds, double now, std::vector<ZombieAttackHit>& hits,
-                     std::size_t& hitRays);
+                     std::size_t& hitRays, std::vector<NoiseEvent>* noises = nullptr);
 } // namespace viewer

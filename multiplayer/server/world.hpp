@@ -79,6 +79,7 @@ public:
     int simulationRate() const { return sleepPlan_.state().rate(); }
     const std::map<std::uint32_t, ServerPlayer>& players() const { return players_; }
 private:
+    void emitNoise(const viewer::NoiseEvent& noise, double now);
     Scene& scene_;
     ServerBirds birds_;
     VehicleSeats vehicleSeats_;

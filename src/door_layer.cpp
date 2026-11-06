@@ -1,4 +1,5 @@
 #include "door_layer.hpp"
+#include "door_slam.hpp"
 #include "physics_world.hpp"
 
 #include <box3d/box3d.h>
@@ -41,12 +42,16 @@ struct DoorLayer::Impl {
         bool present = true, runtime = false;
         DoorRestraintState restraint;
         float previousStretch = 0; // Last solved reverse free-edge displacement, meters.
+        DoorSlamState slam;
     };
     std::shared_ptr<PhysicsWorld> world;
     DoorConfig config;
     bool replica = false;
     std::vector<Entry> entries;
     std::vector<std::size_t> active;
+    // Strongest event per door/audience since the last drain. Bounded by the
+    // door population even if a consumer pauses; repeated bounces cannot grow it.
+    std::map<std::pair<std::size_t, NoiseAudience>, NoiseEvent> noises;
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
     float maximumReach = 0;
     glm::vec3 minimum{std::numeric_limits<float>::max()}, maximum{-minimum};
@@ -108,11 +113,30 @@ struct DoorLayer::Impl {
             const float previousAllowance = e.restraint.maxFlexMeters;
             e.restraint.maxFlexMeters = std::min({stretch, config.breakFlexMeters, previousAllowance + extension});
             e.restraint.broken = e.restraint.maxFlexMeters >= config.breakFlexMeters - .00001f;
-            if (e.restraint.broken) e.restraint.maxFlexMeters = config.breakFlexMeters;
+            if (e.restraint.broken) {
+                e.restraint.maxFlexMeters = config.breakFlexMeters;
+                queueNoise(index, {e.panel.center, doorBreakDecibels,
+                    NoiseEvent::Kind::doorBreak, NoiseAudience::playersOnly});
+            }
             updateRestraint(e);
             // Quiet creep can be slower than the body's sleep threshold. Keep
             // solving while its rest angle changes, then allow normal sleeping.
             b3Body_EnableSleep(e.body, e.restraint.broken || e.restraint.maxFlexMeters <= previousAllowance);
+        }
+    }
+    void queueNoise(std::size_t id, const NoiseEvent& noise) {
+        const auto key = std::make_pair(id, noise.audience);
+        const auto found = noises.find(key);
+        if (found == noises.end() || found->second.decibels < noise.decibels) noises[key] = noise;
+    }
+    void finishSounds() {
+        if (replica) return;
+        for (const auto id : active) {
+            auto& entry = entries[id];
+            if (entry.restraint.broken) { entry.slam = {}; continue; }
+            if (const auto slam = sampleDoorSlam(entry.slam, PhysicsWorld::fixedStepSeconds,
+                    b3RevoluteJoint_GetAngle(entry.joint), entry.panel.center))
+                queueNoise(id, {slam->position, slam->decibels, NoiseEvent::Kind::doorSlam});
         }
     }
     Entry& activate(std::size_t index) {
@@ -161,6 +185,8 @@ struct DoorLayer::Impl {
         updateRestraint(e);
         e.inverseRest = glm::inverse(glm::translate(glm::mat4(1), e.panel.center) * glm::mat4_cast(e.panel.rotation));
         active.push_back(index);
+        e.slam = {};
+        sampleDoorSlam(e.slam, PhysicsWorld::fixedStepSeconds, b3RevoluteJoint_GetAngle(e.joint), e.panel.center);
         return e;
     }
 };
@@ -194,9 +220,16 @@ DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld
         impl_->maximum = glm::max(impl_->maximum, p.hinge + swept);
     }
     impl_->world->registerStepCallbacks(impl_.get(), [state = impl_.get()] { state->prepareSprings(); },
-                                       [state = impl_.get()] { state->finishStrain(); });
+                                       [state = impl_.get()] { state->finishStrain(); state->finishSounds(); });
 }
 DoorLayer::~DoorLayer() = default;
+std::vector<NoiseEvent> DoorLayer::takeNoises() {
+    std::vector<NoiseEvent> events;
+    events.reserve(impl_->noises.size());
+    for (const auto& entry : impl_->noises) events.push_back(entry.second);
+    impl_->noises.clear();
+    return events;
+}
 std::size_t DoorLayer::count() const { return impl_->entries.size(); }
 std::size_t DoorLayer::activeCount() const { return impl_->active.size(); }
 const std::vector<std::size_t>& DoorLayer::activeDoors() const { return impl_->active; }

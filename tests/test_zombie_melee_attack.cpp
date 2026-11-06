@@ -49,6 +49,7 @@ void contactAndTiming() {
         zombie.displayedAnimationFrame = .5f;
         viewer::ZombieLunge cycle;
         std::vector<viewer::ZombieAttackHit> hits; std::size_t rays = 0;
+        std::vector<viewer::NoiseEvent> noises;
         viewer::ZombiePlayer player{{0, 0, 1}, 1.7f, 1.8f, 7};
         require(viewer::beginZombieMeleeAttack(cycle, zombie, model, player, 0), "Authored attack did not start");
         require(zombie.attackClip == 1, "First attack did not select the left hand");
@@ -57,11 +58,13 @@ void contactAndTiming() {
         double time = 0;
         while (cycle.phase != viewer::ZombieLunge::Phase::ready) {
             time += dt;
-            viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 4, &player, 1, dt, time, hits, rays);
+            viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 4, &player, 1, dt, time, hits, rays, &noises);
             if (time < .25) require(hits.empty(), "Windup injured a player");
         }
         require(hits.size() == 1 && hits[0].player == 7 && hits[0].damage == 10 && hits[0].zombie == 4,
             "Swept hand contact must emit exactly one base-damage hit at every timestep");
+        require(noises.size() == 1 && noises[0].audience == viewer::NoiseAudience::playersOnly,
+            "A hand contact must emit one player-only impact, not noise throughout the animation");
         require(glm::length(glm::vec3(zombie.restRoot[3])) < .00001f && !zombie.walking && !zombie.attackClip,
             "Authored attack moved its physical root or retained a finished clip");
         require(!viewer::beginZombieMeleeAttack(cycle, zombie, model, player, time), "Attack skipped cooldown");
@@ -87,9 +90,12 @@ void missesAndObstacles() {
         if (mode == 2) player.feet.y = 3;
         if (mode == 3) zombie.ragdoll = true;
         std::vector<viewer::ZombieAttackHit> hits; std::size_t rays = 0;
+        std::vector<viewer::NoiseEvent> noises;
         for (int tick = 1; tick <= 120; ++tick)
-            viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 0, &player, 1, 1.f/60, tick/60., hits, rays);
+            viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 0, &player, 1, 1.f/60, tick/60., hits, rays, &noises);
         require(hits.empty(), "Wall, dodge, separate floor or interrupted attacker still caused injury");
+        require(mode == 0 ? noises.size() == 1 : noises.empty(),
+            "World contact must sound once; a missed or interrupted swing must stay silent");
     }
 }
 

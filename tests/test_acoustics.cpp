@@ -61,6 +61,28 @@ void drops(bool terrain, bool tree, bool unclassified = false) {
     }
     require(stone,"A recycled body must use its new acoustic profile");
 }
+void gameplayBypassesPlaybackBudget() {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    const auto definition = b3DefaultBodyDef();
+    const auto floor = b3CreateBody(world->id(),&definition);
+    const auto hull = b3MakeBoxHull(100,.1f,2);
+    const auto shape = b3DefaultShapeDef(); b3CreateHullShape(floor,&shape,&hull.base);
+    viewer::BoxLayer boxes(world);
+    viewer::BoxSpawnMotion motion; motion.velocity = {0,-3,0};
+    for (int i = 0; i < 80; ++i) boxes.add({float(i-40),1,0},{.1f,.1f,.1f},motion);
+    bool overflow = false;
+    for (int i = 0; i < 45; ++i) {
+        world->step(1.f/60);
+        const auto playback = world->impacts().take();
+        const auto gameplay = world->impacts().takeNoises();
+        if (gameplay.size() == 80) {
+            require(playback.size() < gameplay.size(),"Fixture did not exceed the bounded playback budget");
+            overflow = true;
+        }
+    }
+    require(overflow,"Simultaneous physical sounds must reach gameplay even when playback drops events");
+    b3DestroyBody(floor);
+}
 void category(std::uint64_t category) {
     auto world=std::make_shared<viewer::PhysicsWorld>();
     const auto def=b3DefaultBodyDef();
@@ -74,9 +96,15 @@ void category(std::uint64_t category) {
     bool found=false;
     for (int i=0;i<45;++i) {
         world->step(1.f/60);
+        for (const auto& noise : world->impacts().takeNoises())
+            require((noise.audience == viewer::NoiseAudience::playersOnly) == (category == viewer::zombieAttackBodyCategory),
+                "Gameplay impact stream lost its player-only audience");
         for(const auto& e:world->impacts().take()) {
             found=true;
-            require(e.sound.hardSurface==(category!=viewer::ordinaryBodyCategory),"Car/door/unknown surface classification is wrong");
+            require(e.sound.hardSurface==((category & (viewer::hardImpactCategory | viewer::doorBodyCategory | viewer::vehicleBodyCategory)) != 0),
+                "Car/door/unknown surface classification is wrong");
+            require((e.audience == viewer::NoiseAudience::playersOnly) == (category == viewer::zombieAttackBodyCategory),
+                "An item struck by a zombie must not feed its impact noise back into AI hearing");
         }
     }
     require(found,"Synthetic collision did not generate a hit");
@@ -111,6 +139,8 @@ int main() {
         require(!viewer::validImpactSound(bad),"Nonfinite acoustic parameters must be rejected");
         drops(true,false); drops(false,false); drops(true,true); drops(false,false,true);
         category(viewer::ordinaryBodyCategory); category(viewer::doorBodyCategory); category(viewer::vehicleBodyCategory);
+        category(viewer::zombieAttackBodyCategory);
+        gameplayBypassesPlaybackBudget();
         std::cout << "Acoustic profiles, physical hit events, surface selection and stack identity passed\n";
     } catch(const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

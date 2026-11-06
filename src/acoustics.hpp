@@ -4,8 +4,10 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace viewer {
+struct NoiseEvent;
 enum class AcousticMaterial { metal, wood, glass, rock, soft };
 inline constexpr unsigned acousticMaterialCount = 5;
 
@@ -32,4 +34,7 @@ std::string acousticConfigId(const std::filesystem::path& path);
 ImpactSound makeImpactSound(const AcousticConfig& config, float massKg, float approachSpeed,
                            float scale, bool hardSurface, glm::vec3 position);
 float impactNoiseDb(const AcousticConfig& config, float massKg, float approachSpeed);
+// Reuse material impact playback for player-only bangs and breaking restraints.
+// This conversion never emits gameplay noise or changes its audience.
+std::optional<ImpactSound> noiseImpactSound(const NoiseEvent& noise);
 } // namespace viewer

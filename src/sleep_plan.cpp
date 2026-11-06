@@ -1,4 +1,5 @@
 #include "sleep_plan.hpp"
+#include "noise.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -67,6 +68,11 @@ void SleepPlan::guardSpotted(SleepGuardAlert alert, double now) {
     if (!state_.guarding(alert.guard)) return;
     wake(SleepWakeReason::GuardSpotted, now);
     state_.guardAlert = std::move(alert);
+}
+bool SleepPlan::hearNoise(const NoiseEvent& noise, glm::vec3 ears, double now) {
+    if (!state_.sleeping || noiseLevelAt(noise, ears) <= sleepNoiseWakeThresholdDecibels) return false;
+    wake(SleepWakeReason::Noise, now);
+    return true;
 }
 void SleepPlan::join(std::uint32_t player, double now) {
     if (!player || std::any_of(state_.participants.begin(), state_.participants.end(),

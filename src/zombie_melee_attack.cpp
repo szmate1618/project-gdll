@@ -114,7 +114,7 @@ bool beginZombieDoorAttack(ZombieLunge& cycle, ZombieInstance& instance,
 void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
                           const AnimatedModel& asset, const CollisionWorld& world, std::size_t zombie,
                           const ZombiePlayer* players, std::size_t playerCount, float seconds, double now,
-                          std::vector<ZombieAttackHit>& hits, std::size_t& hitRays) {
+                          std::vector<ZombieAttackHit>& hits, std::size_t& hitRays, std::vector<NoiseEvent>* noises) {
     if (cycle.phase == ZombieLunge::Phase::ready) return;
     if (instance.removed || instance.ragdoll || !instance.attackClip) {
         cancelZombieLunge(cycle, now, &instance); return;
@@ -139,10 +139,16 @@ void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
     while (!cycle.strikeStopped && time < end) {
         const double next = physical ? end : std::min(end, time + 1.0 / 120);
         const auto desired = physical ? solvedHand : handPosition(asset, instance, clip, bone, next);
+        const float speed = glm::length(desired - hand) / float(std::max(next - time, 1e-6));
+        const auto emitContact = [&](glm::vec3 position) {
+            if (noises && !physical) if (const auto noise = zombieImpactNoise(position, speed)) noises->push_back(*noise);
+        };
         // Trace from the supported torso too: a hand already behind a newly
         // closed door must not injure someone through that door.
         const auto chest = glm::vec3(instance.restRoot[3]) + glm::vec3(0, 1.2f, 0);
-        if (blocked(world, hand, desired) || !world.lineOfSight(chest, desired)) {
+        const bool handBlocked = blocked(world, hand, desired);
+        if (handBlocked || !world.lineOfSight(chest, desired)) {
+            if (handBlocked) emitContact(desired);
             cycle.strikeStopped = true; break;
         }
         float nearest = std::numeric_limits<float>::infinity();
@@ -154,6 +160,7 @@ void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
             }
         }
         if (victim) {
+            emitContact(glm::mix(hand,desired,nearest));
             if (canZombieAttack(instance, *victim, world, hitRays))
                 hits.push_back({zombie, victim->id, zombieBaseAttackDamage});
             cycle.strikeStopped = true; // One physical contact consumes the swing.

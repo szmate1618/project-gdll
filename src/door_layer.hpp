@@ -2,6 +2,7 @@
 
 #include "door_geometry.hpp"
 #include "door_config.hpp"
+#include "noise.hpp"
 #include <memory>
 #include <optional>
 
@@ -66,6 +67,9 @@ public:
     // Nearest current panel box on a finite ray. Does not activate bodies.
     std::optional<DoorRayHit> raycast(glm::vec3 origin, glm::vec3 direction, float reach) const;
     DoorPointState pointState(std::size_t door, glm::vec3 localPoint) const;
+    // Authoritative fixed-step events, independent of audio and camera visibility.
+    // Slams alert AI and players; broken restraints alert players only.
+    std::vector<NoiseEvent> takeNoises();
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

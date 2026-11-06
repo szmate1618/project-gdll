@@ -9,6 +9,7 @@ class CollisionWorld;
 class ZombieCrowd;
 class WalkingGroundCache;
 class ContactCandidates;
+inline constexpr float zombieWallClearanceMeters = .05f; // Extra visual room for animated limbs at steep walls.
 
 struct ZombieMovement {
     glm::vec3 feet;

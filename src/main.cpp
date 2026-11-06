@@ -539,6 +539,14 @@ struct AppState {
     bool handling() const { return weapons.slot() == viewer::handlingSlot || temporaryHandling(); }
 };
 
+void emitNoise(AppState& app, const viewer::NoiseEvent& noise) {
+    if (app.audio) if (const auto sound = viewer::noiseImpactSound(noise)) app.audio->impact(*sound);
+    if (app.zombies) app.zombies->makeNoise(noise);
+    if (app.dogs) app.dogs->makeNoise(noise);
+    if (app.sleepPlan && app.sleepPlan->state().inSleepSession(1))
+        app.sleepPlan->hearNoise(noise, app.rig.camera().position(), viewer::SimulationClock::instance().seconds());
+}
+
 AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWindowUserPointer(window)); }
 
 void captureMouse(GLFWwindow* window, bool captured) {
@@ -819,8 +827,7 @@ bool updateWeapons(AppState& app, double seconds) {
             app.rig.player().movementState().posture, app.rig.player().config(),
             aim.viewMode() != viewer::Camera::ViewMode::original);
         const auto shotDirection = viewer::inaccurateShotDirection(aim.direction(), app.shotInaccuracy.sample(sigma));
-        if (app.zombies) app.zombies->makeNoise(origin,110);
-        if (app.dogs) app.dogs->makeNoise(origin,110);
+        emitNoise(app, {origin,110});
         for (const auto direction : viewer::weaponShotDirections(config,shotDirection)) {
             const auto dog = app.dogs ? app.dogs->traceShot(origin,direction,app.world,app.displayedAnimationSeconds) : std::nullopt;
             // Keep the nearest species on the ray; a pellet cannot hit both.
@@ -1922,6 +1929,7 @@ int run(const Options& options) {
 
             const double behaviorStart = glfwGetTime();
             updateZombieBehavior(app, step, app.displayedAnimationSeconds, options.profile ? &zombieProfile : nullptr);
+            if (zombies) for (const auto& noise : zombies->attackNoises()) emitNoise(app, noise);
             if (zombies && zombies->takeSleepTravelThreat()) sleepPlan.wake(viewer::SleepWakeReason::Threat, simulationClock.seconds());
             if (app.dogs) {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::dogFetchPhysics);
@@ -1947,14 +1955,10 @@ int run(const Options& options) {
                 if (const auto event = undergrowthEmitter.update(step, shrubBefore,
                         {movingPlayer.feet(), movingPlayer.bodyHeight(), movingPlayer.config().radius,
                          movingPlayer.grounded(), running}, undergrowth)) {
-                    if (zombies) zombies->makeNoise(event->noise.position, event->noise.decibels);
-                    dogs.makeNoise(event->noise.position, event->noise.decibels);
+                    emitNoise(app, event->noise);
                     audio.rustle(*event);
                 }
-                if (zombies)
-                    for (const auto& noise : movingPlayer.noises())
-                        zombies->makeNoise(noise.position, noise.decibels);
-                for (const auto& noise : movingPlayer.noises()) dogs.makeNoise(noise.position, noise.decibels);
+                for (const auto& noise : movingPlayer.noises()) emitNoise(app, noise);
             } else undergrowthEmitter.reset();
             anchorGroundFog();
             followPlayerBody();
@@ -1995,7 +1999,9 @@ int run(const Options& options) {
                 zombies->synchronizePhysics();
             }
             if (app.driver.occupied()) app.driver.updateCamera(cars, app.rig.camera(), app.world);
-            grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
+            for (const auto& noise : grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds))
+                emitNoise(app, noise);
+            for (const auto& noise : doors.takeNoises()) emitNoise(app, noise);
             for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
                 if (explosion.id <= lastExplosion) continue;
                 audio.explosion(explosion.position);
@@ -2006,10 +2012,7 @@ int run(const Options& options) {
                 zombies->updateBloodEffects(app.displayedAnimationSeconds);
             }
             const auto impactEvents = physics->impacts().take();
-            for (const auto& impact : impactEvents) {
-                if (zombies) zombies->makeNoise(impact.sound.position, impact.noiseDb);
-                dogs.makeNoise(impact.sound.position, impact.noiseDb);
-            }
+            for (const auto& noise : physics->impacts().takeNoises()) emitNoise(app, noise);
             {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::audio);
                 audio.update(app.rig, zombies ? &*zombies : nullptr, step, &doors);

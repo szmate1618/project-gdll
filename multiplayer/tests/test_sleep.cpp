@@ -136,7 +136,11 @@ void wire() {
     snapshot.sleepPlan.guardAlert.bearing = 16; rejects([&] { encode(snapshot); });
     snapshot.sleepPlan.guardAlert.bearing = 1; snapshot.sleepPlan.guardAlert.guard = 0;
     rejects([&] { encode(snapshot); });
-    snapshot.sleepPlan.wakeReason = static_cast<viewer::SleepWakeReason>(8);
+    snapshot.sleepPlan.wakeReason = viewer::SleepWakeReason::Noise;
+    bytes = encode(snapshot);
+    require(std::get<Snapshot>(decode(bytes.data(),bytes.size())).sleepPlan.wakeReason == viewer::SleepWakeReason::Noise,
+        "Noise wake reason lost in transit");
+    snapshot.sleepPlan.wakeReason = static_cast<viewer::SleepWakeReason>(9);
     rejects([&] { encode(snapshot); });
     Snapshots snapshots; snapshots.push(restored, 0);
     snapshot.tick = 101; snapshot.sleepPlan = {44, 2, 30, {{1, viewer::SleepResponse::Pending}, {2, viewer::SleepResponse::Accept}}};
@@ -260,11 +264,55 @@ void guardedWake(const char* map) {
     require(player != state.players.end() && std::abs(player->yaw-angles.x) < .001f && std::abs(player->pitch-angles.y) < .001f,
         "Spotting guard did not face the detected head on waking");
 }
+void noiseThreshold() {
+    using namespace viewer;
+    SleepPlan plan; plan.join(1); plan.join(2);
+    plan.apply(1,{SleepActionKind::Suggest,0,240});
+    plan.apply(2,{SleepActionKind::Guard,plan.state().revision,30});
+    require(plan.begin(0,{12,1200}),"Noise fixture did not enter guarded sleep");
+    const NoiseEvent quiet{{0,0,0},sleepNoiseWakeThresholdDecibels,NoiseEvent::Kind::doorBreak,NoiseAudience::playersOnly};
+    require(!plan.hearNoise(quiet,{},1) && plan.state().sleeping,"The exact received-noise threshold must not wake players");
+    const NoiseEvent slam{{0,0,0},60,NoiseEvent::Kind::doorSlam};
+    require(!plan.hearNoise(slam,{100,0,0},2) && plan.state().sleeping,"A distant sound woke someone below the received threshold");
+    require(plan.hearNoise(slam,{10,0,0},2) && !plan.state().inSleepSession(1) && !plan.state().inSleepSession(2) &&
+        plan.state().wakeReason == SleepWakeReason::Noise && plan.state().rate() == 1,
+        "One player's audible slam must end sleep and automatic watch for everyone");
+    plan.apply(1,{SleepActionKind::Suggest,plan.state().revision,240});
+    plan.apply(2,{SleepActionKind::Guard,plan.state().revision,30}); plan.begin(3,{12,1200});
+    const auto impact = zombieImpactNoise({},2);
+    require(!zombieImpactNoise({},.79f) && impact && impact->audience == NoiseAudience::playersOnly &&
+        plan.hearNoise(*impact,{0,0,5},4),"A player-only zombie impact must still wake sleepers who hear it");
+}
+void brokenDoorWakesGroup(const char* map) {
+    using namespace multiplayer;
+    Options options; options.map = map; options.trees = options.forests = options.cars = false; options.zombieCount = 0;
+    Scene scene(options); World world(scene);
+    const auto sleeper = world.join("Almos"), guard = world.join("Bandi");
+    Command command; command.sequence = 1; command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Suggest,0,240};
+    world.submit(sleeper,Commands{{command}});
+    for (int i = 0; i < 10 && !world.snapshot(sleeper).sleepPlan.proposer; ++i) world.step();
+    command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Guard,world.snapshot(sleeper).sleepPlan.revision,30};
+    world.submit(guard,Commands{{command}}); world.step();
+    require(world.simulationRate() == 30,"Break-noise fixture did not start guarded sleep");
+    viewer::DoorPanel panel;
+    panel.center = world.players().at(guard).controller.feet() + glm::vec3(20,1.1f,0);
+    panel.hinge = panel.center - glm::vec3(.5f,0,0); panel.halfExtents = {.5f,1,.02f}; panel.outward = {0,0,1};
+    const auto id = scene.doors->reserveRuntimeDoors(1); scene.doors->installRuntimeDoor(id,panel);
+    for (int tick = 0; tick < 60 * 60 && world.snapshot(sleeper).sleepPlan.sleeping; ++tick) {
+        const auto point = scene.doors->pointState(id,{.45f,0,0}).point;
+        scene.doors->applyForce(id,{0,0,-360},point);
+        world.step();
+    }
+    const auto plan = world.snapshot(sleeper).sleepPlan;
+    require(scene.doors->restraint(id).broken && !plan.sleeping && world.simulationRate() == 1 &&
+        plan.wakeReason == viewer::SleepWakeReason::Noise && world.snapshot(guard).sleepPlan.wakeReason == viewer::SleepWakeReason::Noise,
+        "A real door break must wake the whole group on the headless authority");
+}
 }
 int main(int argc, char** argv) {
     try {
-        calendar(); planning(); lifecycle(); wire();
-        require(argc == 2, "Expected test map"); server(argv[1]); guardedWake(argv[1]);
+        calendar(); planning(); lifecycle(); wire(); noiseThreshold();
+        require(argc == 2, "Expected test map"); server(argv[1]); guardedWake(argv[1]); brokenDoorWakesGroup(argv[1]);
         std::cout << "Sleep planning, calendar, protocol and server checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

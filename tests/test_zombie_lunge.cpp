@@ -43,6 +43,7 @@ struct Fixture {
     viewer::ZombieCrowd crowd;
     std::vector<viewer::ZombiePlayer> players{{{0, 0, 1}, 1.7f, 1.8f, 7}};
     std::vector<viewer::ZombieAttackHit> hits;
+    std::vector<viewer::NoiseEvent> noises;
     std::size_t rays = 0;
     double now = 0;
 
@@ -54,7 +55,7 @@ struct Fixture {
     void step(float seconds, const viewer::CollisionWorld& world) {
         now += seconds;
         viewer::stepZombieLunge(lunge, zombie, world, crowd, 0,
-            players.data(), players.size(), seconds, now, hits, rays);
+            players.data(), players.size(), seconds, now, hits, rays, &noises);
         crowd.update(0, feet());
     }
 };
@@ -82,6 +83,8 @@ void contactAndRecovery() {
         require(f.hits.empty() && !f.zombie.walking, "Wind-up must retain idle without damage");
         while (f.lunge.phase == viewer::ZombieLunge::Phase::striking) f.step(strikeStep, world);
         require(f.hits.size() == 1 && f.hits[0].player == 7, "Swept contact must hit the player once");
+        require(f.noises.size() == 1 && f.noises[0].audience == viewer::NoiseAudience::playersOnly,
+            "A body lunge contact must emit one player-only impact noise");
         near(f.hits[0].damage, 10, "Contact clipping must not reduce the incoming base damage");
         near(f.feet().z, .4f, "Combined body radii must stop a one-meter approach after 40 cm");
         require(!f.zombie.walking && !f.zombie.running && f.zombie.transform == f.zombie.restTransform &&
@@ -143,6 +146,7 @@ void blockersAndInterruptedRecovery() {
         "A newly closed wall must stop motion without hitting a player on the rejected path");
     require(blocked.lunge.phase == viewer::ZombieLunge::Phase::recovering,
         "An obstacle must end the forward strike");
+    require(blocked.noises.size() == 1,"A body strike against a solid wall must produce an impact noise");
 
     Fixture crowd;
     crowd.crowd.reset(2);
@@ -153,6 +157,7 @@ void blockersAndInterruptedRecovery() {
     crowd.step(.15f, clear);
     require(crowd.hits.empty() && crowd.feet().z < .21f,
         "A living crowd body must block the lunge before player contact");
+    require(crowd.noises.empty(),"Crowd spacing alone must not invent a solid-object impact");
 
     Fixture recovery;
     recovery.begin();

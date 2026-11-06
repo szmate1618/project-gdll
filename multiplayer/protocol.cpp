@@ -466,7 +466,7 @@ void sleepPlan(Wire& w, viewer::SleepPlanState& sleep) {
         throw std::runtime_error("Invalid sleep proposer");
     w.flag(sleep.sleeping); w.number(sleep.startedAt); w.number(sleep.endsAt); w.number(sleep.endedAt);
     auto reason = static_cast<std::uint8_t>(sleep.wakeReason); w.integer(reason);
-    if (reason > static_cast<std::uint8_t>(viewer::SleepWakeReason::GuardSpotted) ||
+    if (reason > static_cast<std::uint8_t>(viewer::SleepWakeReason::Noise) ||
         (sleep.sleeping && (!sleep.ready() || sleep.startedAt < 0 || sleep.endsAt <= sleep.startedAt)))
         throw std::runtime_error("Invalid sleep lifecycle");
     sleep.wakeReason = static_cast<viewer::SleepWakeReason>(reason);

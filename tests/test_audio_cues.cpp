@@ -90,7 +90,8 @@ void doorSlams() {
     for (int i = 29; i >= 0; --i) require(sample(i * .01f).empty(), "Slow closing does not slam");
     sample(.5f); sample(.15f);
     const auto slam = sample(0);
-    require(slam == std::vector<glm::vec3>{position}, "Fast closure plays once at the door position");
+    require(slam.size() == 1 && slam[0].position == position && slam[0].speed >= .8f,
+        "Fast closure plays once at the door position");
     require(sample(.01f).empty() && sample(0).empty(), "Closed-stop jitter cannot repeat a slam");
     sample(.2f);
     require(sample(0).empty(), "Rapid hinge bounce is debounced");
@@ -100,6 +101,22 @@ void doorSlams() {
     require(sample(0).empty(), "Doors entering the audible neighborhood do not create phantom slams");
     sample(-.5f); sample(-.15f);
     require(sample(0).size() == 1, "Inward-swinging doors must produce the same closing slam");
+    const auto atSpeed = [&](float speed) {
+        viewer::DoorAudioTracker scaled;
+        scaled.update(.1f,{{4,.5f,position}});
+        return scaled.update(.48f / speed,{{4,.02f,position}});
+    };
+    require(atSpeed(.79f).empty(), "Closing below the minimum speed must emit no event");
+    const auto gentle = atSpeed(1), normal = atSpeed(2), hard = atSpeed(4), extreme = atSpeed(20);
+    require(gentle.size() == 1 && normal.size() == 1 && hard.size() == 1 && extreme.size() == 1,
+        "Qualifying slam speeds must each produce one event");
+    require(std::abs(gentle[0].decibels - 54) < .1f && std::abs(normal[0].decibels - 60) < .1f &&
+        std::abs(hard[0].decibels - 66) < .1f && extreme[0].decibels == 70,
+        "Slam noise must scale logarithmically with closing speed and cap at seventy dB");
+    require(gentle[0].gain < normal[0].gain && normal[0].gain < hard[0].gain,
+        "Faster door slams must also play louder");
+    tracker.update(.1f,{{4,.5f,position,true}});
+    require(tracker.update(.1f,{{4,0,position,true}}).empty(),"A broken restraint must not invent a closed-stop slam");
 }
 }
 int main() {

@@ -70,6 +70,8 @@ void behavior() {
     require(!dogs.instances[0].walking && dogs.instances[0].walkSeconds == walkClock,"No players must stop movement");
     auto hearing = pack();
     hearing.updateBehavior(.1f,{{{0,0,-10}}},empty,0);
+    hearing.makeNoise({{10,0,0},110,viewer::NoiseEvent::Kind::doorBreak,viewer::NoiseAudience::playersOnly});
+    require(hearing.behaviors[0].state == viewer::DogState::idle,"Player-only break sounds must not alert dogs");
     hearing.makeNoise({10,0,0},40);
     require(hearing.behaviors[0].state == viewer::DogState::looking,"Idle dogs must hear player noise");
     auto outside = pack(); outside.updateBehavior(.1f,{{{0,0,200}}},empty,0);

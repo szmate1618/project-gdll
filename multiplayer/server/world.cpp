@@ -176,6 +176,14 @@ void World::submit(std::uint32_t id, const Commands& commands) {
     }
     player.lastPacketTick = tick_;
 }
+void World::emitNoise(const viewer::NoiseEvent& noise, double now) {
+    if (const auto sound = viewer::noiseImpactSound(noise)) sounds_.impact(tick_, *sound);
+    scene_.zombies.makeNoise(noise);
+    scene_.dogs.makeNoise(noise);
+    for (const auto& [id, player] : players_) {
+        if (sleepPlan_.state().inSleepSession(id) && sleepPlan_.hearNoise(noise, player.controller.eyePosition(), now)) break;
+    }
+}
 void World::step() {
     ++tick_;
     sounds_.expire(tick_);
@@ -224,6 +232,7 @@ void World::step() {
         if (player != players_.end()) player->second.vitals.applyDamage(hit.damage);
     }
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
+    for (const auto& noise : scene_.zombies.attackNoises()) emitNoise(noise, now);
     if (scene_.zombies.takeSleepTravelThreat()) sleepPlan_.wake(viewer::SleepWakeReason::Threat, now);
     for (const auto& hit : scene_.zombies.attackHits()) {
         const auto player = players_.find(hit.player);
@@ -461,22 +470,20 @@ void World::step() {
         const auto car = vehicleSeats_.car(id);
         if (car != noVehicle) player.velocity = scene_.vehicles->velocity(car);
     }
-    scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
+    for (const auto& noise : scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now)) emitNoise(noise, now);
+    for (const auto& noise : scene_.doors->takeNoises()) emitNoise(noise, now);
     for (const auto& impact : scene_.physics->impacts().take()) {
         sounds_.impact(tick_, impact.sound);
-        scene_.zombies.makeNoise(impact.sound.position, impact.noiseDb);
-        scene_.dogs.makeNoise(impact.sound.position, impact.noiseDb);
     }
+    for (const auto& noise : scene_.physics->impacts().takeNoises()) emitNoise(noise, now);
     scene_.groundItems->removeBelow(scene_.model.boundsMin.y - 10.f);
     scene_.boxes->retireBelow(scene_.model.boundsMin.y - 10.f);
     scene_.zombies.synchronizePhysics();
     for (const auto& noise : noises) {
-        scene_.zombies.makeNoise(noise.position, noise.decibels);
-        scene_.dogs.makeNoise(noise.position, noise.decibels);
+        emitNoise(noise, now);
     }
     for (const auto& shot : shots) {
-        scene_.zombies.makeNoise(shot.origin, 110);
-        scene_.dogs.makeNoise(shot.origin, 110);
+        emitNoise({shot.origin,110}, now);
         // Intersection comes from the displayed client pose. Weapon identity,
         // origin, pellet directions and caliber were captured when this command
         // fired, before any later input could switch weapons or change aim.

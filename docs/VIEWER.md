@@ -2083,6 +2083,14 @@ the horde's noise, so membership still counts after arrival or a switch to pursu
 Ordinary/idle zombies and dogs do not trigger it. Guard sightings and damage
 remain separate wake-up triggers. Manual waking restores
 normal time immediately; completing sleep never automatically starts another.
+Gameplay sounds also wake everyone if any sleeper or guard receives a level
+**above 30 dB** at their ears, after the existing distance-only attenuation.
+This covers footsteps, foliage, shots, explosions, item impacts and speed-scaled
+door slams. Zombie strike impacts and broken door restraints use **player-only**
+events, so the player can hear them without attracting zombies or dogs.
+Door breaks emit 75 dB at one metre; ordinary slams emit 60 dB at 2 rad/s,
+scale logarithmically with speed, cap at 70 dB, and stay silent below 0.8 rad/s.
+These checks run on the authority even with audio muted and no world rendering.
 After waking, an eight-second notice gives the reason in a short story message,
 followed by **Sleep ended**. Arrivals and departures use distinct radio announcements;
 nearby threats interrupt rest with the sound of shuffling feet.

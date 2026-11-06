@@ -183,7 +183,7 @@ void stepZombieLunge(ZombieLunge& lunge, ZombieInstance& instance,
                      const CollisionWorld& world, ZombieCrowd& crowd, std::size_t zombie,
                      const ZombiePlayer* players, std::size_t playerCount,
                      float seconds, double now, std::vector<ZombieAttackHit>& hits,
-                     std::size_t& hitRays) {
+                     std::size_t& hitRays, std::vector<NoiseEvent>* noises) {
     if (lunge.phase == ZombieLunge::Phase::ready) return;
     if (instance.removed || instance.ragdoll) { cancelZombieLunge(lunge, now); return; }
     if (!std::isfinite(seconds) || seconds <= 0) return;
@@ -216,6 +216,15 @@ void stepZombieLunge(ZombieLunge& lunge, ZombieInstance& instance,
                     world, crowd, zombie, players, playerCount);
                 lunge.forwardTravel += movement.travel;
                 commit(instance, movement.feet, duration);
+                if (noises) {
+                    std::optional<glm::vec3> impact;
+                    if (movement.contact) impact = movement.feet + glm::vec3(0,1,0);
+                    else if (movement.blocked)
+                        for (const auto& contact : world.contacts(movement.feet, ZombieCrowd::bodyRadius,
+                                ZombieCrowd::bodyHeight, .02f, zombieWallClearanceMeters))
+                            if (std::abs(contact.normal.y) < .7f) { impact = contact.point; break; }
+                    if (impact) if (const auto noise = zombieImpactNoise(*impact,zombieLungeSpeed)) noises->push_back(*noise);
+                }
                 if (movement.contact && canZombieAttack(instance, *movement.contact, world, hitRays))
                     hits.push_back({zombie, movement.contact->id,
                         zombieAttackDamage(movement.impactVelocity, movement.contact->velocity)});

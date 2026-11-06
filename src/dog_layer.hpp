@@ -69,6 +69,7 @@ public:
                         ZombieDetachedParts* parts = nullptr);
     void prepareFetchPhysics(PhysicsScene& scene, DoorLayer* doors = nullptr) const;
     void makeNoise(glm::vec3 position, float decibels);
+    void makeNoise(const NoiseEvent& noise);
     const std::vector<DogAttackHit>& attackHits() const { return hits_; }
     void releaseAnimationVertices();
     std::optional<DogShotTrace> traceShot(glm::vec3 origin, glm::vec3 direction,

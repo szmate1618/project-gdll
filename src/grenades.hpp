@@ -2,6 +2,7 @@
 
 #include "muzzle_flash.hpp"
 #include "weapon_config.hpp"
+#include "noise.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <memory>
@@ -43,8 +44,9 @@ public:
                    double seconds, const GrenadeConfig& config, const CollisionWorld& world, float power = 1);
     void prepare(PhysicsScene& scene, DoorLayer& doors); // Before the shared step.
     // After physics: resolve approximate sphere/trunk overlaps, remove expired
-    // bodies, apply blast effects and publish events. Fast throws can miss trunks.
-    void update(double seconds, const CollisionWorld& world, ZombieLayer* zombies = nullptr,
+    // bodies, apply blast effects and return new simulation noises for dispatch.
+    // Fast throws can miss trunks.
+    std::vector<NoiseEvent> update(double seconds, const CollisionWorld& world, ZombieLayer* zombies = nullptr,
                 double animationSeconds = 0);
     std::vector<GrenadePose> poses() const;
     std::vector<GrenadeExplosion> explosions(double seconds) const;

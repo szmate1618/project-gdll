@@ -83,10 +83,10 @@ void SceneAudio::update(const CameraRig& rig, ZombieLayer* zombies, float second
     if (doors) {
         const auto eye = camera.position();
         for (const auto& door : doors->colliders(eye - glm::vec3(40), eye + glm::vec3(40)))
-            doorSamples.push_back({door.door, doors->angle(door.door), door.center});
+            doorSamples.push_back({door.door, doors->angle(door.door), door.center, doors->restraint(door.door).broken});
     }
-    for (const auto position : doorTracker_.update(seconds, doorSamples))
-        audio_.play(AudioEffect::doorSlam, position, .8f);
+    for (const auto& slam : doorTracker_.update(seconds, doorSamples))
+        audio_.play(AudioEffect::doorSlam, slam.position, slam.gain);
     service();
 }
 } // namespace viewer

@@ -280,7 +280,7 @@ target_link_libraries(viewer_bird_assets PUBLIC viewer_model)
 target_include_directories(viewer_bird_assets SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_bird_assets)
 
-add_library(viewer_noise STATIC src/noise.cpp src/player_noise.cpp)
+add_library(viewer_noise STATIC src/noise.cpp src/player_noise.cpp src/door_slam.cpp)
 target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_noise PUBLIC glm::glm)
 viewer_warnings(viewer_noise)
@@ -332,7 +332,7 @@ add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
 add_library(viewer_physics STATIC src/vehicle_config.cpp src/door_config.cpp src/physics_world.cpp src/physics_impacts.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
-target_link_libraries(viewer_physics PUBLIC viewer_model viewer_acoustics box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
+target_link_libraries(viewer_physics PUBLIC viewer_model viewer_acoustics viewer_noise box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 target_sources(viewer_physics PRIVATE src/collision_box.cpp)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -348,7 +348,7 @@ target_include_directories(viewer_day_night_clock PUBLIC "${CMAKE_CURRENT_SOURCE
 viewer_warnings(viewer_day_night_clock)
 
 add_library(viewer_sleep STATIC src/sleep_plan.cpp)
-target_link_libraries(viewer_sleep PUBLIC viewer_day_night_clock glm::glm)
+target_link_libraries(viewer_sleep PUBLIC viewer_day_night_clock viewer_noise glm::glm)
 viewer_warnings(viewer_sleep)
 
 add_library(viewer_sleep_world STATIC src/sleep_threat.cpp src/sleep_watch.cpp)
@@ -518,7 +518,7 @@ include(cmake/Hud.cmake)
 endif()
 
 add_library(viewer_audio_cues STATIC src/zombie_audio.cpp src/door_audio.cpp)
-target_link_libraries(viewer_audio_cues PUBLIC glm::glm)
+target_link_libraries(viewer_audio_cues PUBLIC viewer_noise glm::glm)
 target_include_directories(viewer_audio_cues PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 viewer_warnings(viewer_audio_cues)
 

@@ -13,7 +13,7 @@ namespace viewer {
 namespace {
 constexpr float radius = ZombieCrowd::bodyRadius, height = ZombieCrowd::bodyHeight;
 constexpr float skin = .002f, tolerance = .0001f;
-constexpr float wallClearance = .05f; // Extra visual room for animated limbs, in meters.
+constexpr float wallClearance = zombieWallClearanceMeters;
 constexpr float maxSegment = radius / 3;
 constexpr int maxSegments = 2048, resolutionIterations = 4;
 constexpr float stepHeight = .30f, minNormalY = .70710678f;

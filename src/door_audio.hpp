@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include "door_slam.hpp"
 #include <cstddef>
 #include <unordered_map>
 #include <vector>
@@ -10,13 +11,13 @@ struct DoorAudioSample {
     std::size_t id;
     float angle; // Hinge radians; zero closed, positive outward.
     glm::vec3 position;
+    bool broken = false; // A released restraint has no closed stop to slam against.
 };
 // Observes physics poses; never changes a hinge, contact or interaction.
 class DoorAudioTracker {
 public:
-    std::vector<glm::vec3> update(float seconds, const std::vector<DoorAudioSample>& doors);
+    std::vector<DoorSlamEvent> update(float seconds, const std::vector<DoorAudioSample>& doors);
 private:
-    struct State { float angle = 0, closingSpeed = 0, cooldown = 0; bool armed = false; };
-    std::unordered_map<std::size_t, State> states_;
+    std::unordered_map<std::size_t, DoorSlamState> states_;
 };
 } // namespace viewer

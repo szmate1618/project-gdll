@@ -1,4 +1,5 @@
 #include "acoustics.hpp"
+#include "noise.hpp"
 #include <toml++/toml.hpp>
 #include <algorithm>
 #include <cmath>
@@ -74,5 +75,12 @@ ImpactSound makeImpactSound(const AcousticConfig& c, float mass, float speed, fl
 }
 float impactNoiseDb(const AcousticConfig& c, float mass, float speed) {
     return std::clamp(c.noiseDb + 10*std::log10(std::max(energy(mass, speed), .0001f)), 0.f, 100.f);
+}
+std::optional<ImpactSound> noiseImpactSound(const NoiseEvent& noise) {
+    const bool broken = noise.kind == NoiseEvent::Kind::doorBreak;
+    if (!broken && noise.kind != NoiseEvent::Kind::zombieImpact) return {};
+    return ImpactSound{noise.position, broken ? AcousticMaterial::wood : AcousticMaterial::soft,
+        true, broken ? .9f : .5f, broken ? .5f : .1f, broken ? 1.5f : 1.f,
+        std::clamp(.6f * std::pow(10.f, (noise.decibels - 55.f) / 20.f), 0.f, 1.f)};
 }
 } // namespace viewer

@@ -86,6 +86,7 @@ void SleepDrawer::update(const HudState& state) {
         case SleepWakeReason::Rested: wakeMessage = "For a little while, the world let you rest. That time is yours now."; break;
         case SleepWakeReason::Threat: wakeMessage = "Restless feet drag across the earth. Their shuffling leaves no room for dreams."; break;
         case SleepWakeReason::Damage: wakeMessage = "Pain tears you from your dreams. The world demands your attention."; break;
+        case SleepWakeReason::Noise: wakeMessage = "A sudden noise breaks the quiet. You wake with a start."; break;
         case SleepWakeReason::Cancelled: wakeMessage = "The watch is over. It is time to open your eyes."; break;
         case SleepWakeReason::PlayerJoined:
             if (!arrivalMessage_ || arrivalEndedAt_ != plan.endedAt) {

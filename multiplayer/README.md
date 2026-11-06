@@ -676,12 +676,18 @@ zombies and dogs do not cause distance-only wake-ups; guard sightings and damage
 remain independent triggers. Distant travellers use coarse path progress with no obstacle checks;
 normal movement and terrain placement resume on waking. Stamina and strain
 recover, but sleep does not heal injuries. Clients and servers must both use
-protocol version 55. The handshake includes the selected character's name for
+protocol version 56. The handshake includes the selected character's name for
 guard alerts. Each guard checks the nearest 20 living zombies every five simulated
 seconds, within 50 m at night and 100 m by day with a twilight blend. A visible
 head and movement roughly toward the guard wake the group. The spotting guard
 faces the detected zombie; everyone sees the guard's name and compass direction.
 Guards recover stamina at the standing rate and receive no sleep strain recovery.
+Any sleeper or guard receiving gameplay noise above 30 dB at their ear position
+wakes the whole group. Source levels use distance-only attenuation. Door slams
+emit no event below 0.8 rad/s; otherwise their level is 60 dB at 2 rad/s, scaled
+logarithmically and capped at 70 dB. Door breaks and zombie strike impacts emit
+player-only noise that zombies and dogs ignore. Audio settings do not affect
+these authoritative checks; replicas never infer gameplay noise from poses.
 Wake notices show a short story reason above **Sleep ended**
 for eight seconds, with distinct radio announcements for arrivals and departures.
 

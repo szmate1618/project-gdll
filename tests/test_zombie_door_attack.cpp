@@ -6,6 +6,7 @@
 #include "floorplan_layer.hpp"
 #include "house_navigation.hpp"
 #include "physics_world.hpp"
+#include "physics_impacts.hpp"
 #include "physics_scene.hpp"
 #include "simulation_clock.hpp"
 
@@ -143,6 +144,7 @@ void physicalSwingsPushDoor() {
     doors.activateNear({0, 0, 0});
     auto& clock = viewer::SimulationClock::instance(); clock.reset();
     bool physicalAttack = false;
+    bool impactNoise = false;
     float maximumAngle = 0;
     for (int tick = 0; tick < 180; ++tick) {
         clock.advance(dt); zombies.updateBehavior(dt, player, world, clock.seconds());
@@ -150,11 +152,14 @@ void physicalSwingsPushDoor() {
         physicalAttack |= zombie.attackClip && zombie.activeRagdoll && !zombie.ragdoll;
         zombies.prepareAttackPhysics(scene);
         physics->step(dt);
+        for (const auto& impact : physics->impacts().take())
+            impactNoise |= impact.audience == viewer::NoiseAudience::playersOnly;
         zombies.synchronizePhysics();
         maximumAngle = std::max(maximumAngle, std::abs(doors.angle(0)));
     }
     require(physicalAttack, "A door-contact swing must activate the existing living physical attack rig");
     require(maximumAngle > .02f, "A physical door swing failed to transfer force to the shared door body");
+    require(impactNoise,"Physical zombie strikes on a door must produce player-only impact noise");
 }
 
 void sustainedWalkingPressure() {

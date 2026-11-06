@@ -24,6 +24,12 @@ void PhysicsImpacts::track(b3BodyId body, std::string_view profile, float scale)
     bodies_[b3StoreBodyId(body)] = {found == profiles_.end() ? AcousticConfig{} : found->second, scale, 0};
     b3Body_EnableHitEvents(body, true);
 }
+void PhysicsImpacts::trackZombieImpact(b3BodyId body) {
+    if (!b3Body_IsValid(body)) throw std::invalid_argument("Invalid zombie impact body");
+    AcousticConfig config; config.material = AcousticMaterial::soft; config.minSpeed = .8f;
+    bodies_[b3StoreBodyId(body)] = {config,1,0,true};
+    b3Body_EnableHitEvents(body, true);
+}
 void PhysicsImpacts::untrack(b3BodyId body) { bodies_.erase(b3StoreBodyId(body)); }
 void PhysicsImpacts::capture() {
     ++tick_;
@@ -60,6 +66,14 @@ void PhysicsImpacts::capture() {
         const bool hard = (categories & (hardImpactCategory | doorBodyCategory | vehicleBodyCategory)) != 0;
         PhysicsImpact event{makeImpactSound(body.config, mass, hit.speed, body.scale, hard, hit.position),
                             impactNoiseDb(body.config, mass, hit.speed)};
+        if (body.zombie) {
+            const auto noise = zombieImpactNoise(hit.position,hit.speed);
+            if (!noise) continue;
+            event = {*noiseImpactSound(*noise),noise->decibels,NoiseAudience::playersOnly};
+        }
+        if (categories & (zombieAttackBodyCategory | zombieDoorBlockerCategory))
+            event.audience = NoiseAudience::playersOnly;
+        noises_.push_back({hit.position,event.noiseDb,NoiseEvent::Kind::generic,event.audience});
         if (events_.size() < 64) events_.push_back(event);
         else {
             const auto weakest = std::min_element(events_.begin(), events_.end(),
@@ -71,6 +85,11 @@ void PhysicsImpacts::capture() {
 std::vector<PhysicsImpact> PhysicsImpacts::take() {
     std::vector<PhysicsImpact> result;
     result.swap(events_);
+    return result;
+}
+std::vector<NoiseEvent> PhysicsImpacts::takeNoises() {
+    std::vector<NoiseEvent> result;
+    result.swap(noises_);
     return result;
 }
 } // namespace viewer

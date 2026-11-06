@@ -20,5 +20,6 @@ bool beginZombieDoorAttack(ZombieLunge& cycle, ZombieInstance& instance,
 void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
                           const AnimatedModel& asset, const CollisionWorld& world, std::size_t zombie,
                           const ZombiePlayer* players, std::size_t playerCount, float seconds, double now,
-                          std::vector<ZombieAttackHit>& hits, std::size_t& hitRays);
+                          std::vector<ZombieAttackHit>& hits, std::size_t& hitRays,
+                          std::vector<NoiseEvent>* noises = nullptr);
 } // namespace viewer

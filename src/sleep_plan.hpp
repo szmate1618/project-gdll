@@ -10,6 +10,8 @@ namespace viewer {
 constexpr std::uint16_t minimumSleepMinutes = 30, maximumSleepMinutes = 720;
 constexpr float sleepWakeDistanceMeters = 60;
 constexpr int sleepAcceleration = 30;
+constexpr float sleepNoiseWakeThresholdDecibels = 30; // Received level at the player's ears; must be exceeded.
+struct NoiseEvent;
 bool validSleepDuration(std::uint16_t minutes);
 std::string sleepDurationLabel(std::uint16_t minutes);
 
@@ -23,7 +25,7 @@ GameCalendarTime gameCalendarTime(const DayNightCycle& cycle, double seconds, in
 
 enum class SleepResponse : std::uint8_t { Pending, Accept, Guard };
 enum class SleepActionKind : std::uint8_t { Suggest, Accept, Guard, Cancel };
-enum class SleepWakeReason : std::uint8_t { None, Rested, Threat, Damage, Cancelled, PlayerJoined, PlayerLeft, GuardSpotted };
+enum class SleepWakeReason : std::uint8_t { None, Rested, Threat, Damage, Cancelled, PlayerJoined, PlayerLeft, GuardSpotted, Noise };
 struct SleepGuardAlert {
     std::uint32_t guard = 0;
     std::string name;
@@ -70,6 +72,7 @@ public:
     void update(double now);
     void wake(SleepWakeReason reason, double now);
     void guardSpotted(SleepGuardAlert alert, double now);
+    bool hearNoise(const NoiseEvent& noise, glm::vec3 ears, double now);
 private:
     void cancel();
     SleepPlanState state_;
