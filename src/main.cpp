@@ -390,7 +390,7 @@ void printHelp() {
               << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Alt handling / vehicle camera, Tab equipment drawer cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
+              << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
@@ -592,8 +592,8 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         return;
     }
     if (app.hudScreen != viewer::HudScreen::Gameplay) return;
-    if (key == GLFW_KEY_TAB && (app.handling() || app.equipmentCursor) && !app.driver.occupied()) {
-        app.equipmentCursor = !app.equipmentCursor; app.capture = !app.equipmentCursor;
+    if (key == GLFW_KEY_TAB) {
+        app.equipmentCursor = app.capture; app.capture = !app.capture;
         app.firstMouse = true; app.actionSelection.close(); app.weapons.cancelTrigger();
         if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, app.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         return;
@@ -1726,6 +1726,8 @@ int run(const Options& options) {
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
     viewer::Hud hud(VIEWER_HUD_DIR, app.inventory);
+    viewer::SleepPlan sleepPlan;
+    sleepPlan.join(1);
     hud.setGroundItems(groundItems, app.weapons, app.world);
     app.hud = &hud;
     if (const auto minimap = viewer::findMinimapSource(model)) {
@@ -2083,6 +2085,10 @@ int run(const Options& options) {
         }
         viewer::HudState hudState;
         hudState.seconds = simulationClock.seconds();
+        hudState.gameSeconds = simulationClock.seconds();
+        hudState.dayNight = options.dayNight;
+        hudState.localPlayer = 1;
+        hudState.sleepPlan = sleepPlan.state();
         hudState.health = app.vitals.health();
         hudState.stamina = app.rig.player().exertion().stamina;
         hudState.strain = app.rig.player().exertion().strain;
@@ -2132,6 +2138,7 @@ int run(const Options& options) {
             hud.draw(hudState, app.width, app.height);
         }
         if (const auto requested = hud.takeScreenRequest()) app.hudScreen = *requested;
+        if (const auto action = hud.takeSleepAction()) sleepPlan.apply(1, *action);
         for (const auto& action : hud.takeInventoryActions()) {
             switch (action.kind) {
             case viewer::InventoryDragActionKind::HandPickUp:

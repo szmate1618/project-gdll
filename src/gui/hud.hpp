@@ -3,6 +3,7 @@
 #include "inventory/inventory_action.hpp"
 #include "command_wheel.hpp"
 #include "graphics_settings.hpp"
+#include "sleep_plan.hpp"
 #include "../map_view.hpp"
 #include <filesystem>
 #include <memory>
@@ -23,6 +24,10 @@ class CollisionWorld;
 struct HudState {
     HudScreen screen = HudScreen::Gameplay;
     double seconds = 0; // Monotonic simulation/session time; continues in menus.
+    double gameSeconds = 0; // Authoritative elapsed time for the game calendar.
+    DayNightCycle dayNight;
+    std::uint32_t localPlayer = 0;
+    SleepPlanState sleepPlan;
     glm::vec3 feet{0}, forward{0,0,-1}; // Ground inventory query/drop frame.
     glm::vec3 position{0}; // Runtime metres: X east, Y up, Z south.
     float yawDegrees = -90; // Camera yaw; -90 is north, 0 is east.
@@ -74,6 +79,7 @@ public:
     void setGraphicsSettings(const GraphicsSettings& settings);
     std::optional<GraphicsSettings> takeGraphicsSettingsRequest();
     std::vector<InventoryDragAction> takeInventoryActions();
+    std::optional<SleepAction> takeSleepAction();
     bool inventoryDragging() const; // Includes completed actions awaiting delivery.
     void setGroundItems(GroundItems& ground, Weapons& weapons, const CollisionWorld& collision);
     void refreshInventoryLayout(); // Call after applying an idle authoritative placement snapshot.

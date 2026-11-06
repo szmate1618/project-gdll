@@ -11,6 +11,7 @@
 #include "character_appearance_data.hpp"
 #include "zombie_hit.hpp"
 #include "dog_state.hpp"
+#include "sleep_plan.hpp"
 
 #include "vehicle_config.hpp"
 #include "boid/simulation.hpp"
@@ -34,7 +35,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 51; // Reconciled injury movement multipliers.
+constexpr std::uint32_t protocolVersion = 52; // Shared sleep proposals and responses.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -101,6 +102,7 @@ struct Command {
     // Reports share this command's sequence and are retried/deduplicated with it.
     std::optional<FirearmShot> firearmShot;
     bool flashlight = true; // Held state; repeated commands must not toggle it again.
+    std::optional<viewer::SleepAction> sleepAction{};
 };
 struct ReplicationView {
     glm::vec3 eye{0}; // Runtime X east/Y up/Z south metres.
@@ -247,6 +249,7 @@ struct Snapshot {
     std::vector<SignalState> signals;
     std::vector<SoundEvent> sounds;
     std::vector<GroundItemState> groundItems;
+    viewer::SleepPlanState sleepPlan;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
                              ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk, RequestSessionSettings, SessionSettings, DogFrame>;

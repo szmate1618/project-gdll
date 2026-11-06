@@ -1975,7 +1975,7 @@ build directory when run by CTest.
 | F10 | Toggle collision visualization |
 | Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |
 | F12 | Open / close Graphics settings |
-| Tab | Release / recapture the cursor for the equipment drawer while using Object handling |
+| Tab | Release / recapture the cursor for the Sleep and Inventory drawers |
 | Home | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
 | End | Frame the whole scene again in free-fly mode |
@@ -2023,6 +2023,28 @@ backpack's main grid for a suitable position. If none fits, it drops to the
 ground. A rejected return highlights the scrolling list in red for 1.4 seconds
 and displays “Can’t store item”. Home, focus loss, changing actions and opening a full page end the grip;
 Tab and hover-closing the drawer preserve it.
+
+The **Sleep** tab sits above Inventory and is available with any equipped action.
+Press **Tab** to free the cursor, then click Sleep to open the panel. It stays
+open while choosing a duration; use its close button or click outside to dismiss
+it. Inventory moves lower while this panel is open. The clock shows the current
+game day and 24-hour time. Since maps do not define a calendar date, sessions
+start on Day 1 at their configured time, and the day changes at midnight.
+
+Use **− / +** to choose **00:30–12:00**, in 30-minute steps. The panel previews
+the time and day after that duration. **Suggest sleep** shares the duration with
+the group. Other players receive a persistent notification with **Accept**,
+**Stand guard**, and **Suggest another duration**. The notification does not
+release the cursor or interrupt movement; Tab makes its controls available.
+The panel lists everyone's response, with a scrollable roster for larger groups.
+A counterproposal clears previous responses, so acceptance always applies to
+the displayed duration. Players can change or withdraw their response; the
+proposer can cancel the plan. A departing proposer cancels their proposal,
+and newly joined players must answer before the plan is agreed.
+
+This is the sleep-planning UI: agreeing on a plan currently leaves the world
+running normally. Blackout, rest recovery and accelerated simulation will be
+added separately. The planned proximity wake boundary is **60 metres**.
 
 The first successful grab of any door in a building also populates its interior
 with untextured brown boxes. Each building gets a random target of 12–36 props:

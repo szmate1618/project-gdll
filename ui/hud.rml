@@ -3,6 +3,7 @@
     <title>Game HUD</title>
     <link type="text/rcss" href="hud.rcss" />
     <link type="text/rcss" href="equipment-drawer.rcss" />
+    <link type="text/rcss" href="sleep-drawer.rcss" />
     <link type="text/rcss" href="command-wheel.rcss" />
     <link type="text/rcss" href="palette.rcss" />
     <link type="text/rcss" href="hud-icons.rcss" />
@@ -70,6 +71,27 @@
     <div id="damage-feedback">
         <div class="damage-edge top-edge"></div><div class="damage-edge bottom-edge"></div>
         <div class="damage-edge left-edge"></div><div class="damage-edge right-edge"></div>
+    </div>
+    <div id="sleep-drawer">
+        <div id="sleep-tab">S<br/>l<br/>e<br/>e<br/>p</div>
+        <div id="sleep-panel">
+            <div class="sleep-heading">SLEEP</div><div id="sleep-close" class="sleep-button">×</div>
+            <div class="sleep-clock-row"><div id="sleep-day">DAY 1</div><div id="sleep-clock">12:00</div></div>
+            <div class="sleep-rule"></div>
+            <div class="sleep-duration-label">DURATION · HOURS : MINUTES</div>
+            <div class="sleep-stepper"><div id="sleep-less" class="sleep-button">−</div><div id="sleep-duration">00:30</div><div id="sleep-more" class="sleep-button">+</div></div>
+            <div id="sleep-wake"></div>
+            <div id="sleep-suggest" class="sleep-button primary">Suggest sleep</div>
+            <div id="sleep-proposal"></div><div id="sleep-roster"></div>
+            <div class="sleep-responses"><div id="sleep-accept" class="sleep-button">Accept</div><div id="sleep-guard" class="sleep-button">Stand guard</div></div>
+            <div id="sleep-cancel" class="sleep-button">Cancel proposal</div>
+        </div>
+    </div>
+    <div id="sleep-notice">
+        <div class="sleep-notice-title">SLEEP SUGGESTION</div><div id="sleep-notice-text"></div><div id="sleep-notice-wake"></div>
+        <div id="sleep-notice-accept" class="sleep-button primary">Accept</div><div id="sleep-notice-guard" class="sleep-button">Stand guard</div>
+        <div id="sleep-notice-another" class="sleep-button">Suggest another duration</div>
+        <div class="sleep-notice-hint">TAB · FREE CURSOR TO RESPOND</div>
     </div>
     <div id="equipment-drawer">
         <div id="equipment-tab"><div>I<br/>n<br/>v<br/>e<br/>n<br/>t<br/>o<br/>r<br/>y</div></div>

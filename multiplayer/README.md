@@ -656,6 +656,16 @@ backpack leaves the released item on the ground. A rejected return briefly
 highlights the list in red and displays “Can’t store item”. These transfers preserve ammo
 and weapon magazines and use the same rules in standalone and multiplayer.
 
+**Sleep planning:** the Sleep tab appears above Inventory with any action
+equipped. Tab frees the cursor; click Sleep to see the current game day and
+24-hour clock, choose 00:30–12:00 in half-hour steps, and suggest the duration.
+Other players see a notification offering Accept, Stand guard, or another
+duration. The server shares the proposal and each player's response, rejects
+responses to superseded proposals, and asks everyone again when the duration
+changes. Plans can be cancelled or responses withdrawn. This first stage
+coordinates sleep only; agreement does not yet accelerate the world or black
+out the screen. Clients and servers must both use protocol version 52.
+
 F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
 controls. The window title shows ammo, mode, rendered FPS, GPU render time,
 CPU render time and client simulation time, refreshed about once per second.

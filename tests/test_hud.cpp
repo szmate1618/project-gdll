@@ -1175,6 +1175,77 @@ int main(int argc, char** argv) {
         {
             auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            auto rest = state;
+            rest.screen = viewer::HudScreen::Gameplay; rest.mouseCaptured = false;
+            rest.objectHandling = true;
+            rest.localPlayer = 1; rest.dayNight = {23.5, 1200};
+            viewer::SleepPlan plan; plan.join(1); plan.join(2);
+            rest.sleepPlan = plan.state();
+            const auto draw = [&] { clear(); hud.draw(rest, 1280, 720); checkState(); };
+            const auto click = [&](float x, float y) {
+                hud.pointerMove(x / 1280, y / 720); draw();
+                hud.pointerButton(0, true); draw(); hud.pointerButton(0, false); draw();
+            };
+            draw(); draw();
+            click(1260, 210); draw();
+            if (argc > 1) capture((std::string(argv[1]) + "-sleep-panel.ppm").c_str(), pixels(1280,720),1280,720);
+            click(1100, 396);
+            auto action = hud.takeSleepAction();
+            require(action && action->kind == viewer::SleepActionKind::Suggest && action->minutes == 30,
+                "Sleep drawer must start at half an hour");
+            require(hud.takeInventoryActions().empty(), "Sleep buttons leaked physical inventory actions");
+            for (int step = 0; step < 26; ++step) click(1240, 315);
+            click(1100, 396); action = hud.takeSleepAction();
+            require(action && action->minutes == 720, "Sleep duration must clamp at 12 hours");
+            for (int step = 0; step < 26; ++step) click(990, 315);
+            click(1100, 396); action = hud.takeSleepAction();
+            require(action && action->minutes == 30, "Sleep duration must clamp at 30 minutes");
+            plan.apply(2, {viewer::SleepActionKind::Suggest, 0, 480}); rest.sleepPlan = plan.state();
+            rest.mouseCaptured = true; draw();
+            if (argc > 1) capture((std::string(argv[1]) + "-sleep-notification.ppm").c_str(), pixels(1280,720),1280,720);
+            rest.mouseCaptured = false; draw();
+            click(1140, 266); action = hud.takeSleepAction();
+            require(action && action->kind == viewer::SleepActionKind::Guard && action->revision == plan.state().revision,
+                "Remote notification must offer a revision-bound guard response");
+            click(1060, 301); draw(); // Another duration opens the existing proposal in the drawer.
+            click(1240, 315); click(1100, 396); action = hud.takeSleepAction();
+            require(action && action->kind == viewer::SleepActionKind::Suggest && action->minutes == 510,
+                "Counterproposal must edit the suggested duration in half-hour steps");
+            plan.apply(1, *action); rest.sleepPlan = plan.state(); draw();
+            plan.apply(2, {viewer::SleepActionKind::Guard, plan.state().revision, 30}); rest.sleepPlan = plan.state(); draw();
+            if (argc > 1) capture((std::string(argv[1]) + "-sleep-agreed.ppm").c_str(), pixels(1280,720),1280,720);
+            require(hud.takeInventoryActions().empty(), "Sleep notification changed equipment");
+            clear(); hud.draw(rest, 960, 540); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-sleep-540p.ppm").c_str(), pixels(960,540),960,540);
+            const auto fitted = viewer::presentationViewport(960, 540, 1000, 1000);
+            const auto fittedDraw = [&] { clear(); hud.draw(rest, 960, 540, 1000, 1000); checkState(); };
+            const auto fittedClick = [&](float x, float y) {
+                hud.pointerMove((fitted.x + x / 1280 * fitted.width) / 1000,
+                    (fitted.y + y / 720 * fitted.height) / 1000);
+                fittedDraw(); hud.pointerButton(0, true); fittedDraw(); hud.pointerButton(0, false); fittedDraw();
+            };
+            fittedDraw(); fittedClick(1240, 315); fittedClick(1100, 396); action = hud.takeSleepAction();
+            require(action && action->minutes == 540,
+                "Scaled sleep controls must use the fitted presentation image for pointer input");
+            draw();
+            rest.objectHandling = false;
+            rest.mouseCaptured = true; draw(); rest.mouseCaptured = false; draw();
+            click(1260, 210); // Open again after mouse capture has closed the panel.
+            hud.pointerMove(1100.f / 1280, 396.f / 720); hud.pointerButton(0, true); draw();
+            hud.cancelPointerInteraction(); draw(); hud.pointerButton(0, false); draw();
+            require(!hud.takeSleepAction(), "Cancelled sleep press sent a proposal");
+            require(hud.takeInventoryActions().empty(), "Sleep notification changed equipment");
+            plan.apply(2, {viewer::SleepActionKind::Suggest, plan.state().revision, 600});
+            rest.sleepPlan = plan.state(); draw(); draw();
+            hud.pointerMove(985.f / 1280, 266.f / 720);
+            hud.pointerButton(0, true); hud.pointerButton(0, false);
+            plan.apply(2, {viewer::SleepActionKind::Suggest, plan.state().revision, 630});
+            rest.sleepPlan = plan.state(); draw();
+            require(!hud.takeSleepAction(), "Queued consent approved a counterproposal that had not been displayed");
+        }
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             auto drawer = state;
             drawer.screen = viewer::HudScreen::Gameplay; drawer.objectHandling = true;
             drawer.commandWheelOpen = false; drawer.selectionSlot = -1;
@@ -1192,7 +1263,7 @@ int main(int argc, char** argv) {
             move(1260, 340); draw();
             settle();
             if (argc > 1) capture((std::string(argv[1]) + "-equipment-list.ppm").c_str(), pixels(1280,720),1280,720);
-            move(1080, 240); draw(); hud.pointerButton(0, true); draw();
+            move(1080, 380); draw(); hud.pointerButton(0, true); draw();
             auto actions = hud.takeInventoryActions();
             require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::HandPickUp &&
                 !actions[0].item.empty() && !inventory.held(), "Drawer row press must request physical retrieval without taking GUI ownership");
@@ -1211,7 +1282,7 @@ int main(int argc, char** argv) {
                 "Releasing outside the equipment drawer must drop the physical item");
             move(1260, 340); draw();
             settle();
-            move(1100, 350); draw(); const auto beforeScroll = pixels(1280,720);
+            move(1100, 450); draw(); const auto beforeScroll = pixels(1280,720);
             hud.mouseWheel(-5); draw();
             require(beforeScroll != pixels(1280,720) && hud.takeInventoryActions().empty(),
                 "The equipment drawer must scroll without transferring inventory");

@@ -43,6 +43,7 @@ add_library(multiplayer_core STATIC server/dog_replication.cpp client/dog_playba
     server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
     client/ragdoll_playback.cpp client/zombie_prediction.cpp client/zombie_presentation_clock.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(multiplayer_core PUBLIC viewer_sleep)
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC multiplayer_paths viewer_fps viewer_zombies viewer_dogs viewer_interaction
     viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds viewer_sun_lighting ${mp_transport})
@@ -155,6 +156,12 @@ if(BUILD_TESTING)
     viewer_warnings(test_signals)
     add_dependencies(test_signals viewer_test_asset)
     add_test(NAME multiplayer_signals COMMAND test_signals "${VIEWER_TEST_ASSET}")
+
+    add_executable(test_sleep tests/test_sleep.cpp)
+    target_link_libraries(test_sleep PRIVATE multiplayer_core)
+    viewer_warnings(test_sleep)
+    add_dependencies(test_sleep viewer_test_asset)
+    add_test(NAME multiplayer_sleep COMMAND test_sleep "${VIEWER_TEST_ASSET}")
     add_executable(benchmark_bird_network EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/benchmark_bird_network.cpp")
     target_link_libraries(benchmark_bird_network PRIVATE multiplayer_core)
     viewer_warnings(benchmark_bird_network)

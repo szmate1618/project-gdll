@@ -5,6 +5,7 @@
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
 #include "equipment_drawer.hpp"
+#include "sleep_drawer.hpp"
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
 #include "loadout_navigation.hpp"
@@ -109,6 +110,7 @@ struct Hud::Impl {
     const CollisionWorld* collision = nullptr;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
     std::unique_ptr<EquipmentDrawer> equipmentDrawer;
+    std::unique_ptr<SleepDrawer> sleepDrawer;
     std::unique_ptr<MapViewUi> mapView;
     std::optional<MinimapSource> mapSource;
     std::unique_ptr<CommandWheelView> commandWheel;
@@ -163,6 +165,7 @@ struct Hud::Impl {
             }
             commandWheel = std::make_unique<CommandWheelView>(*document);
             equipmentDrawer = std::make_unique<EquipmentDrawer>(*document, inventory);
+            sleepDrawer = std::make_unique<SleepDrawer>(*document);
             for (std::size_t i = 0; i < backdropGroups.size(); ++i) {
                 backdropElements[i] = document->GetElementById(backdropGroups[i].id);
                 if (!backdropElements[i]) throw std::runtime_error(std::string("Missing HUD backdrop group: ") + backdropGroups[i].id);
@@ -181,6 +184,7 @@ struct Hud::Impl {
         mapView.reset();
         inventoryInteraction.reset();
         equipmentDrawer.reset();
+        sleepDrawer.reset();
         if (context) {
             Rml::RemoveContext("game-hud"); context = nullptr; hudActive = false;
             renderer.clearMinimap();
@@ -268,6 +272,7 @@ struct Hud::Impl {
         const auto presentation = presentationViewport(width, height,
             presentationWidth > 0 ? presentationWidth : width, presentationHeight > 0 ? presentationHeight : height);
         if (screen != HudScreen::Gameplay) {
+            sleepDrawer->close();
             if (backdrop) backdrop->reset();
             lastBackdropTime.reset();
             renderer.render(*context, width, height, [&] {
@@ -358,7 +363,8 @@ struct Hud::Impl {
             elements.at("weapon")->SetClassNames(slot >= 0 && slot < 7 ? classes[slot] : "unconfirmed");
         }
         renderer.render(*context, width, height, [&] {
-            equipmentDrawer->process(state, pointerEvents, width, height, presentation);
+            const auto events = sleepDrawer->process(state, pointerEvents, width, height, presentation);
+            equipmentDrawer->process(state, events, width, height, presentation);
         }, [&] {
             if (!backdrop) renderer.renderExternal([&] { backdrop = std::make_unique<HudBackdrop>(sourceDirectory); });
             HudBackdrop::Bounds bounds{};
@@ -415,6 +421,7 @@ std::vector<InventoryDragAction> Hud::takeInventoryActions() {
 bool Hud::inventoryDragging() const {
     return impl_->inventoryInteraction && impl_->inventoryInteraction->dragging();
 }
+std::optional<SleepAction> Hud::takeSleepAction() { return impl_->sleepDrawer->takeAction(); }
 void Hud::refreshInventoryLayout() {
     if (impl_->inventoryInteraction) impl_->inventoryInteraction->refreshLayout();
     for (auto* page : impl_->screens)

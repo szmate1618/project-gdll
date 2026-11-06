@@ -172,6 +172,16 @@ void command(Wire& w, Command& c) {
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
     w.flag(c.cancelInteraction); w.flag(c.objectHandling); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
     w.flag(c.enterVehicle); w.flag(c.flashlight);
+    bool hasSleepAction = c.sleepAction.has_value(); w.flag(hasSleepAction);
+    if (hasSleepAction) {
+        if (w.reading) c.sleepAction.emplace();
+        auto& action = *c.sleepAction;
+        auto kind = static_cast<std::uint8_t>(action.kind); w.integer(kind);
+        w.integer(action.revision); w.integer(action.minutes);
+        if (kind > static_cast<std::uint8_t>(viewer::SleepActionKind::Cancel) || !viewer::validSleepDuration(action.minutes))
+            throw std::runtime_error("Invalid sleep action");
+        action.kind = static_cast<viewer::SleepActionKind>(kind);
+    } else c.sleepAction.reset();
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
@@ -430,6 +440,21 @@ void dogStates(Wire& w, std::vector<DogState>& dogs) {
     uniqueIds(dogs);
 }
 void payload(Wire& w, DogFrame& frame) { w.integer(frame.tick); dogStates(w,frame.dogs); }
+void sleepPlan(Wire& w, viewer::SleepPlanState& sleep) {
+    w.integer(sleep.revision); w.integer(sleep.proposer); w.integer(sleep.minutes);
+    if (!viewer::validSleepDuration(sleep.minutes)) throw std::runtime_error("Invalid sleep duration");
+    std::set<std::uint32_t> sleepPlayers;
+    w.list(sleep.participants, maxPlayers, [&](viewer::SleepParticipant& member) {
+        w.integer(member.player);
+        auto response = static_cast<std::uint8_t>(member.response); w.integer(response);
+        if (!member.player || !sleepPlayers.insert(member.player).second ||
+            response > static_cast<std::uint8_t>(viewer::SleepResponse::Guard) || (!sleep.proposer && response != 0))
+            throw std::runtime_error("Invalid sleep participant");
+        member.response = static_cast<viewer::SleepResponse>(response);
+    });
+    if (sleep.proposer && (!sleep.revision || !sleepPlayers.count(sleep.proposer)))
+        throw std::runtime_error("Invalid sleep proposer");
+}
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
@@ -615,6 +640,7 @@ void payload(Wire& w, Snapshot& s) {
         if (!occupied.emplace(p.vehicle, p.seat).second)
             throw std::runtime_error("Invalid vehicle occupancy");
     }
+    sleepPlan(w, s.sleepPlan);
 }
 void compactPose(Wire& w, CompactRagdollPose& pose) {
     static_assert(maxBones <= 128, "Compact joint offsets reserve one index bit for their width");

@@ -144,6 +144,7 @@ std::uint32_t World::join() {
     player.held.movement.yawDegrees = scene_.spawnOrientation.x;
     player.held.pitch = scene_.spawnOrientation.y;
     player.lastPacketTick = tick_;
+    sleepPlan_.join(id);
     return id;
 }
 void World::leave(std::uint32_t id) {
@@ -152,6 +153,7 @@ void World::leave(std::uint32_t id) {
         vehicleSeats_.leave(id);
         it->second.handInventory.release(it->second.interaction, *scene_.groundItems, it->second.weapons);
         players_.erase(it);
+        sleepPlan_.leave(id);
     }
 }
 void World::submit(std::uint32_t id, const Commands& commands) {
@@ -241,6 +243,7 @@ void World::step() {
             command.movement.toggleProne = false; command.reload = false; command.drag = {};
             command.inventoryActions.clear();
             command.signal = SignalKind::None;
+            command.sleepAction.reset();
             command.enterVehicle = false;
             if (player.started && !player.pending.empty()) {
                 const auto first = player.pending.begin();
@@ -259,6 +262,7 @@ void World::step() {
                 player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
             }
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
+            if (command.sleepAction) sleepPlan_.apply(id, *command.sleepAction);
             if (player.pendingInventoryActions.size() + command.inventoryActions.size() > 1024)
                 throw std::runtime_error("Too many queued inventory actions");
             player.pendingInventoryActions.insert(player.pendingInventoryActions.end(), command.inventoryActions.begin(), command.inventoryActions.end());
@@ -479,6 +483,7 @@ void World::requestBirdCheckpoint(std::uint32_t id) { players_.at(id).birdTick.r
 Snapshot World::snapshot(std::uint32_t id) {
     auto& observer = players_.at(id);
     Snapshot s; s.tick = tick_;
+    s.sleepPlan = sleepPlan_.state();
     s.sounds = sounds_.forListener(tick_, id, observer.camera.position());
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());

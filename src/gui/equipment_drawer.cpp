@@ -59,7 +59,8 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
     drawer_->SetClass("rejected", rejected);
     const bool visible = state.objectHandling && state.screen == HudScreen::Gameplay;
     drawer_->SetClass("available", visible);
-    if (!visible || state.mouseCaptured) open_ = false;
+    const bool sleepOpen = document_.IsClassSet("sleep-expanded");
+    if (!visible || state.mouseCaptured || sleepOpen) open_ = false;
     if (visible) populate();
     auto* context = document_.GetContext();
     for (const auto& event : events) {
@@ -67,7 +68,7 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
             if (pressed_ || state.handInventoryActive) actions_.push_back({InventoryDragActionKind::HandRelease, "", ""});
             pressed_ = false; open_ = false; pointer_ = {-1,-1};
         }
-        if (!visible || state.mouseCaptured) continue;
+        if (!visible || state.mouseCaptured || sleepOpen) continue;
         if (event.action == HudPointerAction::Move) {
             pointer_ = presentation.scenePointer(event.x, event.y, width, height);
             context->ProcessMouseMove(int(pointer_.x), int(pointer_.y), 0);

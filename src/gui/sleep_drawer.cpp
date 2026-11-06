@@ -1,0 +1,168 @@
+#include "sleep_drawer.hpp"
+#include "hud.hpp"
+#include "presentation_viewport.hpp"
+#include <RmlUi/Core.h>
+#include <algorithm>
+#include <array>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
+
+namespace viewer {
+namespace {
+constexpr std::array<const char*, 12> controls{{"sleep-tab", "sleep-close", "sleep-less", "sleep-more",
+    "sleep-suggest", "sleep-accept", "sleep-guard", "sleep-cancel", "sleep-notice-accept",
+    "sleep-notice-guard", "sleep-notice-another", "sleep-roster"}};
+std::string dayLabel(std::uint64_t day) { return "DAY " + std::to_string(day); }
+}
+SleepDrawer::SleepDrawer(Rml::ElementDocument& document) : document_(document) {
+    for (const char* id : {"sleep-drawer", "sleep-panel", "sleep-tab", "sleep-close", "sleep-day", "sleep-clock",
+        "sleep-duration", "sleep-less", "sleep-more", "sleep-wake", "sleep-suggest", "sleep-proposal", "sleep-roster",
+        "sleep-accept", "sleep-guard", "sleep-cancel", "sleep-notice", "sleep-notice-text", "sleep-notice-wake",
+        "sleep-notice-accept", "sleep-notice-guard", "sleep-notice-another"}) {
+        auto* element = document.GetElementById(id);
+        if (!element) throw std::runtime_error(std::string("Missing sleep control: ") + id);
+        elements_.emplace(id, element);
+    }
+}
+bool SleepDrawer::contains(const char* id) const {
+    auto* element = elements_.at(id);
+    const auto origin = element->GetAbsoluteOffset(Rml::BoxArea::Border);
+    const auto size = element->GetBox().GetSize(Rml::BoxArea::Border);
+    return pointer_.x >= origin.x && pointer_.x < origin.x + size.x &&
+        pointer_.y >= origin.y && pointer_.y < origin.y + size.y;
+}
+void SleepDrawer::text(const char* id, const std::string& value) {
+    if (text_[id] == value) return;
+    text_[id] = value;
+    elements_.at(id)->SetInnerRML(Rml::StringUtilities::EncodeRml(value));
+}
+void SleepDrawer::close() {
+    open_ = false; pressed_.clear(); pointer_ = {-1,-1};
+    document_.SetClass("sleep-expanded", false);
+    elements_.at("sleep-drawer")->SetClass("expanded", false);
+}
+void SleepDrawer::update(const HudState& state) {
+    available_ = state.localPlayer != 0 && state.screen == HudScreen::Gameplay && !state.commandWheelOpen;
+    const auto& plan = state.sleepPlan;
+    if (plan.revision != revision_) {
+        revision_ = plan.revision;
+        if (plan.proposer) minutes_ = plan.minutes;
+        pressed_.clear();
+    }
+    if (!available_ || state.mouseCaptured) close();
+    notice_ = available_ && plan.proposer && plan.proposer != state.localPlayer &&
+        plan.response(state.localPlayer) == SleepResponse::Pending && !open_;
+    document_.SetClass("sleep-expanded", open_);
+    elements_.at("sleep-drawer")->SetClass("available", available_);
+    elements_.at("sleep-drawer")->SetClass("expanded", open_);
+    elements_.at("sleep-tab")->SetClass("pending", notice_);
+    elements_.at("sleep-notice")->SetClass("visible", notice_);
+    const auto now = gameCalendarTime(state.dayNight, state.gameSeconds);
+    const auto wake = gameCalendarTime(state.dayNight, state.gameSeconds, minutes_);
+    text("sleep-day", dayLabel(now.day));
+    text("sleep-clock", now.clock);
+    text("sleep-duration", sleepDurationLabel(minutes_));
+    text("sleep-wake", "Until " + wake.clock + (wake.day != now.day ? " · " + dayLabel(wake.day) : "") + " · 24-hour time");
+    text("sleep-suggest", plan.proposer ? "Suggest another duration" : "Suggest sleep");
+    elements_.at("sleep-suggest")->SetClass("disabled", plan.proposer && minutes_ == plan.minutes);
+    elements_.at("sleep-less")->SetClass("disabled", minutes_ == minimumSleepMinutes);
+    elements_.at("sleep-more")->SetClass("disabled", minutes_ == maximumSleepMinutes);
+    const auto ownResponse = plan.response(state.localPlayer);
+    for (const auto* id : {"sleep-accept", "sleep-guard", "sleep-cancel"})
+        elements_.at(id)->SetClass("disabled", !plan.proposer);
+    elements_.at("sleep-accept")->SetClass("selected", plan.proposer && ownResponse == SleepResponse::Accept);
+    elements_.at("sleep-guard")->SetClass("selected", plan.proposer && ownResponse == SleepResponse::Guard);
+    text("sleep-accept", ownResponse == SleepResponse::Accept && plan.proposer ? "Accepted" : "Accept");
+    text("sleep-guard", ownResponse == SleepResponse::Guard && plan.proposer ? "On guard" : "Stand guard");
+    text("sleep-cancel", plan.proposer == state.localPlayer ? "Cancel proposal" : "Withdraw response");
+    const bool allGuarding = plan.proposer && std::all_of(plan.participants.begin(), plan.participants.end(),
+        [](const auto& member) { return member.response == SleepResponse::Guard; });
+    text("sleep-proposal", !plan.proposer ? "Plan some rest together" : allGuarding ? "Everyone chose to stand guard" :
+        (plan.ready() ? "Plan agreed · " : "Proposed · ") + sleepDurationLabel(plan.minutes));
+    std::ostringstream roster;
+    if (!plan.proposer) roster << "<div class=\"sleep-member\">Choose 30 minutes to 12 hours.</div>"
+        "<div class=\"sleep-member\">Your group can accept or stand guard.</div>";
+    else for (const auto& member : plan.participants) {
+        const auto css = member.response == SleepResponse::Accept ? "accept" : member.response == SleepResponse::Guard ? "guard" : "pending";
+        roster << "<div class=\"sleep-member " << css << "\">" << (member.player == state.localPlayer ? "You" : "Player " + std::to_string(member.player))
+            << (member.player == plan.proposer ? " · proposer" : "") << "<span>"
+            << (member.response == SleepResponse::Accept ? "Accepted" : member.response == SleepResponse::Guard ? "On guard" : "Awaiting reply")
+            << "</span></div>";
+    }
+    if (text_["sleep-roster"] != roster.str()) {
+        text_["sleep-roster"] = roster.str(); elements_.at("sleep-roster")->SetInnerRML(roster.str());
+    }
+    const auto proposalWake = gameCalendarTime(state.dayNight, state.gameSeconds, plan.minutes);
+    text("sleep-notice-text", "Player " + std::to_string(plan.proposer) + " suggests " + sleepDurationLabel(plan.minutes));
+    text("sleep-notice-wake", "Rest until " + proposalWake.clock + " · " + dayLabel(proposalWake.day));
+}
+bool SleepDrawer::activate(const std::string& id, const HudState& state) {
+    if (id == "sleep-tab") { open_ = !open_; return true; }
+    if (id == "sleep-close") { open_ = false; return true; }
+    if (id == "sleep-less") { minutes_ = std::max<int>(minimumSleepMinutes, minutes_ - 30); return true; }
+    if (id == "sleep-more") { minutes_ = std::min<int>(maximumSleepMinutes, minutes_ + 30); return true; }
+    if (id == "sleep-notice-another") { open_ = true; return true; }
+    SleepActionKind kind;
+    if (id == "sleep-suggest") {
+        if (state.sleepPlan.proposer && minutes_ == state.sleepPlan.minutes) return true;
+        kind = SleepActionKind::Suggest;
+    }
+    else if (id == "sleep-accept" || id == "sleep-notice-accept") kind = SleepActionKind::Accept;
+    else if (id == "sleep-guard" || id == "sleep-notice-guard") kind = SleepActionKind::Guard;
+    else if (id == "sleep-cancel") kind = SleepActionKind::Cancel;
+    else return false;
+    if (kind != SleepActionKind::Suggest && !state.sleepPlan.proposer) return true;
+    action_ = SleepAction{kind, state.sleepPlan.revision, minutes_};
+    return true;
+}
+std::vector<HudPointerEvent> SleepDrawer::process(const HudState& state, const std::vector<HudPointerEvent>& events,
+    int width, int height, const PresentationViewport& presentation) {
+    // These clicks were queued over the previous frame. If a counterproposal
+    // arrived meanwhile, display it before accepting any new consent.
+    const bool proposalChanged = state.sleepPlan.revision != revision_;
+    update(state);
+    std::vector<HudPointerEvent> remaining;
+    for (const auto& event : events) {
+        if (event.action == HudPointerAction::Cancel) { close(); remaining.push_back(event); continue; }
+        if (!available_ || state.mouseCaptured) { remaining.push_back(event); continue; }
+        if (event.action == HudPointerAction::Move) {
+            pointer_ = presentation.scenePointer(event.x, event.y, width, height);
+            remaining.push_back(event);
+            continue;
+        }
+        const bool inside = contains("sleep-tab") || (open_ && contains("sleep-panel")) || (notice_ && contains("sleep-notice"));
+        if (event.action == HudPointerAction::Press && inside) {
+            pressed_ = "panel";
+            for (const char* id : controls) {
+                const bool notificationControl = std::string(id).find("sleep-notice-") == 0;
+                if (!proposalChanged && (notificationControl ? notice_ : (open_ || std::string(id) == "sleep-tab")) && contains(id)) {
+                    pressed_ = id; break;
+                }
+            }
+            continue;
+        }
+        if (event.action == HudPointerAction::Release && !pressed_.empty()) {
+            const auto pressed = std::exchange(pressed_, {});
+            if (pressed != "panel" && contains(pressed.c_str())) activate(pressed, state);
+            update(state);
+            continue;
+        }
+        if (event.action == HudPointerAction::Wheel && open_ && contains("sleep-roster")) {
+            auto* roster = elements_.at("sleep-roster");
+            roster->SetScrollTop(roster->GetScrollTop() - event.x * 24 * document_.GetContext()->GetDensityIndependentPixelRatio());
+            continue;
+        }
+        if (inside) continue; // Never leak a sleep click or wheel into equipment.
+        if (event.action == HudPointerAction::Press && open_) { open_ = false; update(state); }
+        remaining.push_back(event);
+    }
+    for (const char* id : controls) {
+        const bool notificationControl = std::string(id).find("sleep-notice-") == 0;
+        elements_.at(id)->SetClass("hovered", available_ && !state.mouseCaptured &&
+            (notificationControl ? notice_ : (open_ || std::string(id) == "sleep-tab")) && contains(id));
+    }
+    return remaining;
+}
+std::optional<SleepAction> SleepDrawer::takeAction() { return std::exchange(action_, {}); }
+} // namespace viewer

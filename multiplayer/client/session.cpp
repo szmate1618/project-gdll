@@ -1,4 +1,5 @@
 #include "session.hpp"
+#include <utility>
 #include "session_setup.hpp"
 #include "inventory_state.hpp"
 #include "network.hpp"
@@ -76,6 +77,7 @@ struct Input {
     bool flashlight = true;
     bool leave = false;
     std::vector<viewer::InventoryDragAction> inventoryActions;
+    std::optional<viewer::SleepAction> sleepAction;
 #ifdef MP_GRAPHICS
     bool distantSceneCache = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
@@ -137,9 +139,15 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
-    if (code == GLFW_KEY_TAB && (in.handling() || in.equipmentCursor) && !in.driver.occupied()) {
-        in.equipmentCursor = !in.equipmentCursor; in.capture = !in.equipmentCursor;
-        if (in.equipmentCursor) in.equipmentGripHeld = in.leftHeld;
+    if (code == GLFW_KEY_TAB) {
+        in.equipmentCursor = in.capture; in.capture = !in.capture;
+        if (in.equipmentCursor) in.equipmentGripHeld = in.handling() && in.leftHeld;
+        if (!in.handling()) {
+            in.cancelInteraction = true;
+            in.suppressLeftUntilRelease |= in.leftHeld;
+            in.suppressRightUntilRelease |= in.rightHeld;
+        }
+        in.leftPressed = in.rightPressed = in.reload = false;
         in.firstMouse = true; in.actionSelection.close();
         glfwSetInputMode(window, GLFW_CURSOR, in.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         return;
@@ -394,6 +402,7 @@ struct Graphics {
 multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds, float swayScale = 1) {
     multiplayer::Command c;
     c.inventoryActions.swap(in.inventoryActions);
+    c.sleepAction = std::exchange(in.sleepAction, std::nullopt);
     const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling(), swayScale);
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
@@ -529,6 +538,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
             graphics.hud->setGraphicsSettings(graphics.settings->settings());
         }
         if (in.hud) {
+            if (const auto action = in.hud->takeSleepAction()) in.sleepAction = *action;
             auto actions = in.hud->takeInventoryActions();
             for (const auto& action : actions)
                 if (action.kind == viewer::InventoryDragActionKind::HandStore || action.kind == viewer::InventoryDragActionKind::HandRelease)
@@ -858,6 +868,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     viewer::inaccuracyCrosshairRadius(hipFireSpread(), viewCamera.projection(renderAspect)[1][1]));
                 viewer::HudState hudState;
                 hudState.seconds = now;
+                hudState.gameSeconds = snapshots.animationSeconds();
+                hudState.dayNight = scene.dayNight;
+                hudState.localPlayer = self;
+                if (!snapshots.empty()) hudState.sleepPlan = snapshots.latest().sleepPlan;
                 hudState.screen = in.hudScreen;
                 hudState.feet = prediction.controller().feet();
                 hudState.forward = in.camera.direction();

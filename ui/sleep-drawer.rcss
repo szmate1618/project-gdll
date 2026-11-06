@@ -1,0 +1,66 @@
+#sleep-drawer {
+    display: none; position: absolute; right: -330dp; top: 24%;
+    width: 364dp; height: 92dp; z-index: 35;
+}
+#sleep-drawer.available { display: block; }
+#sleep-drawer.expanded { right: 0dp; top: 22%; height: 422dp; }
+#sleep-tab {
+    position: absolute; left: 0dp; top: 0dp; width: 32dp; height: 92dp;
+    background-color: #242d2aee; border: 1dp #809485; border-radius: 6dp 0dp 0dp 6dp;
+    color: #e5eadf; font-size: 12dp; text-align: center; line-height: 14dp; padding-top: 10dp;
+    box-sizing: border-box;
+}
+#sleep-tab.pending { background-color: #596449; border-color: #d3dfab; color: #f0f4df; }
+#sleep-panel {
+    position: absolute; left: 34dp; top: 0dp; width: 330dp; height: 100%;
+    background-color: #141d19fa; color: #e5eadf; border-left: 1dp #809485;
+}
+.sleep-heading { position: absolute; left: 18dp; top: 16dp; font-size: 14dp; letter-spacing: 2dp; }
+#sleep-close { position: absolute; right: 12dp; top: 10dp; width: 28dp; height: 28dp; font-size: 18dp; }
+.sleep-clock-row { position: absolute; left: 18dp; top: 49dp; right: 18dp; height: 40dp; }
+#sleep-day { position: absolute; left: 0dp; top: 14dp; color: #a6b69f; font-size: 11dp; }
+#sleep-clock { position: absolute; right: 0dp; top: 0dp; font-size: 32dp; }
+.sleep-rule { position: absolute; left: 18dp; right: 18dp; top: 100dp; height: 1dp; background-color: #405044; }
+.sleep-duration-label { position: absolute; left: 18dp; top: 114dp; font-size: 10dp; color: #a6b69f; }
+.sleep-stepper { position: absolute; top: 134dp; left: 18dp; right: 18dp; height: 48dp; }
+#sleep-duration { position: absolute; left: 54dp; right: 54dp; top: 0dp; line-height: 46dp; text-align: center; font-size: 30dp; }
+#sleep-less, #sleep-more { position: absolute; top: 0dp; width: 44dp; height: 46dp; font-size: 24dp; }
+#sleep-less { left: 0dp; }
+#sleep-more { right: 0dp; }
+#sleep-wake { position: absolute; top: 192dp; left: 18dp; right: 18dp; font-size: 11dp; text-align: center; color: #c5d5ae; }
+#sleep-suggest { position: absolute; top: 219dp; left: 18dp; right: 18dp; height: 36dp; }
+#sleep-proposal { position: absolute; top: 269dp; left: 18dp; right: 18dp; font-size: 12dp; }
+#sleep-roster { position: absolute; top: 291dp; left: 18dp; right: 18dp; height: 54dp; overflow-y: auto; font-size: 10dp; }
+.sleep-member { height: 17dp; color: #a6b69f; }
+.sleep-member span { float: right; }
+.sleep-member.accept, .sleep-member.guard { color: #d3dfab; }
+.sleep-responses { position: absolute; top: 352dp; left: 18dp; right: 18dp; height: 30dp; }
+#sleep-accept { position: absolute; left: 0dp; width: 142dp; height: 30dp; }
+#sleep-guard { position: absolute; right: 0dp; width: 142dp; height: 30dp; }
+#sleep-cancel { position: absolute; top: 388dp; left: 18dp; right: 18dp; height: 22dp; font-size: 10dp; }
+.sleep-button {
+    box-sizing: border-box; display: block; text-align: center; vertical-align: middle;
+    background-color: #2a352f; border: 1dp #617665; border-radius: 3dp;
+    color: #e5eadf; font-size: 12dp; padding: 5dp;
+}
+.sleep-button.hovered { background-color: #405343; border-color: #c5d5ae; }
+.sleep-button.primary { background-color: #718261; border-color: #a9ba8d; color: #101b14; }
+.sleep-button.primary.hovered { background-color: #a9ba8d; }
+.sleep-button.selected { background-color: #405343; border-color: #d3dfab; color: #e5eadf; }
+.sleep-button.disabled { opacity: .35; }
+#sleep-notice {
+    display: none; position: absolute; right: 54dp; top: 22%; width: 330dp; height: 183dp;
+    box-sizing: border-box; padding: 16dp; z-index: 34;
+    background-color: #141d19fa; border: 1dp #809485; border-top: 3dp #a9ba8d;
+    border-radius: 4dp; color: #e5eadf;
+}
+#sleep-notice.visible { display: block; }
+.sleep-notice-title { font-size: 10dp; letter-spacing: 2dp; color: #c5d5ae; }
+#sleep-notice-text { margin-top: 9dp; font-size: 15dp; }
+#sleep-notice-wake { margin-top: 6dp; font-size: 11dp; color: #a6b69f; }
+#sleep-notice-accept, #sleep-notice-guard { position: absolute; top: 92dp; width: 142dp; height: 30dp; }
+#sleep-notice-accept { left: 16dp; }
+#sleep-notice-guard { right: 16dp; }
+#sleep-notice-another { position: absolute; left: 16dp; right: 16dp; top: 128dp; height: 28dp; }
+.sleep-notice-hint { position: absolute; left: 16dp; bottom: 6dp; font-size: 9dp; color: #a6b69f; }
+.sleep-expanded #equipment-drawer { top: 81%; height: 136dp; transition: none; }

@@ -86,5 +86,6 @@ private:
     std::uint32_t nextPlayer_ = 1;
     std::uint64_t tick_ = 0;
     ServerSounds sounds_;
+    viewer::SleepPlan sleepPlan_;
 };
 } // namespace multiplayer
