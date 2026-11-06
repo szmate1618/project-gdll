@@ -2042,9 +2042,31 @@ the displayed duration. Players can change or withdraw their response; the
 proposer can cancel the plan. A departing proposer cancels their proposal,
 and newly joined players must answer before the plan is agreed.
 
-This is the sleep-planning UI: agreeing on a plan currently leaves the world
-running normally. Blackout, rest recovery and accelerated simulation will be
-added separately. The planned proximity wake boundary is **60 metres**.
+Agreement starts sleep for players who accepted. Their screen goes black, with
+the current clock, remaining duration and a **Wake up** button. **Escape** also
+wakes the group. Sleeping players stay still and cannot use weapons or inventory.
+Standing guards remain awake and play at normal speed; they can join sleep from
+the panel or wake everyone. Once everyone is asleep, the authority targets **30×**
+normal simulation speed using repeated unchanged 1/60-second physics ticks.
+Rendering of the world is skipped for sleepers. Actual acceleration depends on
+CPU capacity; the day-length setting still determines how much simulation time
+each game hour represents. A frozen calendar cannot start sleep.
+
+Sleep restores stamina using prone recovery and removes one normalized strain
+unit per eight game hours. It does not heal injuries or stop bleeding. The group
+wakes when the duration ends, a sleeper takes damage, a player joins/leaves, or
+a living zombie/dog approaches within **60 metres**. Manual waking restores
+normal time immediately; completing sleep never automatically starts another.
+
+During accelerated sleep, scenario travellers advance on their individual stored
+paths every half simulation second, at their ordinary 1.2 m/s route speed.
+They skip steering, crowd and obstacle collision, and retain their previous
+height until waking restores terrain placement. No paths are searched at runtime.
+Every traversed path leg is checked against sleepers, including intermediate
+corners; a threatening slice is withheld and wakes the group. This can wake up
+to about 0.6 m early and intentionally approximates offscreen obstacles and
+crowd spacing. Ordinary travel and perception resume on waking. Guards retain
+ordinary traveller simulation while they are awake.
 
 The first successful grab of any door in a building also populates its interior
 with untextured brown boxes. Each building gets a random target of 12–36 props:

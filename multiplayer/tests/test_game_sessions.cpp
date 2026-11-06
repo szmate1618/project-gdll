@@ -36,6 +36,8 @@ struct Peer {
     std::string fingerprint, ended;
     std::size_t population = 0, snapshots = 0;
     std::uint32_t id = 0;
+    std::uint64_t tick = 0;
+    viewer::SleepPlanState sleep;
     Peer(std::uint16_t port, std::string identity) :
         connection(network.connect("127.0.0.1:" + std::to_string(port))), fingerprint(std::move(identity)) {}
     void poll() {
@@ -50,7 +52,8 @@ struct Peer {
             (void)c;
             if (const auto* welcome = std::get_if<multiplayer::Welcome>(&message)) id = welcome->player;
             if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
-                ++snapshots; population = snapshot->players.size();
+                if (snapshot->tick < tick) continue;
+                ++snapshots; population = snapshot->players.size(); tick = snapshot->tick; sleep = snapshot->sleepPlan;
             }
         }
     }
@@ -214,6 +217,27 @@ int main(int argc, char** argv) {
             require(!mismatch.id && mismatch.ended.find("Content mismatch") != std::string::npos, "Content validation changed");
             Peer retry(port, fingerprint);
             waitFor([&] { retry.poll(); return retry.id && retry.population == 8; }, "Released slot could not be reused");
+            server.requestStop();
+        }
+        {
+            multiplayer::LocalServer server(options,{true,1});
+            Peer sleeper(ready(server),fingerprint);
+            waitFor([&] { sleeper.poll(); return sleeper.id && sleeper.snapshots; }, "Sleep test player did not join");
+            multiplayer::Command command; command.sequence=1;
+            command.sleepAction=viewer::SleepAction{viewer::SleepActionKind::Suggest,sleeper.sleep.revision,30};
+            require(sleeper.network.send(sleeper.connection,multiplayer::Commands{{command}},true), "Sleep request send failed");
+            waitFor([&] { sleeper.poll(); return sleeper.sleep.sleeping; }, "Authority never started sleep");
+            const auto sleepStart=Clock::now();
+            waitFor([&] { sleeper.poll(); return !sleeper.sleep.sleeping; }, "Accelerated sleep never completed");
+            const double elapsed=std::chrono::duration<double>(Clock::now()-sleepStart).count();
+            require(sleeper.sleep.wakeReason==viewer::SleepWakeReason::Rested && elapsed<4 &&
+                sleeper.sleep.endsAt-sleeper.sleep.startedAt==25,
+                "Half an hour of game time did not complete under accelerated fixed steps");
+            const auto awakeTick=sleeper.tick;
+            const auto awakeStart=Clock::now();
+            waitFor([&] { sleeper.poll(); return Clock::now()-awakeStart>std::chrono::milliseconds(250); }, "Wake pacing wait failed");
+            require(sleeper.tick-awakeTick<60 && !sleeper.sleep.sleeping,
+                "Server remained accelerated after waking");
             server.requestStop();
         }
         // Exercise the actual client session repeatedly in this same process.

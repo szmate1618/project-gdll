@@ -31,9 +31,33 @@ bool SleepPlanState::ready() const {
         std::any_of(participants.begin(), participants.end(),
         [](const auto& member) { return member.response == SleepResponse::Accept; });
 }
-void SleepPlan::join(std::uint32_t player) {
+int SleepPlanState::rate() const {
+    return sleeping && std::all_of(participants.begin(), participants.end(),
+        [](const auto& member) { return member.response == SleepResponse::Accept; }) ? sleepAcceleration : 1;
+}
+bool SleepPlan::begin(double now, const DayNightCycle& cycle) {
+    if (state_.sleeping || !state_.ready() || cycle.dayLengthSeconds <= 0) return false;
+    cycle.hourAt(now);
+    state_.sleeping = true;
+    state_.startedAt = now;
+    state_.endsAt = now + cycle.dayLengthSeconds * state_.minutes / 1440;
+    state_.wakeReason = SleepWakeReason::None;
+    return true;
+}
+void SleepPlan::update(double now) {
+    if (state_.sleeping && now >= state_.endsAt) wake(SleepWakeReason::Rested, now);
+}
+void SleepPlan::wake(SleepWakeReason reason, double now) {
+    if (!state_.sleeping) return;
+    state_.sleeping = false;
+    state_.wakeReason = reason;
+    state_.endedAt = now;
+    cancel();
+}
+void SleepPlan::join(std::uint32_t player, double now) {
     if (!player || std::any_of(state_.participants.begin(), state_.participants.end(),
         [player](const auto& member) { return member.player == player; })) return;
+    if (state_.sleeping) wake(SleepWakeReason::MembershipChanged, now);
     state_.participants.push_back({player, SleepResponse::Pending});
 }
 void SleepPlan::cancel() {
@@ -41,20 +65,32 @@ void SleepPlan::cancel() {
     state_.proposer = 0;
     for (auto& member : state_.participants) member.response = SleepResponse::Pending;
 }
-void SleepPlan::leave(std::uint32_t player) {
+void SleepPlan::leave(std::uint32_t player, double now) {
+    if (state_.sleeping) wake(SleepWakeReason::MembershipChanged, now);
     state_.participants.erase(std::remove_if(state_.participants.begin(), state_.participants.end(),
         [player](const auto& member) { return member.player == player; }), state_.participants.end());
     if (state_.proposer == player) cancel();
 }
-bool SleepPlan::apply(std::uint32_t player, const SleepAction& action) {
+bool SleepPlan::apply(std::uint32_t player, const SleepAction& action, double now) {
     const auto found = std::find_if(state_.participants.begin(), state_.participants.end(),
         [player](const auto& member) { return member.player == player; });
     if (found == state_.participants.end() || action.revision != state_.revision) return false;
+    if (state_.sleeping) {
+        if (action.kind == SleepActionKind::Accept) { found->response = SleepResponse::Accept; return true; }
+        if (action.kind == SleepActionKind::Guard) {
+            found->response = SleepResponse::Guard;
+            if (!state_.ready()) wake(SleepWakeReason::Cancelled, now);
+            return true;
+        }
+        if (action.kind == SleepActionKind::Cancel) { wake(SleepWakeReason::Cancelled, now); return true; }
+        return false;
+    }
     if (action.kind == SleepActionKind::Suggest) {
         if (!validSleepDuration(action.minutes)) return false;
         ++state_.revision;
         state_.proposer = player;
         state_.minutes = action.minutes;
+        state_.wakeReason = SleepWakeReason::None;
         for (auto& member : state_.participants) member.response = SleepResponse::Pending;
         found->response = SleepResponse::Accept;
         return true;

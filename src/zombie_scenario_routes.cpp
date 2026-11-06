@@ -4,6 +4,9 @@
 #include "zombie_movement.hpp"
 #include "zombie_navigation.hpp"
 #include "simulation_clock.hpp"
+#include "sleep_plan.hpp"
+#include <limits>
+#include <utility>
 #include <cmath>
 
 namespace viewer {
@@ -33,6 +36,23 @@ void ZombieLayer::abandonScenarioRoute(std::size_t id) {
     found->second.travel = {};
     if (navigation_) navigation_->reset(id);
 }
+void ZombieLayer::setSleepTravel(bool enabled, const CollisionWorld& world) {
+    if (sleepTravel_ == enabled) return;
+    sleepTravel_ = enabled; sleepTravelSeconds_ = 0; sleepTravelThreat_ = false;
+    for (auto& [id, route] : scenarioRoutes_) {
+        route.travel = {}; route.groundCache = {}; route.contactCache = {};
+        if (enabled || route.overridden || instances[id].removed || instances[id].ragdoll) continue;
+        auto& instance = instances[id];
+        auto feet = glm::vec3(instance.restRoot[3]);
+        if (const auto ground = world.groundAt(feet.x, feet.z, std::numeric_limits<float>::lowest(),
+                std::numeric_limits<float>::max(), true)) {
+            feet.y = ground->height;
+            applyZombieLocomotion(instance, {}, {feet}, 1.2f, 0);
+            markRenderChanged(id, true); updateSpatialMembership(id);
+        }
+    }
+}
+bool ZombieLayer::takeSleepTravelThreat() { return std::exchange(sleepTravelThreat_, false); }
 
 void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& world,const ZombiePlayer& player,
                                       const std::vector<ZombiePlayer>* players,bool advanceLooking) {
@@ -43,6 +63,27 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
         scenarioRoutes_.clear(); // Bulk population replacement invalidates scenario IDs.
         scenarioPopulation_ = 0;
         if (navigation_) navigation_->resetPopulation(instances.size());
+        return;
+    }
+    if (sleepTravel_) {
+        sleepTravelSeconds_ += seconds;
+        if (sleepTravelSeconds_ < .5f) return;
+        const float elapsed = std::exchange(sleepTravelSeconds_, 0.f);
+        std::vector<glm::vec3> sleepers;
+        if (players) { for (const auto& observer : *players) sleepers.push_back(observer.feet); }
+        else sleepers.push_back(player.feet);
+        for (auto& [id, route] : scenarioRoutes_) {
+            auto& instance = instances[id];
+            if (route.finished || route.overridden || instance.removed || instance.ragdoll) continue;
+            const auto start = glm::vec3(instance.restRoot[3]);
+            const auto step = navigation_->advanceSleep(id, start, elapsed, sleepers, sleepWakeDistanceMeters);
+            if (step.nearSleeper) { sleepTravelThreat_ = true; continue; }
+            const glm::vec3 feet{step.position.x, start.y, step.position.y};
+            applyZombieLocomotion(instance, (step.position - glm::vec2(start.x,start.z)) / elapsed,
+                {feet,step.travel}, walkSpeed, elapsed);
+            if (step.arrived) { route.finished = true; navigation_->reset(id); stopZombieLocomotion(instance); }
+            markRenderChanged(id, true); updateSpatialMembership(id);
+        }
         return;
     }
     for (auto& [id, route] : scenarioRoutes_) {

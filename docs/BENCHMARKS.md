@@ -606,6 +606,9 @@ records selected changes, trajectory checks and actual viewer measurements.
 The [distant traveler evaluation](benchmarks/zombie-distant-travel-2026-10-24.txt)
 compares navigation fast paths, physical contact-region proofs and reduced-rate
 travel with swept geometry. The selected approach has a full-movement control.
+The [sleep fast-forward measurement](benchmarks/sleep-fast-forward-2026-11-06.txt)
+records the separate sleep-only approximation, the 30× target, 60 m wake checks,
+and a matched short real-map world-update comparison.
 The [overlap recovery and route-progress follow-up](benchmarks/zombie-overlap-recovery-2026-10-24.txt)
 measures 60-second trajectories, separates ground geometry from other contacts,
 and compares periodic correction against the retained movement model.

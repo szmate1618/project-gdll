@@ -475,6 +475,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     behaviorStats_.activationCandidates = spatialCandidates_.size();
     for (const auto id : spatialCandidates_) {
         auto& instance = instances[id];
+        if (sleepTravel_ && scenarioDestination(id)) continue;
         if (instance.removed || instance.ragdoll || instance.asset >= assets.size() || behaviors.contains(id)) continue;
         const auto close = [&](const ZombiePlayer& p) {
             const auto offset = p.feet - glm::vec3(instance.restRoot[3]);
@@ -495,6 +496,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     std::sort(behaviorOrder_.begin(), behaviorOrder_.end());
     for (const auto id : behaviorOrder_) {
         auto& behavior = *behaviors.find(id);
+        if (sleepTravel_ && scenarioDestination(id)) continue;
         const bool scenarioFallback = scenarioDestination(id) && !scenarioFinished(id);
         const bool wasWalking = id < instances.size() && instances[id].walking;
         if (id >= instances.size() || instances[id].removed || instances[id].ragdoll || instances[id].asset >= assets.size() ||

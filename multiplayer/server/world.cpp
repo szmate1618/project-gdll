@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "sleep_threat.hpp"
 #include "physics_impacts.hpp"
 #include "inventory_state.hpp"
 #include "signals.hpp"
@@ -144,7 +145,7 @@ std::uint32_t World::join() {
     player.held.movement.yawDegrees = scene_.spawnOrientation.x;
     player.held.pitch = scene_.spawnOrientation.y;
     player.lastPacketTick = tick_;
-    sleepPlan_.join(id);
+    sleepPlan_.join(id, viewer::SimulationClock::instance().seconds());
     return id;
 }
 void World::leave(std::uint32_t id) {
@@ -153,7 +154,7 @@ void World::leave(std::uint32_t id) {
         vehicleSeats_.leave(id);
         it->second.handInventory.release(it->second.interaction, *scene_.groundItems, it->second.weapons);
         players_.erase(it);
-        sleepPlan_.leave(id);
+        sleepPlan_.leave(id, viewer::SimulationClock::instance().seconds());
     }
 }
 void World::submit(std::uint32_t id, const Commands& commands) {
@@ -186,6 +187,8 @@ void World::step() {
     auto& clock = viewer::SimulationClock::instance();
     clock.advance(tickSeconds);
     const double now = clock.seconds();
+    sleepPlan_.update(now);
+    scene_.zombies.setSleepTravel(sleepPlan_.state().rate() > 1, *scene_.collision);
     std::vector<viewer::ZombiePlayer> targets;
     std::vector<viewer::ScentEmitter> scentEmitters;
     std::vector<viewer::NoiseEvent> noises;
@@ -219,6 +222,7 @@ void World::step() {
         if (player != players_.end()) player->second.vitals.applyDamage(hit.damage);
     }
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
+    if (scene_.zombies.takeSleepTravelThreat()) sleepPlan_.wake(viewer::SleepWakeReason::Threat, now);
     for (const auto& hit : scene_.zombies.attackHits()) {
         const auto player = players_.find(hit.player);
         if (player != players_.end()) player->second.vitals.applyDamage(hit.damage);
@@ -262,7 +266,24 @@ void World::step() {
                 player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
             }
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
-            if (command.sleepAction) sleepPlan_.apply(id, *command.sleepAction);
+            const bool wasAsleep = sleepPlan_.state().asleep(id);
+            if (command.sleepAction) sleepPlan_.apply(id, *command.sleepAction, now);
+            if (!wasAsleep && sleepPlan_.state().asleep(id)) player.sleepHealth = player.vitals.health();
+            if (sleepPlan_.state().asleep(id)) {
+                player.weapons.cancelTrigger();
+                player.interaction.cancel();
+                player.inventoryDrag.cancel();
+                player.pendingInventoryActions.clear();
+                player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
+                player.controller.restSleeping(tickSeconds / inputs,
+                    static_cast<float>(tickSeconds / inputs * 24 / scene_.dayNight.dayLengthSeconds));
+                player.velocity = {};
+                player.body.follow(player.camera.position(), player.camera.direction(), false);
+                // Acknowledge incoming sequences while suppressing gameplay actions.
+                command.left = command.right = false; command.inventoryActions.clear(); command.firearmShot.reset();
+                player.held = command;
+                continue;
+            }
             if (player.pendingInventoryActions.size() + command.inventoryActions.size() > 1024)
                 throw std::runtime_error("Too many queued inventory actions");
             player.pendingInventoryActions.insert(player.pendingInventoryActions.end(), command.inventoryActions.begin(), command.inventoryActions.end());
@@ -474,6 +495,17 @@ void World::step() {
             (void)id; player.vitals.applyDamage(static_cast<float>(birdHits[birdPlayer++]));
         }
     }
+    if (sleepPlan_.begin(now, scene_.dayNight))
+        for (auto& [id, player] : players_) { (void)id; player.sleepHealth = player.vitals.health(); }
+    for (const auto& [id, player] : players_) {
+        if (!sleepPlan_.state().asleep(id)) continue;
+        if (player.vitals.health() <= 0 || player.vitals.health() < player.sleepHealth)
+            sleepPlan_.wake(viewer::SleepWakeReason::Damage, now);
+        else if (viewer::sleepThreatNearby(&scene_.zombies, scene_.dogs, player.controller.feet(), sleepThreatCandidates_))
+            sleepPlan_.wake(viewer::SleepWakeReason::Threat, now);
+    }
+    // Publish restored ground placement in the first awake snapshot.
+    scene_.zombies.setSleepTravel(sleepPlan_.state().rate() > 1, *scene_.collision);
 }
 std::optional<BirdFrame> World::birdFrame(std::uint32_t id) const {
     return birds_.frame(players_.at(id).birdTick);

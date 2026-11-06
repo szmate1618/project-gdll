@@ -6,6 +6,14 @@
 #include <stdexcept>
 
 namespace viewer {
+void Renderer::renderBlack() {
+    overlayActive_ = false;
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+    glViewport(0, 0, width_, height_);
+    glDisable(GL_SCISSOR_TEST);
+    constexpr GLfloat black[]{0,0,0,1};
+    glClearBufferfv(GL_COLOR, 0, black);
+}
 PresentationViewport Renderer::beginOverlay(int width, int height) {
     const auto viewport = presentationViewport(width_, height_, width, height);
     if (viewport.width <= 0 || viewport.height <= 0) return viewport;

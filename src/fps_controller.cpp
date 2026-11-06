@@ -341,6 +341,17 @@ void FPSController::restSeated(float dt) {
         accumulator_ -= config_.fixedDt;
     }
 }
+void FPSController::restSleeping(float dt, float gameHours) {
+    if (!std::isfinite(dt) || dt <= 0 || !std::isfinite(gameHours) || gameHours < 0) return;
+    noises_.clear();
+    horizontalVelocity_ = {}; verticalVelocity_ = 0; movementIntent_ = {};
+    jumpHeld_ = jumpQueued_ = proneQueued_ = false;
+    exertion_.decay(dt, config_.exertion);
+    // Eight game hours recover one full normalized strain unit. Sleep does not
+    // heal wounds or remove bleeding; those remain medical responsibilities.
+    exertion_.strain = std::max(0.f, exertion_.strain - gameHours / 8);
+    exertion_.advance(dt, false, config_.exertion.proneRecoveryMultiplier, config_.exertion);
+}
 
 void FPSController::update(float dt, const FPSInput& input, const CollisionWorld& world) {
     noises_.clear();

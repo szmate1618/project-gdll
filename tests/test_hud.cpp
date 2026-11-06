@@ -1242,6 +1242,19 @@ int main(int argc, char** argv) {
             plan.apply(2, {viewer::SleepActionKind::Suggest, plan.state().revision, 630});
             rest.sleepPlan = plan.state(); draw();
             require(!hud.takeSleepAction(), "Queued consent approved a counterproposal that had not been displayed");
+            viewer::SleepPlan sleeping; sleeping.join(1);
+            sleeping.apply(1,{viewer::SleepActionKind::Suggest,0,480}); sleeping.begin(0,rest.dayNight);
+            rest.sleepPlan = sleeping.state(); rest.gameSeconds = 100; rest.mouseCaptured = true;
+            draw(); draw();
+            require(isColor(colorAt(pixels(1280,720),1280,720,1210,60),{0,0,0}),
+                "Sleep blackout must cover the world and ordinary HUD");
+            if(argc>1) capture((std::string(argv[1])+"-sleep-blackout.ppm").c_str(),pixels(1280,720),1280,720);
+            rest.mouseCaptured = false; draw(); click(640,450);
+            action = hud.takeSleepAction();
+            require(action && action->kind == viewer::SleepActionKind::Cancel && action->revision == sleeping.state().revision,
+                "Blackout wake button must send an authoritative wake action");
+            sleeping.apply(1,*action,100); rest.sleepPlan = sleeping.state(); draw();
+            if(argc>1) capture((std::string(argv[1])+"-sleep-woke.ppm").c_str(),pixels(1280,720),1280,720);
         }
         {
             auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());

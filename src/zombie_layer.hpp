@@ -193,6 +193,8 @@ struct ZombieLayer {
     void setDistantScenarioTravelEnabled(bool enabled);
     const glm::vec3* scenarioDestination(std::size_t id) const;
     bool scenarioFinished(std::size_t id) const;
+    void setSleepTravel(bool enabled, const CollisionWorld& world);
+    bool takeSleepTravelThreat();
     // Rebuild after external edits to instance feet or replacing a population
     // with the same size, or edits to asset rigs/clips or instance normalization.
     // Rebuilds hit geometry/corpse membership and resets enabled routes. Call after
@@ -287,6 +289,8 @@ private:
     std::map<std::size_t, ScenarioRoute> scenarioRoutes_; // Travel members only, in stable ID order.
     std::size_t scenarioPopulation_ = 0;
     bool distantScenarioTravel_ = true;
+    bool sleepTravel_ = false, sleepTravelThreat_ = false;
+    float sleepTravelSeconds_ = 0;
     void updateScenarioRoutes(float seconds, const CollisionWorld& world, const ZombiePlayer& player,
                               const std::vector<ZombiePlayer>* players, bool advanceLooking = false);
     void abandonScenarioRoute(std::size_t id);

@@ -56,6 +56,7 @@
 #include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
+#include "sleep_threat.hpp"
 #include "scene_audio.hpp"
 
 #include <GLFW/glfw3.h>
@@ -525,6 +526,8 @@ struct AppState {
     bool collisionDebug = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     viewer::Hud* hud = nullptr; // Borrows the graphics-thread HUD.
+    viewer::SleepPlan* sleepPlan = nullptr;
+    double sleepDayLengthSeconds = 1200;
     bool flashlight = true;
     bool distantSceneCache = false;
     glm::vec3 playerVelocity{0};
@@ -562,6 +565,12 @@ void framebufferCallback(GLFWwindow* window, int width, int height) {
 
 void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     auto& app = state(window);
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && key != GLFW_KEY_TAB && key != GLFW_KEY_HOME) {
+        if (key >= 0 && key <= GLFW_KEY_LAST) app.keys[static_cast<std::size_t>(key)] = false;
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+            app.sleepPlan->wake(viewer::SleepWakeReason::Cancelled, viewer::SimulationClock::instance().seconds());
+        return;
+    }
     const bool wasTemporaryHandling = app.temporaryHandling();
     if (key >= 0 && key <= GLFW_KEY_LAST)
         app.keys[static_cast<std::size_t>(key)] = action != GLFW_RELEASE && app.hudScreen == viewer::HudScreen::Gameplay;
@@ -670,6 +679,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture) { app.firstMouse = true; return; }
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
         hudPointer(window, app.hud, x, y);
         if (app.equipmentCursor && !app.firstMouse) app.interaction.moveGrip(float(x - app.lastX), float(app.lastY - y));
@@ -685,6 +695,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
         app.weapons.secondaryTrigger(false, viewer::SimulationClock::instance().seconds());
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
@@ -832,6 +843,11 @@ bool updateWeapons(AppState& app, double seconds) {
 }
 
 void moveCamera(AppState& app, float dt) {
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1)) {
+        app.rig.restSleeping(dt, static_cast<float>(dt * 24 / app.sleepDayLengthSeconds));
+        app.playerVelocity = {};
+        return;
+    }
     app.rig.setMovementHealth(app.vitals.healthState());
     if (app.driver.occupied()) {
         app.rig.restSeated(dt);
@@ -1728,6 +1744,10 @@ int run(const Options& options) {
     viewer::Hud hud(VIEWER_HUD_DIR, app.inventory);
     viewer::SleepPlan sleepPlan;
     sleepPlan.join(1);
+    app.sleepPlan = &sleepPlan;
+    app.sleepDayLengthSeconds = options.dayNight.dayLengthSeconds;
+    float sleepHealth = app.vitals.health();
+    std::vector<std::size_t> sleepThreatCandidates;
     hud.setGroundItems(groundItems, app.weapons, app.world);
     app.hud = &hud;
     if (const auto minimap = viewer::findMinimapSource(model)) {
@@ -1800,6 +1820,12 @@ int run(const Options& options) {
         for (const auto mode : {viewer::Camera::ViewMode::original, viewer::Camera::ViewMode::zoom10,
                                 viewer::Camera::ViewMode::zoom1})
             reticle.draw(mode, 800, 600);
+        renderer.renderBlack();
+        std::array<unsigned char,4> sleepPixel{};
+        glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,sleepPixel.data());
+        if (sleepPixel[0] || sleepPixel[1] || sleepPixel[2])
+            throw std::runtime_error("Sleep frame did not clear the scene target to black");
+        viewer::Renderer::checkErrors("sleep blackout self-test");
         viewer::Renderer::checkErrors("resized render target and reticle modes");
     }
     viewer::RuntimeGraphicsSettings graphics(window.get(), renderer, options.fullscreen,
@@ -1857,10 +1883,9 @@ int run(const Options& options) {
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;
-        float birdSeconds = 0;
         const auto followPlayerBody = [&] {
             playerBody.follow(app.rig.camera().position(), app.rig.camera().direction(),
-                !app.driver.occupied() && !app.weaponSwitch.pending() && !app.handling() && app.weapons.slot() == viewer::punchSlot);
+                !sleepPlan.state().asleep(1) && !app.driver.occupied() && !app.weaponSwitch.pending() && !app.handling() && app.weapons.slot() == viewer::punchSlot);
         };
         const auto fireWeapons = [&] {
             viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::weapons);
@@ -1870,10 +1895,14 @@ int run(const Options& options) {
                 muzzleFlash.fire(simulationClock.seconds(), {});
             }
         };
-        physics->step(dt, [&](float step) {
+        const auto beforePhysics = [&](float step) {
             simulated = true;
             simulationClock.advance(step);
-            birdSeconds += step;
+            sleepPlan.update(simulationClock.seconds());
+            if (zombies) zombies->setSleepTravel(sleepPlan.state().rate() > 1, collision);
+            if (sleepPlan.state().asleep(1)) {
+                app.weapons.cancelTrigger(); app.interaction.cancel();
+            }
             app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
             app.weaponReload.update(app.weapons, app.inventory, simulationClock.seconds());
             app.weapons.syncAmmo(app.inventory);
@@ -1893,6 +1922,7 @@ int run(const Options& options) {
 
             const double behaviorStart = glfwGetTime();
             updateZombieBehavior(app, step, app.displayedAnimationSeconds, options.profile ? &zombieProfile : nullptr);
+            if (zombies && zombies->takeSleepTravelThreat()) sleepPlan.wake(viewer::SleepWakeReason::Threat, simulationClock.seconds());
             if (app.dogs) {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::dogFetchPhysics);
                 app.dogs->prepareFetchPhysics(physicsScene,&doors);
@@ -1950,7 +1980,8 @@ int run(const Options& options) {
             }
             cars.beforeStep(step);
             vehicleZombies.capture(cars);
-        }, [&](float step) {
+        };
+        const auto afterPhysics = [&](float step) {
             if (zombies) vehicleZombies.resolve(cars, *zombies, collision, step,
                     app.displayedAnimationSeconds);
             melee.finish(playerBody, zombies ? &*zombies : nullptr,
@@ -1985,7 +2016,26 @@ int run(const Options& options) {
                 for (const auto& impact : impactEvents) audio.impact(impact.sound);
             }
             playerPresentation.advance(app.rig.camera().position(), playerBody.pose());
-        });
+            if (birds) {
+                const auto& player = app.rig.player();
+                const viewer::BirdFlockPlayer target{player.feet(), player.bodyHeight(), player.bodyRadius(),
+                    app.rig.walking() && !app.driver.occupied() && app.vitals.health() > 0, player.collisionBox()};
+                if (app.vitals.applyDamage(static_cast<float>(birds->update(step, target))) > 0)
+                    app.lastDamageSeconds = simulationClock.seconds();
+            }
+            if (sleepPlan.state().asleep(1)) {
+                if (app.vitals.health() < sleepHealth || app.vitals.health() <= 0)
+                    sleepPlan.wake(viewer::SleepWakeReason::Damage, simulationClock.seconds());
+                else if (viewer::sleepThreatNearby(zombies ? &*zombies : nullptr, dogs, app.rig.player().feet(), sleepThreatCandidates))
+                    sleepPlan.wake(viewer::SleepWakeReason::Threat, simulationClock.seconds());
+            }
+        };
+        const int sleepSteps = sleepPlan.state().rate();
+        for (int sleepStep = 0; sleepStep < sleepSteps; ++sleepStep) {
+            if (sleepStep && !sleepPlan.state().sleeping) break;
+            physics->step(dt, beforePhysics, afterPhysics);
+        }
+        if (zombies) zombies->setSleepTravel(sleepPlan.state().rate() > 1, collision);
         if (doodads) {
             doodads->captureChanges();
             if (now >= nextDoodadSave) {
@@ -1995,14 +2045,6 @@ int run(const Options& options) {
                 }
                 nextDoodadSave = now+5;
             }
-        }
-        if (birds && birdSeconds > 0) {
-            const auto& player = app.rig.player();
-            const viewer::BirdFlockPlayer target{player.feet(), player.bodyHeight(), player.bodyRadius(),
-                app.rig.walking() && !app.driver.occupied() && app.vitals.health() > 0, player.collisionBox()};
-            const unsigned hits = birds->update(birdSeconds, target);
-            if (app.vitals.applyDamage(static_cast<float>(hits)) > 0)
-                app.lastDamageSeconds = simulationClock.seconds();
         }
         if (!simulated) audio.service();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
@@ -2044,7 +2086,7 @@ int run(const Options& options) {
         const auto renderSize = graphics.renderSize();
         const int renderWidth = renderSize.x, renderHeight = renderSize.y;
         renderer.resize(renderWidth, renderHeight);
-        if (zombies) renderer.updateZombies(*zombies);
+        if (zombies && !sleepPlan.state().asleep(1)) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;
         if (app.collisionDebug) {
             if (!debug) debug = std::make_unique<viewer::CollisionDebug>(options.shaders);
@@ -2055,7 +2097,8 @@ int run(const Options& options) {
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.updateFloorplans(floorplans);
-        renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
+        if (sleepPlan.state().asleep(1)) renderer.renderBlack();
+        else renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
             if (birdRenderer)
                 birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,
                     app.displayedAnimationSeconds, birds->birds(), dayNightTint);
@@ -2064,12 +2107,12 @@ int run(const Options& options) {
                                        viewCamera.view(), renderWidth, renderHeight,
                                        (1.f - presentationAlpha) * viewer::PhysicsWorld::fixedStepSeconds);
         }, simulationClock.seconds());
-        if (app.collisionDebug)
+        if (app.collisionDebug && !sleepPlan.state().asleep(1))
             debug->draw(viewCamera, overlay, renderWidth, renderHeight);
         const auto& heldWeapon = app.weapons.equipped();
         {
             viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::overlay);
-            if (!app.driver.occupied() && !app.weaponSwitch.pending() && heldWeapon.owned && app.weapons.slot() != viewer::handlingSlot &&
+            if (!sleepPlan.state().asleep(1) && !app.driver.occupied() && !app.weaponSwitch.pending() && heldWeapon.owned && app.weapons.slot() != viewer::handlingSlot &&
                 app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
                 viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
                 weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
@@ -2080,7 +2123,7 @@ int run(const Options& options) {
                 app.rig.player().movementState().posture, app.rig.player().config(),
                 viewCamera.viewMode() != viewer::Camera::ViewMode::original);
             const float projectionY = viewCamera.projection(float(overlayViewport.width) / overlayViewport.height)[1][1];
-            reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height,
+            if (!sleepPlan.state().asleep(1)) reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height,
                 viewer::inaccuracyCrosshairRadius(sigma, projectionY));
         }
         viewer::HudState hudState;
@@ -2138,7 +2181,14 @@ int run(const Options& options) {
             hud.draw(hudState, app.width, app.height);
         }
         if (const auto requested = hud.takeScreenRequest()) app.hudScreen = *requested;
-        if (const auto action = hud.takeSleepAction()) sleepPlan.apply(1, *action);
+        if (const auto action = hud.takeSleepAction()) sleepPlan.apply(1, *action, simulationClock.seconds());
+        if (sleepPlan.state().ready() && !sleepPlan.state().sleeping && !app.rig.walking() && !app.driver.occupied())
+            app.rig.enterWalking(app.rig.camera().position());
+        if ((app.rig.walking() || app.driver.occupied()) && sleepPlan.begin(simulationClock.seconds(), options.dayNight)) {
+            sleepHealth = app.vitals.health(); app.keys.fill(false); app.proneToggleQueued = false;
+            app.handInventory.release(app.interaction, groundItems, app.weapons);
+            app.interaction.cancel(); app.weapons.cancelTrigger();
+        }
         for (const auto& action : hud.takeInventoryActions()) {
             switch (action.kind) {
             case viewer::InventoryDragActionKind::HandPickUp:

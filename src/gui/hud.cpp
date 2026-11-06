@@ -268,9 +268,17 @@ struct Hud::Impl {
             // Scale the complete 1280x720 layout together, retaining corner anchors.
             context->SetDensityIndependentPixelRatio(std::min(float(width) / 1280, float(height) / 720));
         }
-        showScreen(state.screen);
+        const bool asleep = state.sleepPlan.asleep(state.localPlayer);
+        showScreen(asleep ? HudScreen::Gameplay : state.screen);
         const auto presentation = presentationViewport(width, height,
             presentationWidth > 0 ? presentationWidth : width, presentationHeight > 0 ? presentationHeight : height);
+        if (asleep) {
+            renderer.render(*context, width, height, [&] {
+                sleepDrawer->process(state, pointerEvents, width, height, presentation);
+            });
+            pointerEvents.clear();
+            return;
+        }
         if (screen != HudScreen::Gameplay) {
             sleepDrawer->close();
             if (backdrop) backdrop->reset();

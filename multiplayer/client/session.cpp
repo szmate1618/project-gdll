@@ -78,6 +78,8 @@ struct Input {
     bool leave = false;
     std::vector<viewer::InventoryDragAction> inventoryActions;
     std::optional<viewer::SleepAction> sleepAction;
+    bool sleeping = false;
+    std::uint64_t sleepRevision = 0;
 #ifdef MP_GRAPHICS
     bool distantSceneCache = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
@@ -111,6 +113,11 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
 }
 void key(GLFWwindow* window, int code, int, int action, int) {
     auto& in = input(window);
+    if (in.sleeping && code != GLFW_KEY_TAB && code != GLFW_KEY_HOME) {
+        if (code == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+            in.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Cancel, in.sleepRevision, 30};
+        return;
+    }
     if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) {
         const bool wasTemporaryHandling = in.temporaryHandling();
         in.altHeld[code == GLFW_KEY_RIGHT_ALT ? 1 : 0] = action != GLFW_RELEASE &&
@@ -193,6 +200,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
+    if (in.sleeping && in.capture) { in.firstMouse = true; return; }
     if (in.hudScreen != viewer::HudScreen::Gameplay || !in.capture) {
         hudPointer(window, in.hud, x, y);
         if (in.equipmentCursor && !in.firstMouse)
@@ -407,6 +415,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
     c.flashlight = in.flashlight;
+    if (in.sleeping) { c.cancelInteraction = true; return c; }
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
     c.cancelInteraction = true;
     if (!window) return c;
@@ -579,6 +588,19 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                 if (!self || !snapshots.push(*snapshot, now, network.estimatedOneWaySeconds(connection))) continue;
                 lastSnapshot = now; ++received; mostPlayers = std::max(mostPlayers, snapshot->players.size());
+                const bool wasSleeping = in.sleeping;
+                in.sleeping = snapshot->sleepPlan.asleep(self);
+                in.sleepRevision = snapshot->sleepPlan.revision;
+#ifdef MP_GRAPHICS
+                if (in.sleeping && !wasSleeping) {
+                    in.equipmentGripHeld = false; in.cancelInteraction = true; in.drag = {};
+                    in.suppressLeftUntilRelease |= in.leftHeld; in.suppressRightUntilRelease |= in.rightHeld;
+                    in.firstMouse = true;
+                }
+                if (in.sleeping) { in.hudScreen = viewer::HudScreen::Gameplay; in.cancelSignal(); in.actionSelection.close(); in.altHeld.fill(false); }
+#else
+                (void)wasSleeping;
+#endif
                 for (const auto& p : snapshot->players) if (p.id != self) {
                     const auto origin = remoteOrigins.emplace(p.id, p.movement.feet).first->second;
                     remoteTravel = std::max(remoteTravel, glm::length(p.movement.feet - origin));
@@ -835,7 +857,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 const auto lighting = viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds()));
                 const auto dayNightTint = viewer::dayNightDisplayTint(lighting);
                 renderer.setDayNightLighting(lighting);
-                renderer.updateZombies(scene.zombies);
+                if (!in.sleeping) renderer.updateZombies(scene.zombies);
                 viewer::PlayerBodyPose ownBody;
                 if (prediction.ready() && !in.driver.occupied() && !in.handling() && in.slot==viewer::punchSlot && ownState.slot==viewer::punchSlot) {
                     // Local hands use the newest confirmed pose, without the
@@ -851,20 +873,21 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 graphics.gpuTimer->begin();
                 const auto renderStart = Clock::now();
                 renderer.updateFloorplans(*scene.floorplans);
-                renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
+                if (in.sleeping) renderer.renderBlack();
+                else renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()),
                                          dayNightTint);
                     graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight,
                                            snapshots.animationSeconds(), dayNightTint);
                     graphics.body->drawPose(ownBody,viewCamera.projection(renderAspect)*viewCamera.view(),renderWidth,renderHeight);
                 });
-                if (prediction.ready() && !in.driver.occupied() && in.equippedSlot != viewer::handlingSlot &&
+                if (!in.sleeping && prediction.ready() && !in.driver.occupied() && in.equippedSlot != viewer::handlingSlot &&
                     in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                     !in.weaponSwitching && viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
                     graphics.weapon->draw(ownState.slot, renderWidth, renderHeight, flash,
                                           in.weaponMotion.pose(ownState.slot, now, in.temporaryHandling()));
                 const auto overlayViewport = renderer.beginOverlay(width, height);
-                if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height,
+                if (!in.sleeping && !in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height,
                     viewer::inaccuracyCrosshairRadius(hipFireSpread(), viewCamera.projection(renderAspect)[1][1]));
                 viewer::HudState hudState;
                 hudState.seconds = now;

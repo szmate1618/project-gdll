@@ -134,6 +134,7 @@ public:
     // The HUD can reset the viewport to the full window; its input then uses
     // window fractions directly. present()/writeScreenshot() include these draws.
     PresentationViewport beginOverlay(int width, int height);
+    void renderBlack(); // Sleep frame: clear the scene target without any world draws.
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     // Borrow an uploaded scene texture. Do not delete it or change its sampler

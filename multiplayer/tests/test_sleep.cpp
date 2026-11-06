@@ -1,6 +1,9 @@
 #include "server/world.hpp"
 #include "client/snapshots.hpp"
 #include "sleep_plan.hpp"
+#include "simulation_clock.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -46,6 +49,33 @@ void planning() {
     require(!plan.state().ready(), "All guards produced a sleep agreement");
     plan.leave(2); require(!plan.state().proposer && plan.state().revision == 3, "Departing proposer left an orphan proposal");
 }
+void lifecycle() {
+    using namespace viewer;
+    SleepPlan plan; plan.join(1); plan.join(2);
+    plan.apply(1, {SleepActionKind::Suggest, 0, 480});
+    require(!plan.begin(10, {12,1200}), "Sleep began before the group answered");
+    plan.apply(2, {SleepActionKind::Guard, 1, 30});
+    require(plan.begin(10, {12,1200}) && plan.state().asleep(1) && !plan.state().asleep(2) && plan.state().rate() == 1,
+        "A guard must stay awake at normal simulation speed");
+    require(plan.state().endsAt == 410, "Eight game hours must equal 400 simulation seconds on the default clock");
+    plan.apply(2, {SleepActionKind::Accept,1,30},20);
+    require(plan.state().rate() == 30, "The last guard joining sleep must permit acceleration");
+    plan.update(409.9); require(plan.state().sleeping, "Sleep ended before the deadline");
+    plan.update(410); require(!plan.state().sleeping && plan.state().rate() == 1 && plan.state().wakeReason == SleepWakeReason::Rested,
+        "Completed sleep did not restore normal time");
+    require(!plan.begin(411,{12,1200}), "Completed sleep automatically restarted");
+    plan.apply(1,{SleepActionKind::Suggest,plan.state().revision,30});
+    plan.apply(2,{SleepActionKind::Accept,plan.state().revision,30});
+    require(!plan.begin(500,{12,0}), "Frozen calendar entered an endless sleep");
+    plan.begin(500,{12,1200}); plan.join(3,501);
+    require(!plan.state().sleeping && plan.state().wakeReason == SleepWakeReason::MembershipChanged, "Joining a session did not end acceleration");
+    FPSController player; auto movement = player.movementState();
+    movement.feet = {4,0,8}; movement.exertion.strain = 1; movement.exertion.stamina = .1f;
+    player.restoreMovement(movement);
+    player.restSleeping(400,8);
+    require(player.feet() == movement.feet && player.exertion().strain == 0 && player.exertion().stamina == 1,
+        "Sleep recovery must restore exertion without moving or healing the player");
+}
 void wire() {
     using namespace multiplayer;
     Command command; command.sequence = 1;
@@ -76,21 +106,57 @@ void server(const char* map) {
     Scene scene(options); World world(scene);
     const auto first = world.join(), second = world.join();
     Command command; command.sequence = 1; command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Suggest, 0, 240};
+    for (const auto& [item, definition] : scene.initialInventory.items()) {
+        (void)definition;
+        command.inventoryActions.push_back({viewer::InventoryDragActionKind::PickUp,item,""});
+    }
     for (int retry = 0; retry < 3; ++retry) world.submit(first, Commands{{command}});
     for (int i = 0; i < 10; ++i) world.step();
     const auto proposal = world.snapshot(second).sleepPlan;
+    require(world.players().at(first).inventory.held().has_value(), "Sleep fixture did not start a reversible inventory drag");
     require(proposal.proposer == first && proposal.minutes == 240 && proposal.revision == 1, "Suggestion missing from other player's snapshot");
     command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Guard, proposal.revision, 30};
+    command.inventoryActions.clear();
     world.submit(second, Commands{{command}});
     for (int i = 0; i < 10; ++i) world.step();
     require(world.snapshot(first).sleepPlan.ready(), "Remote guard response did not reach proposer");
+    require(world.snapshot(first).sleepPlan.sleeping && world.simulationRate() == 1, "Guarded sleep must start at normal speed");
+    require(!world.players().at(first).inventory.held(), "Sleep left an unfinished inventory transaction attached to the player");
+    command.sequence = 2; command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Accept, proposal.revision, 30};
+    world.submit(second,Commands{{command}});
+    for (int i=0;i<10;++i) world.step();
+    require(world.simulationRate() == 30, "Unanimous sleep did not enable acceleration");
+    const auto feet = world.players().at(first).controller.feet();
+    command.sequence = 2; command.sleepAction.reset(); command.movement.forward = 1;
+    world.submit(first,Commands{{command}});
+    for (int i=0;i<60;++i) world.step();
+    require(world.players().at(first).controller.feet() == feet, "Sleeping player moved on queued or held commands");
+    auto sleeping = world.snapshot(first); sleeping.tick = 6000;
+    Snapshots buffer; buffer.push(sleeping,0); buffer.apply(scene,0);
+    auto guarded = sleeping; guarded.tick = 6003; guarded.sleepPlan.participants.front().response = viewer::SleepResponse::Guard;
+    buffer.push(guarded,.05); buffer.apply(scene,.05);
+    require(std::abs(buffer.animationSeconds() - 6003./60) < .001, "Returning to guard duty retained an accelerated presentation clock");
+    auto awake = guarded; awake.tick = 6006; awake.sleepPlan.sleeping = false;
+    buffer.push(awake,.1); buffer.apply(scene,.1);
+    require(std::abs(buffer.animationSeconds() - 6006./60) < .001, "Waking retained a stale presentation clock");
     world.leave(first);
     require(!world.snapshot(second).sleepPlan.proposer, "Disconnected proposer notification persisted");
+    command.sequence = 3; command.movement = {}; command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Suggest,world.snapshot(second).sleepPlan.revision,30};
+    world.submit(second,Commands{{command}});
+    for(int i=0;i<10;++i) world.step();
+    require(world.simulationRate() == 30, "A sole survivor could not start sleep");
+    viewer::ZombieInstance threat; threat.restRoot = threat.transform = threat.restTransform =
+        glm::translate(glm::mat4(1),world.players().at(second).controller.feet()+glm::vec3(59,0,0));
+    if (scene.zombies.assets.empty()) scene.zombies.assets.emplace_back();
+    scene.zombies.instances.push_back(threat); scene.zombies.rebuildSpatialIndex();
+    world.step();
+    require(!world.snapshot(second).sleepPlan.sleeping && world.snapshot(second).sleepPlan.wakeReason == viewer::SleepWakeReason::Threat,
+        "A living zombie inside the 60-metre boundary did not wake the sleeper");
 }
 }
 int main(int argc, char** argv) {
     try {
-        calendar(); planning(); wire();
+        calendar(); planning(); lifecycle(); wire();
         require(argc == 2, "Expected test map"); server(argv[1]);
         std::cout << "Sleep planning, calendar, protocol and server checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

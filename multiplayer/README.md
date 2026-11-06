@@ -662,9 +662,18 @@ equipped. Tab frees the cursor; click Sleep to see the current game day and
 Other players see a notification offering Accept, Stand guard, or another
 duration. The server shares the proposal and each player's response, rejects
 responses to superseded proposals, and asks everyone again when the duration
-changes. Plans can be cancelled or responses withdrawn. This first stage
-coordinates sleep only; agreement does not yet accelerate the world or black
-out the screen. Clients and servers must both use protocol version 52.
+changes. Plans can be cancelled or responses withdrawn. Agreement blacks out
+accepted sleepers' screens, with a remaining-time display and Wake up control;
+Escape also wakes everyone. Guards keep normal time and can join sleep later.
+When all players sleep, the authority targets 30× normal speed, retaining fixed
+physics ticks and sending snapshots at 20 Hz of wall time. Sleeping players'
+input sequences continue to be acknowledged while gameplay actions are blocked.
+Waking resets presentation timing so the client resumes at the new world time.
+Danger within 60 metres, damage, group changes or the selected deadline end
+sleep. Distant travellers use coarse path progress with no obstacle checks;
+normal movement and terrain placement resume on waking. Stamina and strain
+recover, but sleep does not heal injuries. Clients and servers must both use
+protocol version 53.
 
 F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
 controls. The window title shows ammo, mode, rendered FPS, GPU render time,

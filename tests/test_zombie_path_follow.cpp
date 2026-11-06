@@ -16,6 +16,26 @@ void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 bool close(float a, float b) { return std::abs(a - b) < 1e-5f; }
+void sleepFollowing() {
+    using namespace viewer::steering;
+    using viewer::navmesh_path::Point;
+    const std::array<Point,3> corner{{{0,0},{100,0},{100,100}}};
+    FollowState state;
+    auto step = advancePathApproximate(corner.data(), corner.size(), {0,0}, 250, state, {{50,0,50}}, 10);
+    require(step.position == glm::vec2(100,100) && step.arrived && close(step.travel,200) && !step.nearSleeper,
+        "Sleep travel must consume route length around corners, without a diagonal shortcut");
+    state = {};
+    step = advancePathApproximate(corner.data(), corner.size(), {0,0}, 250, state, {{100,0,50}}, 10);
+    require(step.nearSleeper && state.segment == 0 && step.position == glm::vec2(0),
+        "A sleeper beside an intermediate path leg must prevent the entire warp");
+    const std::array<Point,2> straight{{{0,0},{500,0}}};
+    state = {};
+    step = advancePathApproximate(straight.data(), straight.size(), {0,0}, 500, state, {{250,0,0}}, 60);
+    require(step.nearSleeper && !step.arrived && state.segment == 0, "Endpoint-only wake checks missed a crossed sleeper");
+    state = {};
+    step = advancePathApproximate(straight.data(), straight.size(), {0,0}, 1.2f, state, {{250,0,0}}, 60);
+    require(!step.nearSleeper && close(step.position.x,1.2f) && !step.arrived, "Sleep travel changed physical speed");
+}
 
 void following() {
     using namespace viewer::steering;
@@ -92,6 +112,7 @@ void operator delete[](void* pointer, std::size_t) noexcept { std::free(pointer)
 
 int main() try {
     following();
+    sleepFollowing();
     std::cout << "Allocation-free waypoint following tests passed\n";
     return 0;
 } catch (const std::exception& error) {

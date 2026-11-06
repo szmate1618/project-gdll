@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <utility>
+#include <cmath>
 
 namespace viewer {
 namespace {
@@ -19,7 +20,8 @@ SleepDrawer::SleepDrawer(Rml::ElementDocument& document) : document_(document) {
     for (const char* id : {"sleep-drawer", "sleep-panel", "sleep-tab", "sleep-close", "sleep-day", "sleep-clock",
         "sleep-duration", "sleep-less", "sleep-more", "sleep-wake", "sleep-suggest", "sleep-proposal", "sleep-roster",
         "sleep-accept", "sleep-guard", "sleep-cancel", "sleep-notice", "sleep-notice-text", "sleep-notice-wake",
-        "sleep-notice-accept", "sleep-notice-guard", "sleep-notice-another"}) {
+        "sleep-notice-accept", "sleep-notice-guard", "sleep-notice-another", "sleep-rest-clock", "sleep-rest-day",
+        "sleep-rest-remaining", "sleep-rest-rate", "sleep-rest-wake", "sleep-wake-notice"}) {
         auto* element = document.GetElementById(id);
         if (!element) throw std::runtime_error(std::string("Missing sleep control: ") + id);
         elements_.emplace(id, element);
@@ -43,14 +45,17 @@ void SleepDrawer::close() {
     elements_.at("sleep-drawer")->SetClass("expanded", false);
 }
 void SleepDrawer::update(const HudState& state) {
-    available_ = state.localPlayer != 0 && state.screen == HudScreen::Gameplay && !state.commandWheelOpen;
     const auto& plan = state.sleepPlan;
+    const bool asleep = plan.asleep(state.localPlayer);
+    document_.SetClass("sleeping", asleep);
+    available_ = !asleep && state.localPlayer != 0 && state.screen == HudScreen::Gameplay && !state.commandWheelOpen;
     if (plan.revision != revision_) {
         revision_ = plan.revision;
         if (plan.proposer) minutes_ = plan.minutes;
         pressed_.clear();
     }
-    if (!available_ || state.mouseCaptured) close();
+    if ((!available_ && !asleep) || state.mouseCaptured) close();
+    if (asleep) open_ = false;
     notice_ = available_ && plan.proposer && plan.proposer != state.localPlayer &&
         plan.response(state.localPlayer) == SleepResponse::Pending && !open_;
     document_.SetClass("sleep-expanded", open_);
@@ -59,26 +64,42 @@ void SleepDrawer::update(const HudState& state) {
     elements_.at("sleep-tab")->SetClass("pending", notice_);
     elements_.at("sleep-notice")->SetClass("visible", notice_);
     const auto now = gameCalendarTime(state.dayNight, state.gameSeconds);
-    const auto wake = gameCalendarTime(state.dayNight, state.gameSeconds, minutes_);
+    text("sleep-rest-clock", now.clock); text("sleep-rest-day", dayLabel(now.day));
+    const double remaining = state.dayNight.dayLengthSeconds > 0 ? std::max(0., plan.endsAt - state.gameSeconds) * 1440 / state.dayNight.dayLengthSeconds : 0;
+    text("sleep-rest-remaining", sleepDurationLabel(static_cast<std::uint16_t>(std::ceil(remaining))) + " remaining");
+    text("sleep-rest-rate", plan.rate() > 1 ? "Time passing · 30×" : "Your group is standing guard · normal time");
+    const char* wakeMessage = "";
+    if (!asleep && plan.endedAt >= 0 && state.gameSeconds >= plan.endedAt && state.gameSeconds < plan.endedAt + 4) {
+        switch (plan.wakeReason) {
+        case SleepWakeReason::Rested: wakeMessage = "Rest complete"; break;
+        case SleepWakeReason::Threat: wakeMessage = "You woke up · danger nearby"; break;
+        case SleepWakeReason::Damage: wakeMessage = "You woke up · taking damage"; break;
+        case SleepWakeReason::Cancelled: wakeMessage = "Sleep ended"; break;
+        case SleepWakeReason::MembershipChanged: wakeMessage = "Sleep ended · group changed"; break;
+        default: break;
+        }
+    }
+    text("sleep-wake-notice", wakeMessage);
+    const auto wake = plan.sleeping ? gameCalendarTime(state.dayNight, plan.endsAt) : gameCalendarTime(state.dayNight, state.gameSeconds, minutes_);
     text("sleep-day", dayLabel(now.day));
     text("sleep-clock", now.clock);
     text("sleep-duration", sleepDurationLabel(minutes_));
     text("sleep-wake", "Until " + wake.clock + (wake.day != now.day ? " · " + dayLabel(wake.day) : "") + " · 24-hour time");
     text("sleep-suggest", plan.proposer ? "Suggest another duration" : "Suggest sleep");
-    elements_.at("sleep-suggest")->SetClass("disabled", plan.proposer && minutes_ == plan.minutes);
-    elements_.at("sleep-less")->SetClass("disabled", minutes_ == minimumSleepMinutes);
-    elements_.at("sleep-more")->SetClass("disabled", minutes_ == maximumSleepMinutes);
+    elements_.at("sleep-suggest")->SetClass("disabled", plan.sleeping || state.dayNight.dayLengthSeconds == 0 || (plan.proposer && minutes_ == plan.minutes));
+    elements_.at("sleep-less")->SetClass("disabled", plan.sleeping || minutes_ == minimumSleepMinutes);
+    elements_.at("sleep-more")->SetClass("disabled", plan.sleeping || minutes_ == maximumSleepMinutes);
     const auto ownResponse = plan.response(state.localPlayer);
     for (const auto* id : {"sleep-accept", "sleep-guard", "sleep-cancel"})
         elements_.at(id)->SetClass("disabled", !plan.proposer);
     elements_.at("sleep-accept")->SetClass("selected", plan.proposer && ownResponse == SleepResponse::Accept);
     elements_.at("sleep-guard")->SetClass("selected", plan.proposer && ownResponse == SleepResponse::Guard);
-    text("sleep-accept", ownResponse == SleepResponse::Accept && plan.proposer ? "Accepted" : "Accept");
+    text("sleep-accept", plan.sleeping ? "Join sleep" : ownResponse == SleepResponse::Accept && plan.proposer ? "Accepted" : "Accept");
     text("sleep-guard", ownResponse == SleepResponse::Guard && plan.proposer ? "On guard" : "Stand guard");
-    text("sleep-cancel", plan.proposer == state.localPlayer ? "Cancel proposal" : "Withdraw response");
+    text("sleep-cancel", plan.sleeping ? "Wake everyone" : plan.proposer == state.localPlayer ? "Cancel proposal" : "Withdraw response");
     const bool allGuarding = plan.proposer && std::all_of(plan.participants.begin(), plan.participants.end(),
         [](const auto& member) { return member.response == SleepResponse::Guard; });
-    text("sleep-proposal", !plan.proposer ? "Plan some rest together" : allGuarding ? "Everyone chose to stand guard" :
+    text("sleep-proposal", state.dayNight.dayLengthSeconds == 0 ? "The game clock is paused" : plan.sleeping ? "Keeping watch · " + sleepDurationLabel(plan.minutes) : !plan.proposer ? "Plan some rest together" : allGuarding ? "Everyone chose to stand guard" :
         (plan.ready() ? "Plan agreed · " : "Proposed · ") + sleepDurationLabel(plan.minutes));
     std::ostringstream roster;
     if (!plan.proposer) roster << "<div class=\"sleep-member\">Choose 30 minutes to 12 hours.</div>"
@@ -100,11 +121,12 @@ void SleepDrawer::update(const HudState& state) {
 bool SleepDrawer::activate(const std::string& id, const HudState& state) {
     if (id == "sleep-tab") { open_ = !open_; return true; }
     if (id == "sleep-close") { open_ = false; return true; }
-    if (id == "sleep-less") { minutes_ = std::max<int>(minimumSleepMinutes, minutes_ - 30); return true; }
-    if (id == "sleep-more") { minutes_ = std::min<int>(maximumSleepMinutes, minutes_ + 30); return true; }
+    if (id == "sleep-less") { if (!state.sleepPlan.sleeping) minutes_ = std::max<int>(minimumSleepMinutes, minutes_ - 30); return true; }
+    if (id == "sleep-more") { if (!state.sleepPlan.sleeping) minutes_ = std::min<int>(maximumSleepMinutes, minutes_ + 30); return true; }
     if (id == "sleep-notice-another") { open_ = true; return true; }
     SleepActionKind kind;
     if (id == "sleep-suggest") {
+        if (state.sleepPlan.sleeping || state.dayNight.dayLengthSeconds == 0) return true;
         if (state.sleepPlan.proposer && minutes_ == state.sleepPlan.minutes) return true;
         kind = SleepActionKind::Suggest;
     }
@@ -125,6 +147,13 @@ std::vector<HudPointerEvent> SleepDrawer::process(const HudState& state, const s
     std::vector<HudPointerEvent> remaining;
     for (const auto& event : events) {
         if (event.action == HudPointerAction::Cancel) { close(); remaining.push_back(event); continue; }
+        if (state.sleepPlan.asleep(state.localPlayer)) {
+            if (event.action == HudPointerAction::Move) pointer_ = presentation.scenePointer(event.x,event.y,width,height);
+            if (!state.mouseCaptured && event.action == HudPointerAction::Press && contains("sleep-rest-wake")) pressed_ = "wake";
+            if (event.action == HudPointerAction::Release && std::exchange(pressed_, {}) == "wake" && contains("sleep-rest-wake"))
+                action_ = SleepAction{SleepActionKind::Cancel, state.sleepPlan.revision, minutes_};
+            continue;
+        }
         if (!available_ || state.mouseCaptured) { remaining.push_back(event); continue; }
         if (event.action == HudPointerAction::Move) {
             pointer_ = presentation.scenePointer(event.x, event.y, width, height);

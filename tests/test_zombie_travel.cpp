@@ -48,6 +48,36 @@ void advance(viewer::ZombieLayer& layer,const viewer::CollisionWorld& world,cons
     viewer::SimulationClock::instance().advance(dt);
     layer.updateBehavior(dt,player,world);
 }
+void sleepApproximation() {
+    auto model = terrain(.1f);
+    quad(model,"wall",{0,-10,-20},{0,10,-20},{0,10,20},{0,-10,20});
+    viewer::CollisionWorld world(model);
+    auto layer = traveler({-10,-1,0},{10,1,0});
+    layer.setSleepTravel(true,world);
+    for(int i=0;i<1200;++i) advance(layer,world);
+    require(layer.scenarioFinished(0) && std::abs(layer.instances[0].restRoot[3].x-10) < .001f,
+        "Sleep approximation must follow the preplanned route through ignored physical obstacles");
+    require(layer.navigation()->stats().steeringCalls == 0 && layer.navigation()->stats().requests == 1,
+        "Sleep approximation performed steering or runtime path searches");
+    layer.setSleepTravel(false,world);
+    require(std::abs(layer.instances[0].restRoot[3].y-1) < .01f, "Waking did not restore terrain height");
+    auto approach = traveler({100,10,0},{-100,-10,0});
+    approach.setSleepTravel(true,world);
+    bool woke = false;
+    for(int i=0;i<3000 && !woke;++i) { advance(approach,world,viewer::ZombiePlayer{{0,0,0}}); woke = approach.takeSleepTravelThreat(); }
+    require(woke && approach.instances[0].restRoot[3].x >= 60 && approach.instances[0].restRoot[3].x < 61,
+        "Coarse traveller must wake a sleeper before crossing 60 metres");
+    const auto path = approach.navigation()->pathFor(0);
+    approach.setSleepTravel(false,world);
+    require(path && approach.navigation()->pathFor(0) == path, "Waking destroyed the prepared route");
+    auto ordinary = traveler({-10,-1,0},{10,1,0});
+    advance(ordinary,world,viewer::ZombiePlayer{{-10,-1,10}});
+    require(!ordinary.scenarioDestination(0), "Fixture failed to hand a traveller to ordinary perception");
+    ordinary.instances[0].restRoot[3].y = ordinary.instances[0].restTransform[3].y = ordinary.instances[0].transform[3].y = 5;
+    ordinary.rebuildSpatialIndex();
+    ordinary.setSleepTravel(true,world); ordinary.setSleepTravel(false,world);
+    require(ordinary.instances[0].restRoot[3].y == 5, "Waking moved an actor already owned by ordinary behaviour onto terrain");
+}
 void modesAndGround() {
     for (float grade:{0.f,.03f}) for(bool optimized:{false,true}) {
         const viewer::CollisionWorld world(terrain(grade));
@@ -310,6 +340,7 @@ void fallbackCrowdChanges() {
 int main() {
     try {
         viewer::SimulationClock::instance().reset();
+        sleepApproximation();
         modesAndGround();profileSeparatesTravelAndPursuit();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();conservativeSlopeFallback();fallbackNavigationInvalidation();fallbackDoorPoses();fallbackCrowdChanges();
         std::cout<<"Scenario traveler tests passed\n";return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }

@@ -327,6 +327,23 @@ void ZombieNavigation::recordMovement(std::size_t id,glm::vec3 before,glm::vec3 
     if (!finite(s.velocity)) s.velocity={0,0};
     s.lastPosition=horizontal(after);s.recorded=true;
 }
+steering::ApproximatePathStep ZombieNavigation::advanceSleep(std::size_t id, glm::vec3 feet, float seconds,
+    const std::vector<glm::vec3>& sleepers, float wakeRadius) {
+    steering::ApproximatePathStep step{horizontal(feet)};
+    if (id >= impl_->states.size() || !impl_->states[id].hasPlan) return step;
+    auto& state = impl_->states[id];
+    const auto path = impl_->paths.view(state.path);
+    step = steering::advancePathApproximate(path.points, path.size, horizontal(feet), 1.2f * seconds,
+        state.follow, sleepers, wakeRadius);
+    if (!step.nearSleeper) {
+        // The explicit sleep path owns this movement. Normal navigation must
+        // resume from it rather than treating it as an external teleport.
+        state.lastPosition = step.position; state.recorded = true;
+        state.checkedMovement = false; state.coverage.valid = false;
+        state.velocity = {}; impl_->recovery[id] = {};
+    }
+    return step;
+}
 void ZombieNavigation::reset(std::size_t id) {
     if (id>=impl_->states.size()) return;
     impl_->paths.releaseZombie(id);

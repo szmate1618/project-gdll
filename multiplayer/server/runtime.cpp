@@ -100,6 +100,8 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     double simulationSeconds = 0;
     std::size_t simulationTicks = 0;
     const auto step = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / 60));
+    auto nextSnapshot = start;
+    bool sentSleeping = false;
     std::cout << "Listening on UDP " << network.listeningPort() << " (maximum " << settings.capacity << " players)" << std::endl;
     while (!shouldStop() && (!options.seconds || std::chrono::duration<double>(Clock::now() - start).count() < options.seconds)) {
         const auto messages = network.receive();
@@ -157,13 +159,18 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
         int steps = 0;
         while (next <= now && steps++ < 8) {
             const auto tickStart = simulationMilliseconds ? Clock::now() : Clock::time_point{};
-            world.step(); next += step;
+            const auto rate = world.simulationRate();
+            world.step(); next += step / rate;
             if (simulationMilliseconds) {
                 simulationSeconds += std::chrono::duration<double>(Clock::now() - tickStart).count();
                 ++simulationTicks;
             }
-            if (world.tick() % 3 == 0)
-                for (const auto& [c, peer] : peers) if (peer.id) sendState(c, peer.id);
+        }
+        const bool sleeping = world.simulationRate() > 1;
+        if (Clock::now() >= nextSnapshot || sleeping != sentSleeping) {
+            for (const auto& [c, peer] : peers) if (peer.id) sendState(c, peer.id);
+            nextSnapshot = Clock::now() + std::chrono::milliseconds(50);
+            sentSleeping = sleeping;
         }
         if (simulationMilliseconds && simulationTicks && now - timingStart >= std::chrono::seconds(1)) {
             simulationMilliseconds(simulationSeconds * 1000 / static_cast<double>(simulationTicks));
@@ -173,7 +180,8 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
         }
         // Bound catch-up work under overload; gameplay dt remains fixed.
         if (next + std::chrono::milliseconds(500) < now) next = now;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (world.simulationRate() == 1) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        else if (next > Clock::now()) std::this_thread::sleep_until(next);
     }
     std::cout << "SERVER ticks=" << world.tick() << " players=" << world.players().size() << '\n';
 }

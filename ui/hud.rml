@@ -72,6 +72,16 @@
         <div class="damage-edge top-edge"></div><div class="damage-edge bottom-edge"></div>
         <div class="damage-edge left-edge"></div><div class="damage-edge right-edge"></div>
     </div>
+    <div id="sleep-blackout">
+        <div id="sleep-blackout-content">
+            <div class="sleep-blackout-title">RESTING</div>
+            <div id="sleep-rest-clock"></div><div id="sleep-rest-day"></div>
+            <div id="sleep-rest-remaining"></div><div id="sleep-rest-rate"></div>
+            <div id="sleep-rest-wake" class="sleep-button">Wake up</div>
+            <div class="sleep-rest-hint">TAB · FREE CURSOR TO WAKE</div>
+        </div>
+    </div>
+    <div id="sleep-wake-notice"></div>
     <div id="sleep-drawer">
         <div id="sleep-tab">S<br/>l<br/>e<br/>e<br/>p</div>
         <div id="sleep-panel">

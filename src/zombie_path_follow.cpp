@@ -4,8 +4,39 @@
 
 #include <algorithm>
 #include <cmath>
+#include <glm/geometric.hpp>
 
 namespace viewer::steering {
+ApproximatePathStep advancePathApproximate(const navmesh_path::Point* points, std::size_t count,
+    glm::vec2 position, float distanceBudget, FollowState& state, const std::vector<glm::vec3>& sleepers, float wakeRadius) {
+    ApproximatePathStep result{position};
+    if (!points || !count || !std::isfinite(distanceBudget) || distanceBudget < 0) return result;
+    auto progress = state;
+    progress.segment = std::min(progress.segment, count - 1);
+    auto cursor = glm::dvec2(position);
+    double left = distanceBudget;
+    while (progress.segment + 1 < count && left > 0) {
+        const glm::dvec2 target(points[progress.segment + 1].x, points[progress.segment + 1].z);
+        const auto delta = target - cursor;
+        const double gap = glm::length(delta), length = std::min(left, gap);
+        if (gap < 1e-8) { ++progress.segment; continue; }
+        const auto end = cursor + delta * (length / gap), step = end - cursor;
+        for (const auto feet : sleepers) {
+            const glm::dvec2 sleeper(feet.x, feet.z);
+            const double t = glm::dot(step, step) > 0 ? std::clamp(glm::dot(sleeper-cursor, step)/glm::dot(step,step), 0., 1.) : 0;
+            if (glm::length(sleeper - (cursor + step*t)) <= wakeRadius) {
+                result.nearSleeper = true;
+                return result;
+            }
+        }
+        cursor = end; left -= length; result.travel += static_cast<float>(length);
+        if (length >= gap) ++progress.segment;
+    }
+    result.position = glm::vec2(cursor);
+    result.arrived = progress.arrived = progress.segment + 1 >= count;
+    state = progress;
+    return result;
+}
 namespace {
 constexpr double arrivalRadius = .15;
 constexpr double reachedRadius = 1e-5;

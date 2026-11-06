@@ -2,6 +2,8 @@
 
 #include <glm/vec2.hpp>
 #include <cstddef>
+#include <vector>
+#include <glm/vec3.hpp>
 
 namespace viewer::navmesh_path { struct Point; class Mesh; }
 
@@ -11,6 +13,16 @@ struct FollowState {
     std::size_t segment = 0; // Index of the current segment's starting waypoint.
     bool arrived = false;
 };
+struct ApproximatePathStep {
+    glm::vec2 position{0};
+    float travel = 0;
+    bool arrived = false, nearSleeper = false;
+};
+// Sleep-only route-distance advancement. Tests every traversed segment against
+// sleepers, including corners, and leaves progress unchanged on an approach.
+// No obstacle, mesh, crowd, ground or steering queries occur here.
+ApproximatePathStep advancePathApproximate(const navmesh_path::Point* points, std::size_t count,
+    glm::vec2 position, float distance, FollowState& state, const std::vector<glm::vec3>& sleepers, float wakeRadius);
 
 // Horizontal X/Z velocity in world meters/second. Borrowed points must remain
 // valid for this call. Reset state for a replacement path. No allocation or

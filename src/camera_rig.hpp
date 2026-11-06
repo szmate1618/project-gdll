@@ -25,6 +25,7 @@ public:
     Camera& camera() { return camera_; }
     const Camera& camera() const { return camera_; }
     const FPSController& player() const { return player_; }
+    void restSleeping(float dt, float gameHours) { player_.restSleeping(dt, gameHours); }
     void setMovementHealth(const PlayerHealth& health) { player_.setMovementHealth(health); }
     void restSeated(float dt) { player_.restSeated(dt); }
     CameraMode mode() const { return mode_; }

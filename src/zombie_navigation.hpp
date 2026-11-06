@@ -1,6 +1,7 @@
 #pragma once
 
 #include "zombie_navmesh_search.hpp"
+#include "zombie_path_follow.hpp"
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <filesystem>
@@ -45,6 +46,8 @@ public:
                      float speed, float seconds, const CollisionWorld& world);
     // Supply actual guarded motion, including crowd/terrain constraints.
     void recordMovement(std::size_t id, glm::vec3 before, glm::vec3 after, float seconds);
+    steering::ApproximatePathStep advanceSleep(std::size_t id, glm::vec3 feet, float seconds,
+        const std::vector<glm::vec3>& sleepers, float wakeRadius);
     void reset(std::size_t id);
     // Cold population replacement only: reset all routes and size fixed ID/path
     // storage. Allocations occur here, never in ordinary follow calls.

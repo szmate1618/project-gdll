@@ -1,0 +1,72 @@
+Sleep fast-forward and approximate travellers, 2026-11-06
+======================================================
+
+Behaviour
+---------
+Accepted players sleep after group agreement. Guards retain ordinary play at
+1x and can join sleep later. All sleeping permits a target of 30x. Physics keeps
+its 1/60 s ticks, inputs are acknowledged without applying sleeping players'
+gameplay actions, and snapshots retain 20 Hz of wall time. Sleepers skip world
+rendering. The standalone viewer repeats its fixed-step callbacks too.
+
+Accelerated travellers advance along individual stored waypoint paths every
+.5 simulation seconds at 1.2 m/s. They skip steering, physical/crowd collision
+and ground sampling. Every crossed leg checks the 60 m sleeper boundary,
+including intermediate corners. A threatening slice is withheld and wakes the
+group, potentially up to .6 m early. Waking restores terrain height before
+publishing awake state; there are no runtime path searches. This intentionally
+approximates offscreen obstacles and crowd spacing. Ordinary AI, dogs, physics,
+grenades and the calendar continue to advance.
+
+Measurement
+-----------
+Linux Release C++17 (-O3 -DNDEBUG), AMD Ryzen 5 7535HS, pinned to CPU 0.
+Scenario: scenarios/gray-scott-corridors/scenario.toml, seed 42.
+53,000 outdoor zombies (1,000 travellers), 10,000 dormant interior slots,
+500 dogs and 1,000 parked cars. Observer feet (-399,-6.45434237,-200), selected
+by a deterministic search for safe terrain and 70 m initial actor clearance.
+No scenario/map files were modified.
+
+Map SHA256: 80750ed7faaf530fe9f9067bca76b6a075287a7a8ecd827913c1dc9f54d0a734
+Probe SHA256: a31d74ca567b236202d3f99da75a75f55ec76afc9e34e49e917ba5573b86cefd
+
+Each run reloads the same seeded scene, warms 120 ticks, then measures 540 ticks
+(nine simulation seconds). Three pairs alternate awake and sleeping runs.
+Rendering, audio, networking, startup and observer selection are outside timing.
+The probe calls production World::step without source overrides, linking fresh
+libraries against their current headers. No builds/tests run during measurement.
+
+Median of three run means:
+  Awake world update:        1.177836 ms/tick
+  Sleeping world update:      .048227 ms/tick
+  Simulation cost reduction: 24.42x
+
+The 30x budget is .555556 ms/tick. This short safe-observer case has substantial
+CPU headroom (about 346x unthrottled throughput); gameplay is capped at 30x.
+This is not a sustained whole-game guarantee: nearby AI, unsettled physics and
+different observers can cost more. The modes intentionally use different movement
+fidelity and do not claim collision-equivalent trajectories.
+
+An exploratory 120-second sleep attempt naturally woke after roughly nine
+simulation seconds when a living threat approached. The comparison uses the same
+nine-second window for both modes; all 540 measured sleep ticks remain asleep.
+The default calendar maps eight game hours to 400 simulation seconds, so an
+uninterrupted 30x sleep targets about 13.3 seconds of wall time.
+
+Validation and artifacts
+------------------------
+Focused tests cover deadlines, guards, speed transitions, recovery, blocked
+movement, membership changes, stale proposals, proximity, crossed path legs,
+ignored obstacles, ground restoration, retained routes and presentation-clock
+handoff. A UDP session completes half a game hour under acceleration and then
+verifies normal pacing. GPU HUD captures cover blackout and manual waking;
+the viewer input smoke check verifies a black scene target too.
+
+Local artifacts: build/sleep-runtime-benchmark/
+  probe.cpp, build_probe.py, run.py: source and orchestration
+  matched-{0,1,2}-{awake,sleep}.log: raw runs
+  summary.json, progress.log: timings and hashes
+
+Rebuild the project first, then:
+  .venv/bin/python build/sleep-runtime-benchmark/build_probe.py
+  .venv/bin/python build/sleep-runtime-benchmark/run.py

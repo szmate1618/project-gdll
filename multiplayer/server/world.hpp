@@ -51,6 +51,7 @@ struct ServerPlayer {
     std::optional<std::uint64_t> birdTick;
     viewer::PlayerHouseState house;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
+    float sleepHealth = 100;
 };
 class World {
 public:
@@ -72,6 +73,7 @@ public:
     void birdFrameSent(std::uint32_t id, std::uint64_t tick);
     void requestBirdCheckpoint(std::uint32_t id);
     std::uint64_t tick() const { return tick_; }
+    int simulationRate() const { return sleepPlan_.state().rate(); }
     const std::map<std::uint32_t, ServerPlayer>& players() const { return players_; }
 private:
     Scene& scene_;
@@ -87,5 +89,6 @@ private:
     std::uint64_t tick_ = 0;
     ServerSounds sounds_;
     viewer::SleepPlan sleepPlan_;
+    std::vector<std::size_t> sleepThreatCandidates_;
 };
 } // namespace multiplayer

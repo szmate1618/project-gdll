@@ -72,6 +72,13 @@ bool Snapshots::push(Snapshot snapshot, double receivedSeconds, double transitSe
     for (const auto& state : snapshot.zombies)
         if (state.id >= maxZombies || (state.updatePeriodTicks != 3 && state.updatePeriodTicks != 12 && state.updatePeriodTicks != 60))
             throw std::runtime_error("Invalid zombie motion sample");
+    if (snapshot.sleepPlan.rate() > 1 || (!frames_.empty() &&
+            (frames_.back().sleepPlan.sleeping != snapshot.sleepPlan.sleeping ||
+             frames_.back().sleepPlan.rate() != snapshot.sleepPlan.rate()))) {
+        // Sleep is an explicit clock discontinuity. Do not spend minutes
+        // slewing a 30x world back into ordinary 1x presentation after waking.
+        frames_.clear(); zombieClock_ = {}; renderTick_ = static_cast<double>(snapshot.tick);
+    }
     dogs_.push(snapshot.tick, snapshot.dogs, receivedSeconds);
     vehicles_.push(snapshot.tick, snapshot.vehicles);
     trackZombies(snapshot, receivedSeconds);
