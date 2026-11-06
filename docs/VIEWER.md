@@ -2077,6 +2077,9 @@ unit per eight game hours. It does not heal injuries or stop bleeding. The group
 wakes when the duration ends, a sleeper takes damage, a player joins/leaves, or
 a living zombie/dog approaches within **60 metres**. Manual waking restores
 normal time immediately; completing sleep never automatically starts another.
+After waking, an eight-second notice gives the reason in a short story message,
+followed by **Sleep ended**. Arrivals and departures use distinct radio announcements;
+nearby threats interrupt rest with the sound of shuffling feet.
 
 During accelerated sleep, scenario travellers advance on their individual stored
 paths every half simulation second, at their ordinary 1.2 m/s route speed.

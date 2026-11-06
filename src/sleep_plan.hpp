@@ -22,7 +22,7 @@ GameCalendarTime gameCalendarTime(const DayNightCycle& cycle, double seconds, in
 
 enum class SleepResponse : std::uint8_t { Pending, Accept, Guard };
 enum class SleepActionKind : std::uint8_t { Suggest, Accept, Guard, Cancel };
-enum class SleepWakeReason : std::uint8_t { None, Rested, Threat, Damage, Cancelled, MembershipChanged };
+enum class SleepWakeReason : std::uint8_t { None, Rested, Threat, Damage, Cancelled, PlayerJoined, PlayerLeft };
 struct SleepAction {
     SleepActionKind kind = SleepActionKind::Suggest;
     std::uint64_t revision = 0; // Respond only to the proposal actually seen.

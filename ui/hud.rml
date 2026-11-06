@@ -81,7 +81,10 @@
             <div class="sleep-rest-hint">TAB · FREE CURSOR TO WAKE</div>
         </div>
     </div>
-    <div id="sleep-wake-notice"></div>
+    <div id="sleep-wake-notice">
+        <div id="sleep-wake-reason"></div>
+        <div id="sleep-wake-status"></div>
+    </div>
     <div id="sleep-drawer">
         <div id="sleep-tab">S<br/>l<br/>e<br/>e<br/>p</div>
         <div id="sleep-panel">

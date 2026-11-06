@@ -673,7 +673,8 @@ Danger within 60 metres, damage, group changes or the selected deadline end
 sleep. Distant travellers use coarse path progress with no obstacle checks;
 normal movement and terrain placement resume on waking. Stamina and strain
 recover, but sleep does not heal injuries. Clients and servers must both use
-protocol version 53.
+protocol version 54. Wake notices show a short story reason above **Sleep ended**
+for eight seconds, with distinct radio announcements for arrivals and departures.
 
 F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
 controls. The window title shows ammo, mode, rendered FPS, GPU render time,

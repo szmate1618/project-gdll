@@ -57,7 +57,7 @@ void SleepPlan::wake(SleepWakeReason reason, double now) {
 void SleepPlan::join(std::uint32_t player, double now) {
     if (!player || std::any_of(state_.participants.begin(), state_.participants.end(),
         [player](const auto& member) { return member.player == player; })) return;
-    if (state_.sleeping) wake(SleepWakeReason::MembershipChanged, now);
+    if (state_.sleeping) wake(SleepWakeReason::PlayerJoined, now);
     state_.participants.push_back({player, SleepResponse::Pending});
 }
 void SleepPlan::cancel() {
@@ -66,7 +66,7 @@ void SleepPlan::cancel() {
     for (auto& member : state_.participants) member.response = SleepResponse::Pending;
 }
 void SleepPlan::leave(std::uint32_t player, double now) {
-    if (state_.sleeping) wake(SleepWakeReason::MembershipChanged, now);
+    if (state_.sleeping) wake(SleepWakeReason::PlayerLeft, now);
     state_.participants.erase(std::remove_if(state_.participants.begin(), state_.participants.end(),
         [player](const auto& member) { return member.player == player; }), state_.participants.end());
     if (state_.proposer == player) cancel();

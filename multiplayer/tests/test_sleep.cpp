@@ -68,7 +68,15 @@ void lifecycle() {
     plan.apply(2,{SleepActionKind::Accept,plan.state().revision,30});
     require(!plan.begin(500,{12,0}), "Frozen calendar entered an endless sleep");
     plan.begin(500,{12,1200}); plan.join(3,501);
-    require(!plan.state().sleeping && plan.state().wakeReason == SleepWakeReason::MembershipChanged, "Joining a session did not end acceleration");
+    require(!plan.state().sleeping && plan.state().rate() == 1 && plan.state().wakeReason == SleepWakeReason::PlayerJoined,
+        "Joining a session did not end acceleration with an arrival reason");
+    plan.apply(1,{SleepActionKind::Suggest,plan.state().revision,30});
+    plan.apply(2,{SleepActionKind::Accept,plan.state().revision,30});
+    plan.apply(3,{SleepActionKind::Accept,plan.state().revision,30});
+    require(plan.begin(502,{12,1200}), "Cannot restart sleep after arrival");
+    plan.leave(3,503);
+    require(!plan.state().sleeping && plan.state().rate() == 1 && plan.state().wakeReason == SleepWakeReason::PlayerLeft,
+        "Leaving a session did not end acceleration with a departure reason");
     FPSController player; auto movement = player.movementState();
     movement.feet = {4,0,8}; movement.exertion.strain = 1; movement.exertion.stamina = .1f;
     player.restoreMovement(movement);
@@ -93,6 +101,14 @@ void wire() {
     const auto restored = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
     require(restored.sleepPlan.ready() && restored.sleepPlan.response(2) == viewer::SleepResponse::Guard,
         "Sleep snapshot roundtrip");
+    for (const auto reason : {viewer::SleepWakeReason::PlayerJoined, viewer::SleepWakeReason::PlayerLeft}) {
+        snapshot.sleepPlan.wakeReason = reason;
+        bytes = encode(snapshot);
+        require(std::get<Snapshot>(decode(bytes.data(), bytes.size())).sleepPlan.wakeReason == reason,
+            "Arrival/departure wake reason lost in transit");
+    }
+    snapshot.sleepPlan.wakeReason = static_cast<viewer::SleepWakeReason>(7);
+    rejects([&] { encode(snapshot); });
     Snapshots snapshots; snapshots.push(restored, 0);
     snapshot.tick = 101; snapshot.sleepPlan = {44, 2, 30, {{1, viewer::SleepResponse::Pending}, {2, viewer::SleepResponse::Accept}}};
     snapshots.push(snapshot, 1);

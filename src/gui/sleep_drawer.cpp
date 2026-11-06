@@ -21,7 +21,7 @@ SleepDrawer::SleepDrawer(Rml::ElementDocument& document) : document_(document) {
         "sleep-duration", "sleep-less", "sleep-more", "sleep-wake", "sleep-suggest", "sleep-proposal", "sleep-roster",
         "sleep-accept", "sleep-guard", "sleep-cancel", "sleep-notice", "sleep-notice-text", "sleep-notice-wake",
         "sleep-notice-accept", "sleep-notice-guard", "sleep-notice-another", "sleep-rest-clock", "sleep-rest-day",
-        "sleep-rest-remaining", "sleep-rest-rate", "sleep-rest-wake", "sleep-wake-notice"}) {
+        "sleep-rest-remaining", "sleep-rest-rate", "sleep-rest-wake", "sleep-wake-reason", "sleep-wake-status"}) {
         auto* element = document.GetElementById(id);
         if (!element) throw std::runtime_error(std::string("Missing sleep control: ") + id);
         elements_.emplace(id, element);
@@ -69,17 +69,19 @@ void SleepDrawer::update(const HudState& state) {
     text("sleep-rest-remaining", sleepDurationLabel(static_cast<std::uint16_t>(std::ceil(remaining))) + " remaining");
     text("sleep-rest-rate", plan.rate() > 1 ? "Time passing · 30×" : "Your group is standing guard · normal time");
     const char* wakeMessage = "";
-    if (!asleep && plan.endedAt >= 0 && state.gameSeconds >= plan.endedAt && state.gameSeconds < plan.endedAt + 4) {
+    if (!asleep && plan.endedAt >= 0 && state.gameSeconds >= plan.endedAt && state.gameSeconds < plan.endedAt + 8) {
         switch (plan.wakeReason) {
-        case SleepWakeReason::Rested: wakeMessage = "Rest complete"; break;
-        case SleepWakeReason::Threat: wakeMessage = "You woke up · danger nearby"; break;
-        case SleepWakeReason::Damage: wakeMessage = "You woke up · taking damage"; break;
-        case SleepWakeReason::Cancelled: wakeMessage = "Sleep ended"; break;
-        case SleepWakeReason::MembershipChanged: wakeMessage = "Sleep ended · group changed"; break;
+        case SleepWakeReason::Rested: wakeMessage = "For a little while, the world let you rest. That time is yours now."; break;
+        case SleepWakeReason::Threat: wakeMessage = "Restless feet drag across the earth. Their shuffling leaves no room for dreams."; break;
+        case SleepWakeReason::Damage: wakeMessage = "Pain tears you from your dreams. The world demands your attention."; break;
+        case SleepWakeReason::Cancelled: wakeMessage = "The watch is over. It is time to open your eyes."; break;
+        case SleepWakeReason::PlayerJoined: wakeMessage = "Radio: Attention, all survivors. Another pair of boots has hit the ground in the area of operations."; break;
+        case SleepWakeReason::PlayerLeft: wakeMessage = "Radio: Attention, all survivors. One of your own has left the area of operations."; break;
         default: break;
         }
     }
-    text("sleep-wake-notice", wakeMessage);
+    text("sleep-wake-reason", wakeMessage);
+    text("sleep-wake-status", *wakeMessage ? "Sleep ended" : "");
     const auto wake = plan.sleeping ? gameCalendarTime(state.dayNight, plan.endsAt) : gameCalendarTime(state.dayNight, state.gameSeconds, minutes_);
     text("sleep-day", dayLabel(now.day));
     text("sleep-clock", now.clock);

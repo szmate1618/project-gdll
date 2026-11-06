@@ -1340,6 +1340,19 @@ int main(int argc, char** argv) {
                 "Blackout wake button must send an authoritative wake action");
             sleeping.apply(1,*action,100); rest.sleepPlan = sleeping.state(); draw();
             if(argc>1) capture((std::string(argv[1])+"-sleep-woke.ppm").c_str(),pixels(1280,720),1280,720);
+            if (argc > 1) {
+                for (const auto reason : {viewer::SleepWakeReason::PlayerJoined, viewer::SleepWakeReason::PlayerLeft,
+                    viewer::SleepWakeReason::Threat, viewer::SleepWakeReason::Damage, viewer::SleepWakeReason::Rested}) {
+                    rest.sleepPlan.wakeReason = reason;
+                    draw();
+                    const auto prefix = std::string(argv[1]) + "-sleep-wake-" + std::to_string(static_cast<int>(reason));
+                    capture((prefix + ".ppm").c_str(),pixels(1280,720),1280,720);
+                    clear(); hud.draw(rest, 960, 540); checkState();
+                    capture((prefix + "-540p.ppm").c_str(),pixels(960,540),960,540);
+                }
+                rest.gameSeconds = 108; draw();
+                capture((std::string(argv[1])+"-sleep-wake-expired.ppm").c_str(),pixels(1280,720),1280,720);
+            }
         }
         {
             auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
