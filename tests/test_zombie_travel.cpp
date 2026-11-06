@@ -87,6 +87,39 @@ void sleepApproximation() {
     ordinary.setSleepTravel(true,world); ordinary.setSleepTravel(false,world);
     require(ordinary.instances[0].restRoot[3].y == 5, "Waking moved an actor already owned by ordinary behaviour onto terrain");
 }
+void sleepHordeMembership() {
+    const viewer::CollisionWorld world(terrain());
+    viewer::ZombieLayer layer; layer.assets.emplace_back(); layer.instances.resize(2);
+    for (std::size_t id = 0; id < 2; ++id) {
+        auto& instance = layer.instances[id];
+        instance.transform = instance.restTransform = instance.restRoot =
+            glm::translate(glm::mat4(1),glm::vec3(id ? 59.f : 1.f,0,0));
+    }
+    layer.rebuildSpatialIndex();
+    std::vector<std::size_t> candidates{99};
+    layer.queryScenarioTravelersNear({},60,candidates);
+    require(candidates.empty(), "An ordinary population must not trigger horde proximity wake-ups");
+    layer.enableNavigation(std::make_unique<viewer::ZombieNavigation>(openMesh(),2));
+    layer.setScenarioRoutes({std::nullopt,glm::vec3(55,0,0)});
+    layer.queryScenarioTravelersNear({},60,candidates);
+    require(candidates == std::vector<std::size_t>{1}, "Idle zombies must not inherit a nearby travel horde's wake-up eligibility");
+    layer.queryScenarioTravelersNear({},58,candidates);
+    require(candidates.empty(), "Travel-horde proximity must respect the sixty-metre range");
+    advance(layer,world,viewer::ZombiePlayer{{59,0,5}});
+    require(!layer.scenarioDestination(1), "Horde fixture did not switch from travel to pursuit");
+    layer.queryScenarioTravelersNear({},60,candidates);
+    require(candidates == std::vector<std::size_t>{1}, "Pursuit must not erase configured horde membership");
+    layer.instances[1].ragdoll = true; layer.rebuildSpatialIndex();
+    layer.queryScenarioTravelersNear({},60,candidates);
+    require(candidates.empty(), "A dead travel-horde member must not wake sleepers");
+    layer.instances[1].ragdoll = false; layer.instances[1].removed = true; layer.rebuildSpatialIndex();
+    layer.queryScenarioTravelersNear({},60,candidates);
+    require(candidates.empty(), "A removed travel-horde member must not wake sleepers");
+    auto arrived = traveler({59,0,0},{59,0,0}); arrived.setPerceptionEnabled(false);
+    advance(arrived,world); require(arrived.scenarioFinished(0), "Horde fixture did not finish its route");
+    arrived.queryScenarioTravelersNear({},60,candidates);
+    require(candidates == std::vector<std::size_t>{0}, "Arrival must not erase configured horde membership");
+}
 void modesAndGround() {
     for (float grade:{0.f,.03f}) for(bool optimized:{false,true}) {
         const viewer::CollisionWorld world(terrain(grade));
@@ -349,7 +382,7 @@ void fallbackCrowdChanges() {
 int main() {
     try {
         viewer::SimulationClock::instance().reset();
-        sleepApproximation();
+        sleepApproximation(); sleepHordeMembership();
         modesAndGround();profileSeparatesTravelAndPursuit();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();conservativeSlopeFallback();fallbackNavigationInvalidation();fallbackDoorPoses();fallbackCrowdChanges();
         std::cout<<"Scenario traveler tests passed\n";return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }

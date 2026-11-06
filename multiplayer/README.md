@@ -669,8 +669,11 @@ with Go to sleep and Wake up controls. Guarded sleep also targets 30× normal sp
 retaining fixed physics ticks and sending snapshots at 20 Hz of wall time. All participants'
 input sequences continue to be acknowledged while gameplay actions are blocked.
 Waking resets presentation timing so the client resumes at the new world time.
-Danger within 60 metres of a sleeper, damage, group changes or the selected deadline end
-sleep. Distant travellers use coarse path progress with no obstacle checks;
+Members of scenario hordes configured with `movement = "travel"` within 60 metres
+of a sleeper, damage, group changes or the selected deadline end sleep. Horde
+membership still counts after arrival or a switch to pursuit. Ordinary/idle
+zombies and dogs do not cause distance-only wake-ups; guard sightings and damage
+remain independent triggers. Distant travellers use coarse path progress with no obstacle checks;
 normal movement and terrain placement resume on waking. Stamina and strain
 recover, but sleep does not heal injuries. Clients and servers must both use
 protocol version 55. The handshake includes the selected character's name for

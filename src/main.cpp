@@ -2026,7 +2026,7 @@ int run(const Options& options) {
             if (sleepPlan.state().asleep(1)) {
                 if (app.vitals.health() < sleepHealth || app.vitals.health() <= 0)
                     sleepPlan.wake(viewer::SleepWakeReason::Damage, simulationClock.seconds());
-                else if (viewer::sleepThreatNearby(zombies ? &*zombies : nullptr, dogs, app.rig.player().feet(), sleepThreatCandidates))
+                else if (viewer::sleepThreatNearby(zombies ? &*zombies : nullptr, app.rig.player().feet(), sleepThreatCandidates))
                     sleepPlan.wake(viewer::SleepWakeReason::Threat, simulationClock.seconds());
             }
         };

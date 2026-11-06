@@ -520,7 +520,7 @@ void World::step() {
         if (player.vitals.health() <= 0 || player.vitals.health() < player.sleepHealth)
             sleepPlan_.wake(viewer::SleepWakeReason::Damage, now);
         else if (sleepPlan_.state().asleep(id) &&
-            viewer::sleepThreatNearby(&scene_.zombies, scene_.dogs, player.controller.feet(), sleepThreatCandidates_))
+            viewer::sleepThreatNearby(&scene_.zombies, player.controller.feet(), sleepThreatCandidates_))
             sleepPlan_.wake(viewer::SleepWakeReason::Threat, now);
     }
     // Publish restored ground placement in the first awake snapshot.

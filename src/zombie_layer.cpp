@@ -128,6 +128,15 @@ void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<st
     }), ids.end());
 }
 
+void ZombieLayer::queryScenarioTravelersNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {
+    ids.clear();
+    if (scenarioPopulation_ != instances.size() || scenarioRoutes_.empty()) return;
+    queryLivingNear(center, radius, ids);
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [&](std::size_t id) {
+        return scenarioRoutes_.find(id) == scenarioRoutes_.end();
+    }), ids.end());
+}
+
 void ZombieLayer::queryMeleeNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {
     queryLivingNear(center, radius, ids);
     if (!finite(center) || !std::isfinite(radius) || radius < 0) return;

@@ -159,6 +159,10 @@ struct ZombieLayer {
     // Exact 3D feet query using the living-body index, independent of camera
     // visibility and behavior activation. Reuses the caller's output storage.
     void queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
+    // Living members configured with scenario movement = "travel", including
+    // arrivals and actors handed to pursuit. Horde membership survives those
+    // transitions; ordinary/idle/interior zombies never acquire it.
+    void queryScenarioTravelersNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
     // All displayable actors, including loose and spring-held ragdolls. Visits
     // approximately near-to-far occupied cells and stops on false. Full bounds
     // are maintained by owning mutations, independently of camera visibility.

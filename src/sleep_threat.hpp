@@ -4,9 +4,9 @@
 #include <cstddef>
 namespace viewer {
 class ZombieLayer;
-class DogLayer;
-// Living threats, independent of visibility and occlusion. Reuses the caller's
-// scratch storage for the existing indexed zombie query.
-bool sleepThreatNearby(ZombieLayer* zombies, const DogLayer& dogs, glm::vec3 feet,
+// Scenario travel-horde proximity, independent of visibility and occlusion.
+// Ordinary zombies and dogs do not trigger this horde-noise wake-up.
+// Reuses the caller's scratch storage for the existing indexed zombie query.
+bool sleepThreatNearby(ZombieLayer* zombies, glm::vec3 feet,
     std::vector<std::size_t>& scratch);
 }

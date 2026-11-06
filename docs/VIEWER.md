@@ -2077,7 +2077,11 @@ Sleep restores stamina using prone recovery and removes one normalized strain
 unit per eight game hours. Guards receive ordinary standing stamina recovery,
 without sleep's strain recovery. Sleep does not heal injuries or stop bleeding. The group
 wakes when the duration ends, a sleeper or guard takes damage, a player joins/leaves, or
-a living zombie/dog approaches within **60 metres of a sleeper**. Manual waking restores
+a living member of a scenario horde configured with `movement = "travel"`
+approaches within **60 metres of a sleeper**. This distance-only wake-up represents
+the horde's noise, so membership still counts after arrival or a switch to pursuit.
+Ordinary/idle zombies and dogs do not trigger it. Guard sightings and damage
+remain separate wake-up triggers. Manual waking restores
 normal time immediately; completing sleep never automatically starts another.
 After waking, an eight-second notice gives the reason in a short story message,
 followed by **Sleep ended**. Arrivals and departures use distinct radio announcements;

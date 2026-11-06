@@ -2,6 +2,7 @@
 #include "client/snapshots.hpp"
 #include "sleep_plan.hpp"
 #include "simulation_clock.hpp"
+#include "zombie_navigation.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
@@ -194,8 +195,21 @@ void server(const char* map) {
     if (scene.zombies.assets.empty()) scene.zombies.assets.emplace_back();
     scene.zombies.instances.push_back(threat); scene.zombies.rebuildSpatialIndex();
     world.step();
+    require(world.snapshot(second).sleepPlan.sleeping,
+        "An ordinary zombie inside sixty metres incorrectly triggered a horde-noise wake-up");
+    scene.zombies.setPerceptionEnabled(false);
+    const auto sleeperFeet = world.players().at(second).controller.feet();
+    using namespace viewer::navmesh_path;
+    Mesh mesh({{sleeperFeet.x-150,sleeperFeet.z-150},{sleeperFeet.x+150,sleeperFeet.z-150},
+        {sleeperFeet.x+150,sleeperFeet.z+150},{sleeperFeet.x-150,sleeperFeet.z+150}},
+        {{0,4}},{{0,noPolygon},{1,noPolygon},{2,noPolygon},{3,noPolygon}});
+    scene.zombies.enableNavigation(std::make_unique<viewer::ZombieNavigation>(std::move(mesh),scene.zombies.instances.size()));
+    std::vector<std::optional<glm::vec3>> routes(scene.zombies.instances.size());
+    routes.back() = glm::vec3(scene.zombies.instances.back().restRoot[3]);
+    scene.zombies.setScenarioRoutes(routes);
+    world.step();
     require(!world.snapshot(second).sleepPlan.sleeping && world.snapshot(second).sleepPlan.wakeReason == viewer::SleepWakeReason::Threat,
-        "A living zombie inside the 60-metre boundary did not wake the sleeper");
+        "A configured travel-horde member inside sixty metres did not wake the sleeper");
 }
 void guardedWake(const char* map) {
     using namespace multiplayer;
