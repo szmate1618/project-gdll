@@ -17,6 +17,9 @@ def check_contents(package):
         "assets/pigeon/flock.json", "credits/assets/PIGEONS.txt", "credits/assets/UNDEAD_DOGS.txt",
         "ui/main-menu.rml", "ui/main-menu.rcss", "ui/main-menu-classic.rcss", "ui/main-menu-modern.rcss",
         "ui/fonts/menu-pixel.ttf", "ui/character-editor.rcss", "ui/host-game.rcss",
+        "ui/fonts/plex/IBMPlexSans-Regular.ttf", "ui/fonts/plex/IBMPlexSansCondensed-Medium.ttf",
+        "ui/fonts/plex/IBMPlexMono-Regular.ttf", "licenses/IBM-Plex.txt",
+        "credits/assets/FONTS.txt", "credits/assets/IBM_PLEX_OFL.txt",
         "ui/hud.rml", "ui/hud.rcss", "ui/command-wheel.rcss", "ui/palette.rcss", "ui/hud-icons.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
         "ui/hud-backdrop.vert", "ui/hud-backdrop.frag", "ui/hud-backdrop-update.vert", "ui/hud-backdrop-update.frag",
         "gui/hud-icons.json", "data/assets/game-icons/hud/health.png", "data/assets/game-icons/hud/pistol.png",
@@ -30,6 +33,11 @@ def check_contents(package):
     for name in required:
         if not (package / name).is_file():
             raise RuntimeError("Package is missing " + name)
+    license = (package / "credits/assets/IBM_PLEX_OFL.txt").read_bytes()
+    if b"SIL OPEN FONT LICENSE Version 1.1" not in license or license != (package / "licenses/IBM-Plex.txt").read_bytes():
+        raise RuntimeError("Packaged IBM Plex license must match the original notice")
+    if "IBM Plex" not in (package / "credits/assets/FONTS.txt").read_text(encoding="utf-8"):
+        raise RuntimeError("Package is missing IBM Plex attribution")
     faces = json.loads((package / "gui/character-faces.json").read_text())["icons"]
     if len(faces) != 20:
         raise RuntimeError("Character creation requires the 20 selected face stamps")

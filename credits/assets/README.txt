@@ -7,6 +7,8 @@ credits/software/ also records preparation tools and the bundled JSON/stb notice
 WEAPONS.txt       Bundled chilly_durango firearm models (CC0).
 HUD_ICONS.txt     Game-icons.net HUD symbols and author attribution (CC BY 3.0).
 CHARACTER_FACES.txt Game-icons.net character face stamps (CC BY 3.0).
+FONTS.txt         IBM Plex UI fonts (SIL Open Font License 1.1).
+IBM_PLEX_OFL.txt  Original IBM Plex copyright notice and full font license.
 OPENSTREETMAP.txt OpenStreetMap map features (ODbL 1.0).
 SENTINEL.txt      Copernicus Sentinel-2 terrain imagery.
 COPERNICUS_DEM.txt Copernicus GLO-30 terrain elevation and required disclaimer.

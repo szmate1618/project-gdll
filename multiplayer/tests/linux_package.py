@@ -25,6 +25,8 @@ def check_credits(package):
         "AUDIO.txt": "Michel Baradari",
         "HUD_ICONS.txt": "Game-icons.net",
         "CHARACTER_FACES.txt": "Game-icons.net",
+        "FONTS.txt": "IBM Plex",
+        "IBM_PLEX_OFL.txt": "SIL OPEN FONT LICENSE Version 1.1",
     }
     for name in ("hud.rml", "hud.rcss", "command-wheel.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "skills.rcss", "health.rml", "map.rml", "graphics.rml", "graphics.rcss", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
@@ -35,6 +37,11 @@ def check_credits(package):
     for name in ("main-menu.rml", "main-menu.rcss", "main-menu-classic.rcss", "main-menu-modern.rcss", "fonts/menu-pixel.ttf", "character-editor.rcss", "host-game.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing main menu resource " + name)
+    for name in ("IBMPlexSans-Regular.ttf", "IBMPlexSansCondensed-Medium.ttf", "IBMPlexMono-Regular.ttf"):
+        if not (package / "ui/fonts/plex" / name).is_file():
+            raise RuntimeError("Package is missing bundled UI font " + name)
+    if (package / "licenses/IBM-Plex.txt").read_bytes() != (package / "credits/assets/IBM_PLEX_OFL.txt").read_bytes():
+        raise RuntimeError("Packaged IBM Plex license must match the original notice")
     icons = json.loads((package / "gui/hud-icons.json").read_text())["icons"]
     for name in icons:
         if not (package / "data/assets/game-icons/hud" / (name + ".png")).is_file():

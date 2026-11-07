@@ -33,7 +33,10 @@ styles. [MenuView](client/menu_view.hpp) owns UI interaction; `GameMenu` owns
 the window and session actions. The HUD and menu share one RmlUi runtime with
 separate contexts, allowing loading feedback while the HUD exists.
 The bundled [pixel font](../ui/fonts/README.md) uses the original glyph shapes;
-Classic retains it; Modern uses the HUD system font for headings and controls.
+Classic retains it; Modern and the HUD use bundled IBM Plex Sans for content,
+Plex Sans Condensed Medium for headings, and Plex Mono for numeric readouts.
+`GD_HUD_FONT` overrides the content font. See the [font attribution](../credits/assets/FONTS.txt)
+and [SIL Open Font License 1.1](../credits/assets/IBM_PLEX_OFL.txt).
 Both Linux and Windows packages include the menu and font resources.
 
 ### Host Game setup

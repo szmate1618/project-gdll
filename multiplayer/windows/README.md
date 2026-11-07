@@ -82,8 +82,12 @@ to a 1280x720 scene when no resolution is supplied. Display settings are local.
 
 The RmlUi gameplay HUD uses bundled Game-icons.net icons; see
 `credits/assets/HUD_ICONS.txt`. Menus retain their artwork placeholders.
-It uses the built-in Segoe UI font. No custom font is bundled. Set `GD_HUD_FONT` to an installed `.ttf`
-path to select another system font.
+The HUD and Modern menu use bundled IBM Plex Sans for content, Plex Sans
+Condensed Medium for headings, and Plex Mono for numeric readouts. Set
+`GD_HUD_FONT` to a `.ttf` path to override the content font. Classic retains
+the project's pixel font. Font attribution is in `credits/assets/FONTS.txt`;
+the SIL Open Font License 1.1 is included in `credits/assets/IBM_PLEX_OFL.txt`
+and `licenses/IBM-Plex.txt`.
 
 The workflow builds the game, dedicated server and headless session checks. It
 checks the cross-platform scene fingerprint, private single-player admission,

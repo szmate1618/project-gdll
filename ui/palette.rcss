@@ -88,3 +88,21 @@ body.loadout { background-color: #2b2d2fed; }
 .placement-label { color: #f5f6f2; }
 
 .loadout .handling { background-color: #a6b9a1; }
+
+/* Shared Plex roles; Classic menu headings retain the original pixel font. */
+.page-tab, .panel-heading, .skills-group-heading, .sleep-heading, .command-title {
+    font-family: plex-heading;
+}
+.key-label, .panel-meta, .backpack-size, .storage-time, .storage-item-quantity,
+.health-stat-value, .health-injury-scores, .ammo, #heading, #coordinates, #speed,
+#sleep-clock, #sleep-duration, #sleep-rest-clock, #sleep-rest-remaining,
+#switch-countdown, .selection-key, .action-number, .graphics-value, .graphics-stops {
+    font-family: plex-mono;
+}
+.modern #menu-title, .modern .action-name, .modern #connection-title,
+.modern #host-scenarios-heading, .modern #host-options-heading,
+.modern #host-dogs-label, .modern .editor-heading, .modern #dialog-title,
+.modern #loading-heading {
+    font-family: plex-heading;
+}
+.modern #join-address, .modern #setup-port { font-family: plex-mono; }

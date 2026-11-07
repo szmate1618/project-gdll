@@ -2,16 +2,12 @@
 #include "command_wheel.hpp"
 #include "map_view.hpp"
 #include <RmlUi/Core.h>
-#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 namespace viewer {
 namespace {
@@ -28,24 +24,9 @@ private:
     std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };
 
-std::filesystem::path systemFont() {
+std::filesystem::path contentFont(const std::filesystem::path& directory) {
     if (const auto* override = std::getenv("GD_HUD_FONT")) return override;
-#ifdef _WIN32
-    std::array<wchar_t, MAX_PATH> windows{};
-    const auto length = GetWindowsDirectoryW(windows.data(), static_cast<UINT>(windows.size()));
-    if (length && length < windows.size()) return std::filesystem::path(windows.data()) / "Fonts/segoeui.ttf";
-#else
-    for (const char* path : {
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            "/usr/share/fonts/noto/NotoSans-Regular.ttf"})
-        if (std::filesystem::is_regular_file(path)) return path;
-#endif
-    throw std::runtime_error("No HUD system font found. Set GD_HUD_FONT to an installed .ttf font.");
+    return directory / "fonts/plex/IBMPlexSans-Regular.ttf";
 }
 
 } // namespace
@@ -53,7 +34,7 @@ std::filesystem::path systemFont() {
 struct UiRuntime::Impl {
     HudRenderInterface renderer;
     UiSystem system;
-    std::vector<Rml::byte> font, menuFont;
+    std::vector<Rml::byte> font, headingFont, numberFont, menuFont;
     bool initialized = false;
 
     explicit Impl(const std::filesystem::path& directory) : renderer(directory) {
@@ -62,7 +43,9 @@ struct UiRuntime::Impl {
         try {
             if (!Rml::Initialise()) throw std::runtime_error("Cannot initialize RmlUi");
             initialized = true;
-            loadFont(systemFont(), "hud-system", font);
+            loadFont(contentFont(directory), "hud-system", font);
+            loadFont(directory / "fonts/plex/IBMPlexSansCondensed-Medium.ttf", "plex-heading", headingFont);
+            loadFont(directory / "fonts/plex/IBMPlexMono-Regular.ttf", "plex-mono", numberFont);
             // Register custom palette properties before any document loads the
             // shared stylesheet, including a main menu opened before the HUD.
             registerCommandWheelElements();

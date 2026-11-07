@@ -1,0 +1,24 @@
+GUI FONTS — IBM PLEX
+
+IBM Plex typefaces by IBM.
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
+Licensed under the SIL Open Font License, Version 1.1.
+The full copyright notice and license are in IBM_PLEX_OFL.txt beside this file
+and in licenses/IBM-Plex.txt in Linux and Windows client distributions.
+
+Upstream project: https://github.com/IBM/plex
+License: https://openfontlicense.org/open-font-license-official-text/
+
+Bundled unmodified TrueType files in ui/fonts/plex/:
+- IBMPlexSans-Regular.ttf: UI content, descriptions and standard controls.
+- IBMPlexSansCondensed-Medium.ttf: modern titles, tabs and panel headings.
+- IBMPlexMono-Regular.ttf: clocks, ammunition, coordinates and numeric readouts.
+
+Source paths, file sizes and SHA-256 hashes are recorded in ui/fonts/README.md.
+Internal renderer aliases do not modify the font binaries or their font names.
+The original Menu Pixel font used by the Classic menu is authored by this
+project; its source and build instructions are also in ui/fonts/README.md.
+
+Keep these notices with redistributed font files. The fonts retain their own
+license; they are not relicensed under the game's software license. IBM does
+not endorse this game.

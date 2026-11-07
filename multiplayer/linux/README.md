@@ -20,7 +20,7 @@ graphics driver. Older glibc versions and 32-bit systems are not supported.
 On Ubuntu, the desktop runtime packages can be installed with:
 
 ```sh
-sudo apt install libopengl0 libgl1 libstdc++6 libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 fonts-dejavu-core
+sudo apt install libopengl0 libgl1 libstdc++6 libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6
 ```
 
 Start with the launcher so the included libraries are found:
@@ -55,9 +55,12 @@ presets are `960x540`, `1280x720` and `1920x1080`; the flag also fixes the 3D
 resolution in a resizable window. Both display modes default to a fixed 1280x720 render target. F12 opens
 Graphics settings; Home releases/captures the mouse. Display settings are client-only.
 
-The HUD uses RmlUi with colored-square artwork placeholders. Its font comes
-from the installed DejaVu, Noto or Liberation Sans system fonts; set
-`GD_HUD_FONT` to another installed `.ttf` path to override that choice.
+The RmlUi HUD and Modern menu use bundled IBM Plex Sans for content, Plex Sans
+Condensed Medium for headings, and Plex Mono for numeric readouts. No system
+font installation is needed. Set `GD_HUD_FONT` to a `.ttf` path to override the
+content font. Classic retains the project's pixel font. Font attribution is
+in `credits/assets/FONTS.txt`; the SIL Open Font License 1.1 is included in
+`credits/assets/IBM_PLEX_OFL.txt` and `licenses/IBM-Plex.txt`.
 
 For the actual town, extract a matching `godollo-assets.zip` into this folder
 after extracting the client into a fresh folder. The host can create it with

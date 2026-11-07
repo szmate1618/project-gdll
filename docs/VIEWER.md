@@ -170,10 +170,14 @@ and filter effects are not implemented. It restores GL state after drawing, and 
 instead of rebuilding the document each frame. The HUD is informational and
 does not intercept gameplay input.
 
-No font is bundled or downloaded for the HUD. Linux uses an installed DejaVu,
-Noto or Liberation Sans font; Windows uses the system Segoe UI font. To select
-another installed font, set `GD_HUD_FONT` to its `.ttf` path before launching.
-FreeType creates the glyph atlas needed to render this system-font text.
+The HUD and Modern menu bundle IBM Plex Sans Regular for content, Plex Sans
+Condensed Medium for headings, and Plex Mono Regular for numeric readouts on
+both Linux and Windows. Set `GD_HUD_FONT` to a `.ttf` path before launching to
+override the content font; heading and numeric fonts remain bundled Plex.
+Classic keeps the original pixel font. FreeType creates the glyph atlases.
+See [font files and provenance](../ui/fonts/README.md),
+[attribution](../credits/assets/FONTS.txt) and the
+[SIL Open Font License 1.1](../credits/assets/IBM_PLEX_OFL.txt).
 
 F1 opens Inventory; F2 opens Skills, F3 Health and F4 Map.
 Click the tabs across the top of any of these pages to switch pages. Clicking
@@ -283,7 +287,7 @@ footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml
 Ownership and shortcuts are loaded with the player inventory at startup.
 Hotbar editing and combo execution remain unimplemented. In gameplay, number keys and the mouse wheel preview these configured shortcuts; left click confirms.
 Inventory tiles and the body reference are colored square placeholders; the
-Skills list reuses the HUD's existing fist artwork for Punch. System fonts and
+Skills list reuses the HUD's existing fist artwork for Punch. Bundled fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 
 After building `test_hud`, capture the screens without loading town data:
