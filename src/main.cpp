@@ -636,7 +636,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     else if (key == GLFW_KEY_0 || key == GLFW_KEY_GRAVE_ACCENT || (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)) {
         app.interaction.cancel();
         app.actionSelection.highlight((key == GLFW_KEY_0 || key == GLFW_KEY_GRAVE_ACCENT) ? 0 : key - GLFW_KEY_1 + 1);
-        app.weapons.cancelTrigger();
+        app.weapons.cancelPrimaryTrigger();
     } else if (key == GLFW_KEY_R) {
         if (app.temporaryHandling() || app.weaponSwitch.pending() || app.actionSelection.open()) return;
         if (app.weaponReload.begin(app.weapons, app.inventory, viewer::SimulationClock::instance().seconds()) && app.audio)
@@ -727,8 +727,11 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     if (action != GLFW_PRESS || !app.capture || app.driver.occupied() || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (button == GLFW_MOUSE_BUTTON_LEFT && app.actionSelection.open()) {
         const auto target = app.actionSelection.confirm(viewer::actionShortcuts(app.inventory), app.weapons.slot());
-        if (target && app.weaponSwitch.begin(app.weapons, app.inventory, *target, viewer::SimulationClock::instance().seconds()))
+        if (target && app.weaponSwitch.begin(app.weapons, app.inventory, *target, viewer::SimulationClock::instance().seconds())) {
             app.interaction.cancel();
+            while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
+                app.rig.camera().cycleViewMode();
+        }
         return; // Confirmation never fires, punches or grabs an object.
     }
     if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
@@ -768,7 +771,7 @@ void scrollCallback(GLFWwindow* window, double, double y) {
         if (std::isfinite(y) && y != 0) {
             app.interaction.cancel();
             app.actionSelection.cycle(y > 0 ? 1 : -1, viewer::actionShortcuts(app.inventory), app.weapons.slot());
-            app.weapons.cancelTrigger();
+            app.weapons.cancelPrimaryTrigger();
         }
         return;
     }
@@ -791,7 +794,7 @@ void focusCallback(GLFWwindow* window, int focused) {
 
 // True only for a firearm shot that should pulse the held muzzle light.
 bool updateWeapons(AppState& app, double seconds) {
-    if (app.driver.occupied() || !app.capture || app.actionSelection.open() || app.weaponSwitch.pending() ||
+    if (app.driver.occupied() || !app.capture || app.weaponSwitch.pending() ||
         app.handling() || !app.weapons.equipped().owned) {
         app.weapons.cancelTrigger();
         return false;
@@ -952,6 +955,8 @@ void inputSelfTest(GLFWwindow* window) {
         mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
         mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
         if (const auto* timing = app.weaponSwitch.timing()) {
+            if (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
+                throw std::runtime_error("Switch confirmation must immediately drop the scope");
             const double ready = viewer::SimulationClock::instance().seconds() + timing->total();
             if (app.weaponSwitch.update(app.weapons, ready))
                 while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
@@ -1029,11 +1034,41 @@ void inputSelfTest(GLFWwindow* window) {
     const float oneDegree = glm::degrees(2.0f * std::atan(1.0f / oneDegreeProjection[1][1]));
     if (std::abs(oneDegree - 1.0f) > 1e-5f || app.rig.camera().viewMode() != viewer::Camera::ViewMode::zoom1)
         throw std::runtime_error("Right-click 1-degree view self-test failed");
+    key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    if (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original || !app.actionSelection.open())
+        throw std::runtime_error("Scope clicks must work without confirming or closing the hotbar selector");
+    key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Right-click did not restore the original field of view");
-    app.weapons.equip(0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    choose(5);
+    if (app.rig.camera().viewMode() != viewer::Camera::ViewMode::zoom10)
+        throw std::runtime_error("Confirming the equipped action must preserve the scope");
+    choose(2);
+    for (const bool wheel : {false, true}) {
+        const auto loaded = app.weapons.equipped().loaded;
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+        if (wheel) scrollCallback(window, 0, 1);
+        else key(window, GLFW_KEY_3, 0, GLFW_PRESS, 0);
+        updateWeapons(app, viewer::SimulationClock::instance().seconds());
+        if (app.actionSelection.selected() != 3 || app.weaponSwitch.pending() || app.weapons.slot() != 0 ||
+            app.weapons.equipped().loaded != loaded)
+            throw std::runtime_error("Opening the selector with fire held must neither fire nor switch weapons");
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        if (app.weaponSwitch.pending() || !app.actionSelection.open())
+            throw std::runtime_error("Releasing held fire must not confirm the selector");
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        if (!app.weaponSwitch.pending() || app.actionSelection.open())
+            throw std::runtime_error("A fresh click must confirm the highlighted weapon");
+        app.weaponSwitch.update(app.weapons,
+            viewer::SimulationClock::instance().seconds() + app.weaponSwitch.timing()->total());
+        if (app.weapons.slot() != 1) throw std::runtime_error("Fresh-click confirmation must equip the SMG");
+        choose(2);
+    }
     key(window, GLFW_KEY_0, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_0, 0, GLFW_RELEASE, 0);
     if (app.actionSelection.selected() != 0 || app.weapons.slot() != 0)
@@ -1160,12 +1195,14 @@ void inputSelfTest(GLFWwindow* window) {
         shot.weaponReload = {};
         shot.weapons.equip(4);
         glfwSetWindowUserPointer(window, &shot);
+        key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
         mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+        updateWeapons(shot, viewer::SimulationClock::instance().seconds());
         mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
         glfwSetWindowUserPointer(window, &app);
         if (updateWeapons(shot, viewer::SimulationClock::instance().seconds()) || thrown.poses().size() != 2 ||
-            shot.weapons.grenadeThrowPower() != 0)
-            throw std::runtime_error("Right-click grenade callback must drop one without a launch impulse");
+            shot.weapons.grenadeThrowPower() != 0 || !shot.actionSelection.open() || shot.weapons.slot() != 4)
+            throw std::runtime_error("Right-click must drop a grenade while leaving the hotbar selector open");
     }
     app.weapons.equip(viewer::handlingSlot);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);

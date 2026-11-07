@@ -132,11 +132,16 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 2:
             require(differences(0, 1) > 500, "Confirmed pistol did not appear after spawn");
             capture("pistol");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
             key(window, GLFW_KEY_3, 0, GLFW_PRESS, 0); // Preview hotbar 3 (SMG).
             break;
         case 3:
             require(in.equippedSlot == 0 && in.slot == 0 && in.actionSelection.selected() == 3,
-                    "Preview replaced the server-confirmed pistol");
+                    "Holding fire while opening the selector replaced the server-confirmed pistol");
+            require(in.leftHeld && !command(in, window, false, 0).left && in.actionSelection.open(),
+                    "Held fire must leave the selector open without firing or confirming");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            require(in.slot == 0 && in.actionSelection.open(), "Releasing held fire must not confirm the selector");
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
             require(in.slot == 1 && !command(in, window, false, 0).left,
                     "Selection confirmation must request SMG and consume the click");
@@ -198,6 +203,23 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 10: authoritative.slot = 3; break;
         case 11:
             require(differences(9, 10) < 100, "Weapon appeared over the scope view");
+            key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            require(in.camera.viewMode() == viewer::Camera::ViewMode::zoom1 && in.actionSelection.open() && in.slot == 3,
+                    "Scope clicks must work without confirming or closing the hotbar selector");
+            key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_5, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            require(in.camera.viewMode() == viewer::Camera::ViewMode::zoom1 && in.slot == 3,
+                    "Confirming the equipped action must preserve the scope");
+            key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            require(in.camera.viewMode() == viewer::Camera::ViewMode::original && in.slot == 0 && in.equippedSlot == 3,
+                    "Switch request must immediately drop the scope before server acknowledgement");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
             authoritative.slot = 0;
             break;
         case 12:
@@ -212,11 +234,14 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(differences(0, 12) > 500, "Ready grenade did not appear in the hand");
             capture("he_grenade");
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
-            require(command(in, window, false, 0).right, "Grenade right press must reach the server");
-            require(command(in, window, false, 0).right, "Grenade right hold must continue charging");
+            require(command(in, window, false, 0).right && in.actionSelection.open() && in.slot == 4,
+                    "Grenade right press must reach the server while the selector stays open");
+            require(command(in, window, false, 0).right, "Grenade right hold must continue charging through the selector");
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
             require(!command(in, window, false, 0).right, "Grenade right release must reach the server");
+            key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
             require(command(in, window, false, 0).right && !command(in, window, false, 0).right,
@@ -510,6 +535,21 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
             require(command(in,window,false,0).left,"A fresh click after switch completion must fire");
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
+            for (const bool wheel : {false, true}) {
+                button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+                button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+                if (wheel) scroll(window, 0, 1);
+                else key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
+                const auto selecting = command(in, window, false, 0);
+                require(in.actionSelection.open() && in.slot == in.equippedSlot && !selecting.left && selecting.right,
+                        "Held fire must not confirm selection or block the secondary action");
+                key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+                const auto held = command(in, window, false, 0);
+                require(!held.left && held.right,
+                        "Cancelling the selector must preserve the secondary action and primary release requirement");
+                button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+                button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            }
             button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
             require(in.wheelOpen && !in.actionSelection.open(), "Middle mouse did not open the command wheel");
             break;
@@ -685,6 +725,16 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(in.hudScreen == viewer::HudScreen::Inventory, "Clicking the active inventory tab closed the menu");
             key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
             require(in.hudScreen == viewer::HudScreen::Gameplay && !in.leave, "Escape after tab navigation must close the menu");
+            authoritative.weaponSwitchRemaining = .5f;
+            authoritative.weaponSwitchDuration = 1;
+            break;
+        case 58:
+            require(in.weaponSwitching && in.camera.viewMode() == viewer::Camera::ViewMode::original,
+                    "Authoritative switch start must drop the scope before the slot changes");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            require(in.camera.viewMode() == viewer::Camera::ViewMode::original,
+                    "Scope must stay down while switching weapons");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
             glfwSetWindowShouldClose(window, true);
             break;
     }
@@ -774,7 +824,7 @@ int main(int argc, char** argv) {
             glfwPollEvents();
             clientOptions.screenshot = fixture / "scaled-window.ppm";
         }
-        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 58, "Graphical client did not finish all weapon, command wheel and page-tab states");
+        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 59, "Graphical client did not finish all weapon, command wheel and page-tab states");
         if (scaledDisplay) {
             std::ifstream screenshot(clientOptions.screenshot);
             std::string magic; int width = 0, height = 0;

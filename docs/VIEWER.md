@@ -2236,7 +2236,11 @@ backtick) or number-row **0** previews position zero.
 The compact upper-left overlay shows all ten numbered positions and expands
 the highlighted one to show its action name and icon. The mouse
 wheel cycles assigned actions, wrapping over empty positions. **Left click**
-confirms and consumes that click. Selecting the equipped action does nothing;
+confirms and consumes a fresh left-button press; holding fire while opening or
+browsing the selector never confirms a weapon change. Primary fire stops when
+the selector opens and requires a fresh press after cancellation. Right-click
+continues to operate the equipped action, including scope zoom and grenade charging,
+while the selector stays open. Selecting the equipped action does nothing;
 Escape cancels the preview. The initial slots are 0 Object handling, 1 Punch, 2 pistol, 3 SMG,
 4 shotgun, 5 sniper, 6 HE grenade, and 7 Molotov cocktail. `inventory.toml` accepts owned item IDs and
 `skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
@@ -2251,7 +2255,8 @@ obstruction minus support for the old weapon's backpack destination and the new
 weapon's backpack source. Floor the combined storage cost at zero.
 The delay is sampled on confirmation and advances with
 simulation time. Combat, reload and discard/pickup wait until completion, and
-confirmation/held clicks do not fire on completion. Scope resets on completion.
+confirmation/held clicks do not fire on completion. Scope resets immediately when
+a weapon switch is confirmed, before the delay begins.
 Storage locations remain reserved while a weapon is equipped. Multiplayer
 calculates and publishes the delay on the server using each player's current
 authoritative storage layout.

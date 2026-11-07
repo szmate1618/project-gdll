@@ -46,6 +46,8 @@ public:
     void secondaryTrigger(bool held, double seconds);
     // Launch fraction for the last successful fireAttempt (primary always 1).
     float grenadeThrowPower() const { return grenadeThrowPower_; }
+    // Hotbar selection consumes primary input while secondary actions stay usable.
+    void cancelPrimaryTrigger();
     void cancelTrigger();
     // One firing opportunity per frame, with no burst of overdue shots after a
     // stall. Semi-automatic clicks during cooldown are discarded, not queued.

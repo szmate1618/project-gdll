@@ -112,8 +112,11 @@ void Weapons::secondaryTrigger(bool held, double seconds) {
         grenadeChargeAt_.reset();
     }
 }
-void Weapons::cancelTrigger() {
+void Weapons::cancelPrimaryTrigger() {
     held_ = pressed_ = emptyClicked_ = false;
+}
+void Weapons::cancelTrigger() {
+    cancelPrimaryTrigger();
     grenadeChargeAt_.reset();
     pendingGrenadePower_.reset();
 }

@@ -52,6 +52,17 @@ void chargedGrenades() {
     require(!primary.fire(10), "Primary throw must consume the pending secondary charge");
     primary.equip(0); primary.secondaryTrigger(true, 20); primary.secondaryTrigger(false, 21);
     require(!primary.fire(21), "Unscoped firearms must ignore secondary trigger");
+
+    viewer::Weapons selecting(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
+    selecting.equip(4);
+    selecting.secondaryTrigger(true, 0);
+    selecting.trigger(true);
+    selecting.cancelPrimaryTrigger();
+    require(!selecting.fire(1), "Opening selection must discard a queued primary throw without interrupting the charge");
+    selecting.secondaryTrigger(false, 1);
+    selecting.cancelPrimaryTrigger();
+    require(selecting.fire(1) && selecting.grenadeThrowPower() == .5f,
+            "Opening or browsing selection must preserve a charged secondary release");
 }
 void firing() {
     viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);

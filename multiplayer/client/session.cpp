@@ -178,8 +178,9 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     }
     if (code == GLFW_KEY_L) in.flashlight = !in.flashlight;
     if (code == GLFW_KEY_0 || code == GLFW_KEY_GRAVE_ACCENT || (code >= GLFW_KEY_1 && code <= GLFW_KEY_9)) {
-        in.cancelInteraction = true;
+        in.cancelInteraction |= in.handling();
         in.actionSelection.highlight((code == GLFW_KEY_0 || code == GLFW_KEY_GRAVE_ACCENT) ? 0 : code - GLFW_KEY_1 + 1);
+        in.suppressLeftUntilRelease |= in.leftHeld;
         in.leftPressed = false;
     }
     if (code == GLFW_KEY_HOME) {
@@ -233,7 +234,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
         in.rightHeld = action == GLFW_PRESS;
         if (action == GLFW_RELEASE) in.suppressRightUntilRelease = false;
         else if (!in.capture || in.driver.occupied() || in.wheelOpen || in.signalMouseSuppressed ||
-                 in.hudScreen != viewer::HudScreen::Gameplay || in.actionSelection.open() ||
+                 in.hudScreen != viewer::HudScreen::Gameplay ||
                  in.weaponSwitching || in.weaponReloading || in.slot != in.equippedSlot)
             in.suppressRightUntilRelease = true;
     }
@@ -264,7 +265,11 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
     if (!in.capture || in.driver.occupied() || in.wheelOpen || in.signalMouseSuppressed || action != GLFW_PRESS || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT && in.actionSelection.open()) {
         const auto target = in.actionSelection.confirm(in.actions, in.equippedSlot);
-        if (target && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot) in.slot = static_cast<std::uint8_t>(*target);
+        if (target && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot) {
+            in.slot = static_cast<std::uint8_t>(*target);
+            while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
+                in.camera.cycleViewMode();
+        }
         in.leftPressed = false; in.suppressLeftUntilRelease = true;
         return;
     }
@@ -285,8 +290,9 @@ void scroll(GLFWwindow* window, double, double y) {
         in.hud->mouseWheel(static_cast<float>(y));
     }
     if (in.hudScreen == viewer::HudScreen::Gameplay && in.capture && !in.driver.occupied() && std::isfinite(y) && y != 0) {
-        in.cancelInteraction = true;
+        in.cancelInteraction |= in.handling();
         in.actionSelection.cycle(y > 0 ? 1 : -1, in.actions, in.equippedSlot);
+        in.suppressLeftUntilRelease |= in.leftHeld;
         in.leftPressed = false;
     }
 }
@@ -432,7 +438,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     }
 #ifdef MP_GRAPHICS
     if (in.hudScreen != viewer::HudScreen::Gameplay) return c;
-    c.cancelInteraction = in.cancelInteraction || in.wheelOpen || in.signalMouseSuppressed || in.actionSelection.open();
+    c.cancelInteraction = in.cancelInteraction || in.wheelOpen || in.signalMouseSuppressed;
     in.cancelInteraction = false;
     c.enterVehicle = in.enterVehicle; in.enterVehicle = false;
     const auto held = [&](int code) { return glfwGetKey(window, code) == GLFW_PRESS ? 1.0f : 0.0f; };
@@ -444,7 +450,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     if (!in.wheelOpen && !in.leftHeld && !in.rightHeld) in.signalMouseSuppressed = false;
     c.left = !in.driver.occupied() && !c.cancelInteraction && !in.wheelOpen && !in.signalMouseSuppressed && !in.actionSelection.open() && !in.suppressLeftUntilRelease && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot &&
         (in.handling() ? in.leftHeld : (in.leftPressed || in.leftHeld));
-    c.right = !in.driver.occupied() && !c.cancelInteraction && !in.suppressRightUntilRelease && !in.wheelOpen && !in.signalMouseSuppressed && !in.actionSelection.open() &&
+    c.right = !in.driver.occupied() && !c.cancelInteraction && !in.suppressRightUntilRelease && !in.wheelOpen && !in.signalMouseSuppressed &&
         !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot && (in.handling() || in.canThrowGrenade) &&
         (in.rightPressed || in.rightHeld);
     in.leftPressed = in.rightPressed = false;
@@ -630,6 +636,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.equippedSlot = p.slot;
                     in.weaponSwitching = p.weaponSwitchRemaining > 0;
                     in.weaponReloading = p.reloadRemaining > 0;
+                    if (in.weaponSwitching) while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
+                        in.camera.cycleViewMode();
                     // Commands mask firing while busy. A synthetic false is
                     // not a physical release and must not rearm a held click.
                     if ((in.weaponSwitching || in.weaponReloading) && in.leftHeld)
