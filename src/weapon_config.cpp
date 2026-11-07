@@ -69,14 +69,16 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
         }
     }
     const auto kind = table.contains("kind") ? required<std::string>(table, "kind", path) : "firearm";
-    if (kind == "he_grenade") {
+    if (kind == "he_grenade" || kind == "molotov") {
         const auto positive = [&](const char* key, double maximum) {
             const auto value = required<double>(table, key, path);
             if (!std::isfinite(value) || value <= 0 || value > maximum)
                 throw std::runtime_error(path.string() + ": invalid " + key);
             return static_cast<float>(value);
         };
-        config.grenade = GrenadeConfig{positive("fuse_seconds", 30), positive("blast_radius", 50), positive("throw_speed", 30)};
+        config.grenade = kind == "he_grenade" ?
+            GrenadeConfig{positive("fuse_seconds", 30), positive("blast_radius", 50), positive("throw_speed", 30)} :
+            GrenadeConfig{30,0,positive("throw_speed",30),GrenadeKind::molotov};
         if (config.automatic || config.pellets != 1 || config.hasScope)
             throw std::runtime_error(path.string() + ": grenades must be single-click, unscoped throws");
     } else if (kind != "firearm") throw std::runtime_error(path.string() + ": unknown weapon kind");

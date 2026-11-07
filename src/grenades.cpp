@@ -94,19 +94,46 @@ void blastBodies(PhysicsWorld& physics, const CollisionWorld& world, glm::vec3 c
 }
 
 struct Grenades::Impl {
-    struct Entry { std::uint32_t id; b3BodyId body; double explodeAt; float blastRadius; };
+    struct Entry {
+        std::uint32_t id; b3BodyId body; double explodeAt; float blastRadius;
+        GrenadeKind kind = GrenadeKind::he;
+        glm::vec3 incoming{0,-1,0};
+        std::optional<MolotovImpact> impact;
+    };
     struct Event { std::uint32_t id; glm::vec3 position; double seconds; };
     std::shared_ptr<PhysicsWorld> physics;
     b3HullData* hull = nullptr;
+    b3HullData* bottleHull = nullptr;
     std::vector<Entry> active;
     std::vector<Event> events;
+    struct BottleEvent { MolotovImpact impact; double seconds; };
+    std::vector<BottleEvent> bottleEvents;
     std::uint32_t nextId = 1;
+    void captureVelocities() {
+        for (auto& g : active) if (g.kind==GrenadeKind::molotov && !g.impact) {
+            const auto velocity = vec(b3Body_GetLinearVelocity(g.body));
+            if (glm::length(velocity)>.001f) g.incoming = glm::normalize(velocity);
+        }
+    }
+    void captureImpacts() {
+        const auto contacts = b3World_GetContactEvents(physics->id());
+        for (int i=0; i<contacts.hitCount; ++i) {
+            const auto& hit = contacts.hitEvents[i];
+            if (!b3Shape_IsValid(hit.shapeIdA) || !b3Shape_IsValid(hit.shapeIdB)) continue;
+            const auto a = b3Shape_GetBody(hit.shapeIdA), b = b3Shape_GetBody(hit.shapeIdB);
+            for (auto& g : active) if (g.kind==GrenadeKind::molotov && !g.impact &&
+                    (B3_ID_EQUALS(g.body,a) || B3_ID_EQUALS(g.body,b)))
+                g.impact = MolotovImpact{g.id,{float(hit.point.x),float(hit.point.y),float(hit.point.z)},g.incoming,0};
+        }
+    }
     ~Impl() {
+        physics->unregisterStepCallbacks(this);
         for (const auto& grenade : active) {
             physics->impacts().untrack(grenade.body);
             b3DestroyBody(grenade.body);
         }
         if (hull) b3DestroyHull(hull);
+        if (bottleHull) b3DestroyHull(bottleHull);
     }
 };
 
@@ -127,19 +154,25 @@ Grenades::Grenades(std::shared_ptr<PhysicsWorld> physics) : impl_(std::make_uniq
     }
     impl_->hull = b3CreateHull(points.data(), static_cast<int>(points.size()), static_cast<int>(points.size()));
     if (!impl_->hull) throw std::runtime_error("Cannot build octagonal grenade collider");
+    for (auto& p : points) p.y *= 2;
+    impl_->bottleHull = b3CreateHull(points.data(),static_cast<int>(points.size()),static_cast<int>(points.size()));
+    if (!impl_->bottleHull) throw std::runtime_error("Cannot build bottle collider");
+    auto* owner = impl_.get();
+    impl_->physics->registerStepCallbacks(owner,[owner] { owner->captureVelocities(); },[owner] { owner->captureImpacts(); });
 }
 Grenades::~Grenades() = default;
 
-bool Grenades::canThrow(glm::vec3 eyes, const CollisionWorld& world) const {
+bool Grenades::canThrow(glm::vec3 eyes, const CollisionWorld& world, GrenadeKind kind) const {
+    const float clearance = kind==GrenadeKind::molotov ? .16f : collisionRadius;
     // A conservative sphere fits every orientation of the 9 x 15 cm cylinder.
     return finite(eyes) && impl_->active.size() < maxActive && impl_->nextId != 0 &&
-        world.contacts(eyes - glm::vec3(0, collisionRadius, 0), collisionRadius, collisionRadius * 2).empty();
+        world.contacts(eyes - glm::vec3(0, clearance, 0), clearance, clearance * 2).empty();
 }
 bool Grenades::throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
                          double seconds, const GrenadeConfig& config, const CollisionWorld& world, float power) {
-    if (!canThrow(eyes, world) || !finite(direction) || !finite(playerVelocity) || glm::length(direction) < .001f ||
+    if (config.kind>GrenadeKind::molotov || !canThrow(eyes, world, config.kind) || !finite(direction) || !finite(playerVelocity) || glm::length(direction) < .001f ||
         !std::isfinite(seconds) || !std::isfinite(config.fuseSeconds) || config.fuseSeconds <= 0 ||
-        !std::isfinite(config.blastRadius) || config.blastRadius <= 0 ||
+        !std::isfinite(config.blastRadius) || (config.kind==GrenadeKind::he && config.blastRadius <= 0) ||
         !std::isfinite(config.throwSpeed) || config.throwSpeed <= 0 ||
         !std::isfinite(power) || power < 0 || power > 1) return false;
     auto definition = b3DefaultBodyDef();
@@ -154,13 +187,13 @@ bool Grenades::throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVe
     auto shape = b3DefaultShapeDef();
     shape.density = .45f / (8 * .5f * radius * radius * std::sin(glm::radians(45.0f)) * halfHeight * 2);
     shape.baseMaterial.friction = .5f;
-    shape.baseMaterial.restitution = restitution;
+    shape.baseMaterial.restitution = config.kind==GrenadeKind::he ? restitution : 0;
     shape.filter.categoryBits = grenadeBodyCategory;
     shape.filter.maskBits &= ~ragdollFloorCategory;
-    b3CreateHullShape(body, &shape, impl_->hull);
-    try { impl_->physics->impacts().track(body, "he_grenade"); }
+    b3CreateHullShape(body, &shape, config.kind==GrenadeKind::he ? impl_->hull : impl_->bottleHull);
+    try { impl_->physics->impacts().track(body, config.kind==GrenadeKind::he ? "he_grenade" : "molotov"); }
     catch (...) { b3DestroyBody(body); throw; }
-    try { impl_->active.push_back({impl_->nextId++, body, seconds + config.fuseSeconds, config.blastRadius}); }
+    try { impl_->active.push_back({impl_->nextId++, body, seconds + config.fuseSeconds, config.blastRadius,config.kind,glm::normalize(direction),{}}); }
     catch (...) { impl_->physics->impacts().untrack(body); b3DestroyBody(body); throw; }
     return true;
 }
@@ -181,8 +214,26 @@ std::vector<NoiseEvent> Grenades::update(double seconds, const CollisionWorld& w
     if (!std::isfinite(seconds)) return noises;
     auto& events = impl_->events;
     events.erase(std::remove_if(events.begin(), events.end(), [&](const auto& e) { return seconds - e.seconds > 1; }), events.end());
+    auto& bottleEvents = impl_->bottleEvents;
+    bottleEvents.erase(std::remove_if(bottleEvents.begin(),bottleEvents.end(),[&](const auto& e) {
+        return seconds-e.seconds>=molotovFireSeconds;
+    }),bottleEvents.end());
     auto& active = impl_->active;
     for (auto it = active.begin(); it != active.end();) {
+        if (it->kind==GrenadeKind::molotov) {
+            const auto position = vec(b3Body_GetPosition(it->body));
+            if (!it->impact && world.trunkContact(position,.16f))
+                it->impact = MolotovImpact{it->id,position,it->incoming,0};
+            if (!it->impact && seconds<it->explodeAt) { ++it; continue; }
+            if (it->impact) {
+                bottleEvents.push_back({*it->impact,seconds});
+                if (bottleEvents.size()>maxEvents) bottleEvents.erase(bottleEvents.begin());
+            }
+            impl_->physics->impacts().untrack(it->body);
+            b3DestroyBody(it->body);
+            it = active.erase(it);
+            continue;
+        }
         if (world.stats().trunks) reboundFromTrunks(it->body, world);
         if (seconds < it->explodeAt) { ++it; continue; }
         const auto p = b3Body_GetPosition(it->body);
@@ -206,7 +257,7 @@ std::vector<GrenadePose> Grenades::poses() const {
     for (const auto& grenade : impl_->active) {
         const auto p = b3Body_GetPosition(grenade.body);
         const auto q = b3Body_GetRotation(grenade.body);
-        result.push_back({grenade.id, {p.x, p.y, p.z}, {q.s, q.v.x, q.v.y, q.v.z}});
+        result.push_back({grenade.id, {p.x, p.y, p.z}, {q.s, q.v.x, q.v.y, q.v.z},grenade.kind});
     }
     return result;
 }
@@ -214,6 +265,16 @@ std::vector<GrenadeExplosion> Grenades::explosions(double seconds) const {
     std::vector<GrenadeExplosion> result;
     for (const auto& event : impl_->events)
         result.push_back({event.id, event.position, static_cast<float>(std::max(0.0, seconds - event.seconds))});
+    return result;
+}
+std::vector<MolotovImpact> Grenades::molotovImpacts(double seconds) const {
+    std::vector<MolotovImpact> result;
+    for (const auto& event : impl_->bottleEvents) {
+        const double age = seconds-event.seconds;
+        if (age<0 || age>=molotovFireSeconds) continue;
+        auto impact = event.impact; impact.age = static_cast<float>(age);
+        result.push_back(impact);
+    }
     return result;
 }
 std::vector<MuzzleFlashLight> Grenades::lights(double seconds) const {

@@ -982,6 +982,48 @@ void serverChargedGrenades(const std::filesystem::path& asset) {
     }
 }
 
+void serverMolotov(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
+    Scene scene(options); scene.model=ground();
+    scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model);
+    scene.spawnEye={0,1.7f,0};
+    World world(scene); const auto id=world.join();
+    Command command; command.sequence=1; command.slot=5;
+    world.submit(id,Commands{{command}});
+    for (int i=0; i<8; ++i) world.step();
+    for (int i=0; i<1200 && world.players().at(id).weaponSwitch.pending(); ++i) world.step();
+    require(world.players().at(id).weapons.slot()==5,"Server could not equip a molotov");
+    command.sequence=2; command.left=true;
+    world.submit(id,Commands{{command}}); world.step();
+    auto state=world.snapshot(id);
+    require(state.grenades.size()==1 && state.grenades[0].kind==viewer::GrenadeKind::molotov && state.players[0].loaded==0,
+        "Molotov throw lost its bottle kind or failed to consume ammunition");
+    for (int i=0; i<180 && state.molotovImpacts.empty(); ++i) { world.step(); state=world.snapshot(id); }
+    require(state.grenades.empty() && state.molotovImpacts.size()==1 && state.explosions.empty(),
+        "Server did not publish exactly one molotov impact without an HE explosion");
+    const auto bytes=encode(state);
+    const auto copy=std::get<Snapshot>(decode(bytes.data(),bytes.size()));
+    require(copy.molotovImpacts.size()==1 && copy.molotovImpacts[0].direction==state.molotovImpacts[0].direction,
+        "Molotov impact wire round trip lost its incoming cone direction");
+    auto invalid=state; invalid.molotovImpacts[0].age=11;
+    rejects([&] { encode(invalid); },"Expired molotov impact was accepted");
+    invalid=state; invalid.molotovImpacts[0].direction={0,0,0};
+    rejects([&] { encode(invalid); },"Molotov cone with no direction was accepted");
+    invalid=state; invalid.molotovImpacts.push_back(invalid.molotovImpacts[0]);
+    rejects([&] { encode(invalid); },"Duplicate molotov impact ID was accepted");
+    invalid=state; invalid.grenades={{1,{0,1,0},{1,0,0,0},static_cast<viewer::GrenadeKind>(2)}};
+    rejects([&] { encode(invalid); },"Unknown thrown grenade kind was accepted");
+    Scene client(options,{},std::nullopt,SceneRole::Replica);
+    client.model=ground(); client.collision=std::make_unique<viewer::CollisionWorld>(client.model);
+    Snapshots snapshots;
+    require(snapshots.push(copy,100),"Molotov snapshot was rejected");
+    snapshots.apply(client,100);
+    require(snapshots.fireEffects().hasEffects(100),"Client failed to raycast the molotov impact into ground fire");
+    snapshots.apply(client,111);
+    require(!snapshots.fireEffects().hasEffects(111),"Client fire did not expire during a server stall");
+}
+
 void serverGrenades(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -1081,7 +1123,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
             "Network stack merge must preserve the source footprint and total ammo");
     const auto snapshot = world.snapshot(id).players[0];
     require(!snapshot.inventoryDragging && snapshot.inventoryPlacements.size() == player.inventory.items().size() &&
-            snapshot.ammoQuantities.size() == 11,
+            snapshot.ammoQuantities.size() == 12,
             "Authoritative idle inventory must publish placements and all stack quantities");
     submit(fire);
     Command outward;
@@ -1290,7 +1332,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

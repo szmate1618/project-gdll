@@ -2,13 +2,16 @@
 
 #include "weapon_caliber.hpp"
 #include <filesystem>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <glm/glm.hpp>
 
 namespace viewer {
+enum class GrenadeKind : std::uint8_t { he, molotov };
 struct GrenadeConfig {
     float fuseSeconds = 3, blastRadius = 8, throwSpeed = 14;
+    GrenadeKind kind = GrenadeKind::he;
 };
 struct WeaponConfig {
     std::string id, name, ammoType;

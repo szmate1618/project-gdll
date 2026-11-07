@@ -405,7 +405,7 @@ void World::step() {
             const auto& config = player.weapons.equipped().config;
             player.body.follow(player.camera.position(),player.camera.direction(),
                 player.weapons.slot()==viewer::punchSlot && !handlingMode && !player.weaponSwitch.pending());
-            const bool canThrow = !config.grenade || scene_.grenades->canThrow(player.camera.position(), *scene_.collision);
+            const bool canThrow = !config.grenade || scene_.grenades->canThrow(player.camera.position(), *scene_.collision, config.grenade->kind);
             if (!canThrow) {
                 player.weapons.cancelTrigger();
                 player.triggerNeedsRelease |= command.left;
@@ -547,6 +547,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     s.sounds = sounds_.forListener(tick_, id, observer.camera.position());
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
+    s.molotovImpacts = scene_.grenades->molotovImpacts(viewer::SimulationClock::instance().seconds());
     s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds(), id);
     s.bloodSpurts = scene_.zombies.bloodSpurts().recent(viewer::SimulationClock::instance().seconds());
     for (const auto& [playerId, player] : players_) {

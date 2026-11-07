@@ -71,12 +71,12 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
             self.write(f"storage/{name}", b"storage config\n")
         self.write("vehicles/car.toml", b"vehicle config\n")
-        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
+        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov"):
             self.write(f"storage/weapons/{name}.inventory.toml", b"item definition\n")
             self.write(f"storage/weapons/{name}.gameplay.toml", b"weapon gameplay\n")
             self.write(f"storage/weapons/{name}.acoustics.toml", b"weapon acoustics\n")
             self.write(f"storage/weapons/{name}.tags.txt", b"long_gun, ranged\n")
-        for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+        for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"):
             self.write(f"storage/ammo/{name}.inventory.toml", b"ammo item definition\n")
             self.write(f"storage/ammo/{name}.acoustics.toml", b"ammo acoustics\n")
             self.write(f"storage/ammo/{name}.tags.txt", b"ammo, stackable\n")
@@ -305,9 +305,9 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                          "assets/pigeon/README.md", "assets/pigeon/sources.json"})
         expected.update({"doors.toml", "skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
         for suffix in ("inventory.toml", "gameplay.toml", "acoustics.toml", "tags.txt"):
-            expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
+            expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov"))
         for suffix in ("inventory.toml", "acoustics.toml", "tags.txt"):
-            expected.update(f"storage/ammo/{name}.{suffix}" for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"))
+            expected.update(f"storage/ammo/{name}.{suffix}" for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
         expected.update({"storage/doodads/branch.acoustics.toml", "storage/props/crate.acoustics.toml"})
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))

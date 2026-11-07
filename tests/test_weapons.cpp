@@ -67,7 +67,7 @@ void firing() {
     require(weapons.fire(.4), "New press after cooldown must fire");
     require(weapons.equipped().loaded == loaded - 2, "Shots must consume magazine rounds");
     require(weapons.equipped().reserve == reserve, "Shots must not consume reserve directly");
-    require(!weapons.equip(5), "Invalid slot must not equip");
+    require(!weapons.equip(viewer::weaponIds.size()), "Invalid slot must not equip");
 
     weapons.equip(1); click(weapons);
     require(weapons.fire(1), "SMG must fire on press");

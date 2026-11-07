@@ -46,7 +46,7 @@ def check_contents(package):
             raise RuntimeError("Package is missing character face " + name)
     if not list((package / "vehicles").glob("*.toml")):
         raise RuntimeError("Package is missing vehicle definitions")
-    for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):
+    for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"):
         for suffix in ("inventory.toml", "gameplay.toml", "acoustics.toml", "tags.txt"):
             filename = f"storage/weapons/{name}.{suffix}"
             if not (package / filename).is_file():
@@ -56,7 +56,7 @@ def check_contents(package):
             raise RuntimeError("Package is missing a generated weapon model: " + name)
     if not (package / "assets/audio/sources.json").is_file():
         raise RuntimeError("Package is missing audio resources")
-    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"):
         for suffix in ("inventory.toml", "acoustics.toml", "tags.txt"):
             filename = f"storage/ammo/{name}.{suffix}"
             if not (package / filename).is_file():

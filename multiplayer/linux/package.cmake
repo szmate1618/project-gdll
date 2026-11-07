@@ -39,7 +39,7 @@ file(COPY "${source_root}/data/assets/game-icons/hud" "${source_root}/data/asset
 file(COPY "${source_root}/gui/hud-icons.json" "${source_root}/gui/character-faces.json" "${source_root}/gui/README.md" DESTINATION "${package}/gui")
 file(COPY "${source_root}/assets/test.glb" "${source_root}/assets/test.navmesh"
     DESTINATION "${package}/assets")
-foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
+foreach(weapon pistol submachine_gun shotgun sniper he_grenade molotov)
     file(COPY "${BUILD_DIR}/assets/weapons/${weapon}.glb" DESTINATION "${package}/assets/weapons")
 endforeach()
 file(COPY "${source_root}/assets/weapons/README.md" DESTINATION "${package}/assets/weapons")

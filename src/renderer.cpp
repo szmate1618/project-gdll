@@ -3,6 +3,7 @@
 #include "door_layer.hpp"
 #include "rain_renderer.hpp"
 #include "blood_mist_renderer.hpp"
+#include "fire_renderer.hpp"
 #include "shader_program.hpp"
 
 #include <algorithm>
@@ -188,13 +189,14 @@ void Renderer::release() noexcept {
     releaseDoodads();
     releaseDroppedWeapons();
     bloodMist_.reset();
+    fire_.reset();
     rain_.reset();
     releaseZombies();
     releaseDogs();
     releaseModel(model_);
     releaseModel(boxModel_);
     releaseModel(floorplanModel_);
-    releaseModel(grenadeModel_);
+    for (auto& model : grenadeModels_) releaseModel(model);
     releaseWoundContents();
 
     releaseModel(vehicleModel_);
@@ -583,6 +585,10 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
             bloodMist_->draw(camera,float(width_)/float(height_),bursts,lighting.unlitColor,
                              particles,bloodSeconds);
         }
+    }
+    if (fireSource_ && fireSource_->hasEffects(fireSeconds_)) {
+        if (!fire_) fire_ = std::make_unique<FireRenderer>(shaderDirectory_);
+        fire_->draw(camera,float(width_)/float(height_),*fireSource_,fireSeconds_);
     }
     if (!transparentScene_.empty()) {
         selectTownShader(); // Camera lighting and matrices were prepared with the opaque town pass.

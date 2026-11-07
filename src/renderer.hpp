@@ -50,6 +50,8 @@ class DogLayer;
 
 class RainRenderer;
 class BloodMistRenderer;
+class FireRenderer;
+class FireEffects;
 class GpuTimer;
 class DoorLayer;
 class FloorplanLayer;
@@ -123,7 +125,7 @@ public:
     // Shared model resources; the physics layer must outlive rendering.
     void setGroundItems(const GroundItems& items, const std::array<Model,weaponIds.size()>& models);
     void setDroppedWeapons(const DroppedWeapons& weapons, const std::array<Model,weaponIds.size()>& models);
-    void loadGrenadeModel(const std::filesystem::path& path);
+    void loadGrenadeModel(const std::filesystem::path& path, GrenadeKind kind = GrenadeKind::he);
     void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
     void updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions);
     void setExplosionLights(const std::vector<MuzzleFlashLight>& lights);
@@ -169,6 +171,7 @@ public:
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
     // Optional local particle/stain clock; standalone uses scene animation seconds.
+    void setFireEffects(const FireEffects& fire, double seconds) { fireSource_ = &fire; fireSeconds_ = seconds; }
     void setBloodEffectSeconds(double seconds) { bloodEffectSeconds_ = seconds; }
     // Already aged on the local presentation clock; server mist keeps its own timeline.
     void setLocalBloodMist(const std::vector<BloodMistBurst>& bursts) { localBloodMist_ = bursts; }
@@ -530,10 +533,10 @@ private:
     const FloorplanLayer* floorplanSource_ = nullptr;
     std::uint64_t floorplanRevision_ = 0;
     ModelGPU boxModel_;
-    ModelGPU grenadeModel_;
+    std::array<ModelGPU,2> grenadeModels_;
     ModelGPU woundContentsModel_;
     GLuint woundContentsBuffer_ = 0;
-    std::vector<DrawInstance> grenadeDraws_;
+    std::array<std::vector<DrawInstance>,2> grenadeDraws_;
     std::vector<GrenadePose> grenadePoses_;
     GLuint boxInstanceBuffer_ = 0;
     std::vector<glm::mat4> boxTransforms_, visibleBoxTransforms_;
@@ -642,6 +645,9 @@ private:
     Material fallback_;
     std::unique_ptr<RainRenderer> rain_;
     std::unique_ptr<BloodMistRenderer> bloodMist_;
+    std::unique_ptr<FireRenderer> fire_;
+    const FireEffects* fireSource_ = nullptr; // Borrowed through rendering.
+    double fireSeconds_ = 0;
     struct DroppedModelGPU {
         ModelGPU model;
         std::vector<DrawInstance> draws;

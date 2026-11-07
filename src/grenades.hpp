@@ -3,6 +3,7 @@
 #include "muzzle_flash.hpp"
 #include "weapon_config.hpp"
 #include "noise.hpp"
+#include "molotov.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <memory>
@@ -19,6 +20,7 @@ struct GrenadePose {
     std::uint32_t id = 0;
     glm::vec3 center{0};
     glm::quat rotation{1, 0, 0, 0};
+    GrenadeKind kind = GrenadeKind::he;
 };
 struct GrenadeExplosion {
     std::uint32_t id = 0;
@@ -38,7 +40,7 @@ public:
     static constexpr float radius = .045f, halfHeight = .075f;
     static constexpr std::size_t maxActive = 64;
     static constexpr std::size_t maxEvents = 128;
-    bool canThrow(glm::vec3 eyes, const CollisionWorld& world) const;
+    bool canThrow(glm::vec3 eyes, const CollisionWorld& world, GrenadeKind kind = GrenadeKind::he) const;
     // Launch near the eyes, without spawning through a wall; inherits walking velocity.
     // Power [0, 1] scales launch velocity and spin; zero drops without a launch impulse.
     bool throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
@@ -52,6 +54,7 @@ public:
                 double animationSeconds = 0, VehicleLayer* vehicles = nullptr);
     std::vector<GrenadePose> poses() const;
     std::vector<GrenadeExplosion> explosions(double seconds) const;
+    std::vector<MolotovImpact> molotovImpacts(double seconds) const;
     std::vector<MuzzleFlashLight> lights(double seconds) const;
 private:
     struct Impl;

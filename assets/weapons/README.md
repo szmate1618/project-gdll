@@ -12,6 +12,7 @@ The mesh source and our modified sniper are retained here under the same CC0 ded
 | 3 — shotgun | TacticalPump (stock pump) | 151 |
 | 4 — sniper | Modified M14 | 354 |
 | 5 — HE grenade | Original project mesh | 92 |
+| 6 — Molotov cocktail | Original project mesh | 128 |
 
 The sniper retains the M14 stock, receiver, trigger, magazine and slide. Its
 fore-end/barrel is extended, with a heavy barrel sleeve, two scope mounts, and
@@ -136,3 +137,18 @@ ctest --test-dir build -R '^viewer_weapon' --output-on-failure
 ```
 
 The rendering check needs display/GPU access. Captures are numbered in slot order.
+
+## Molotov cocktail
+
+`molotov.json` is an original CC0 1.0 low-poly green bottle with a tan cloth wick,
+measuring about 9 cm wide and 31 cm tall. It is shared by held, dropped and thrown
+instances. The opaque stylized glass uses the existing weapon material path.
+Reproduce the tracked source offline with:
+
+```bash
+python3 tools/prepare_molotov_model.py --output assets/weapons/molotov.json
+```
+
+The weapon builder accepts `--molotov-source assets/weapons/molotov.json`;
+CMake generates `molotov.glb` with the other weapon assets. Fire is procedural
+shader geometry, with no downloaded textures. See [viewer behavior](../../docs/VIEWER.md).

@@ -372,8 +372,7 @@ struct Hud::Impl {
         setText("prompt", state.prompt);
         if (slot != state.slot) {
             slot = state.slot;
-            constexpr std::array<const char*, 7> classes{"pistol", "smg", "shotgun", "sniper", "grenade", "fists", "handling"};
-            elements.at("weapon")->SetClassNames(slot >= 0 && slot < 7 ? classes[slot] : "unconfirmed");
+            elements.at("weapon")->SetClassNames(equipmentIconClass(static_cast<std::size_t>(slot)));
         }
         renderer.render(*context, width, height, [&] {
             const auto events = sleepDrawer->process(state, pointerEvents, width, height, presentation);

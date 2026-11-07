@@ -61,12 +61,12 @@ def check_credits(package):
     for name in ("doors.toml", "skills.toml", "skills/melee/punch.skill.toml"):
         if not (package / name).is_file():
             raise RuntimeError("Package is missing skill resource " + name)
-    for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):
+    for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"):
         for suffix in ("inventory.toml", "gameplay.toml", "acoustics.toml", "tags.txt"):
             filename = f"storage/weapons/{name}.{suffix}"
             if not (package / filename).is_file():
                 raise RuntimeError("Package is missing " + filename)
-    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"):
         for suffix in ("inventory.toml", "acoustics.toml", "tags.txt"):
             filename = f"storage/ammo/{name}.{suffix}"
             if not (package / filename).is_file():
@@ -101,7 +101,7 @@ def main():
                 raise RuntimeError("Packaged undergrowth recording differs from its provenance: " + name)
         if not list((package / "lib").glob("libopenal.so*")):
             raise RuntimeError("Package lacks the shared OpenAL audio library")
-        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
+        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov"):
             model = package / "assets/weapons" / (name + ".glb")
             if not model.is_file() or model.read_bytes()[:4] != b"glTF":
                 raise RuntimeError("Package is missing a generated weapon model: " + str(model))

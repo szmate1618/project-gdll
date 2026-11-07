@@ -169,7 +169,9 @@ void Snapshots::apply(Scene& scene, double now) {
     // same frame even if pose interpolation is still behind the detonation.
     const auto& explosions = frames_.back().explosions;
     grenades_.erase(std::remove_if(grenades_.begin(), grenades_.end(), [&](const auto& grenade) {
-        return std::any_of(explosions.begin(), explosions.end(), [&](const auto& e) { return e.id == grenade.id; });
+        return std::any_of(explosions.begin(), explosions.end(), [&](const auto& e) { return e.id == grenade.id; }) ||
+            std::any_of(frames_.back().molotovImpacts.begin(),frames_.back().molotovImpacts.end(),
+                [&](const auto& impact) { return impact.id==grenade.id; });
     }), grenades_.end());
     players_ = b.players;
     for (auto& p : players_) for (const auto& before : a.players) if (before.id == p.id) {
@@ -212,6 +214,8 @@ void Snapshots::apply(Scene& scene, double now) {
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
     applyZombies(scene, now, zombieClock_.tick(now));
     blood_.apply(b.bloodSpurts,double(b.tick)/60,animationSeconds(),now,scene.zombies,*scene.collision);
+    fire_.receive(b.molotovImpacts,double(b.tick)/60,animationSeconds(),now,
+        {*scene.collision,scene.physics,&scene.zombies,&scene.dogs,scene.doors.get(),animationSeconds()});
 }
 void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTick) {
     auto kept = trackedZombieIds_.begin();

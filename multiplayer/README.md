@@ -576,7 +576,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 57; rebuild both client and server together.
+The current wire protocol is version 58; rebuild both client and server together.
 Runtime [family-house floorplans](../docs/FLOORPLANS.md) are generated separately
 by each peer. Geometry is neither saved nor replicated; stable generated door
 IDs use the existing authoritative door-angle snapshots.
@@ -679,7 +679,7 @@ zombies and dogs do not cause distance-only wake-ups; guard sightings and damage
 remain independent triggers. Distant travellers use coarse path progress with no obstacle checks;
 normal movement and terrain placement resume on waking. Stamina and strain
 recover, but sleep does not heal injuries. Clients and servers must both use
-protocol version 57. The handshake includes the selected character's name for
+protocol version 58. The handshake includes the selected character's name for
 guard alerts. Each guard checks the nearest 20 living zombies every five simulated
 seconds, within 50 m at night and 100 m by day with a twilight blend. A visible
 head and movement roughly toward the guard wake the group. The spotting guard
@@ -753,7 +753,7 @@ covers packet loss. Clients deduplicate starts, resolve their own static floor
 plane and follow replicated ragdolls for attached spurts. Droplets, stains and
 fading continue on local time during server stalls. The server simulates none
 of these particles or stains, and late joins do not reconstruct old stains.
-Client and server must both be rebuilt for protocol 57.
+Client and server must both be rebuilt for protocol 58.
 
 Remote players render their equipped firearm without additional arm geometry.
 The shared weapon meshes use the same eye-relative mount as the local view,
@@ -817,7 +817,17 @@ Clients interpolate thrown bodies and show the short explosion point light;
 the flashlight toggle does not disable that light. Grenade settings and starting
 counts are in `storage/weapons/he_grenade.gameplay.toml` and `inventory.toml`.
 
-Graphical client builds generate the five small weapon GLBs offline from the
+Hotbar 7 selects the Molotov cocktail. The server owns throwing and the bottle's
+first physical impact, then replicates only its impact ID, position, incoming
+flight direction and age. Each client casts ten random rays in a 60° full cone,
+with a two-metre reach, and renders ten-second fire at the surfaces those rays
+hit. Misses produce no fire. Hits on local props/doors and actors follow their
+poses; particles, hit positions and attachments are never sent to the server.
+The fire is visual only. It keeps animating/fading during network stalls, and
+late joins reconstruct remaining flames from ten seconds of impact history.
+Protocol 58 requires matching rebuilt clients and servers.
+
+Graphical client builds generate the six small weapon GLBs offline from the
 tracked [CC0 mesh source](../assets/weapons/README.md). Linux and Windows client
 packages include these models and attribution under `assets/weapons/`; no
 separate weapon download is needed. Development clients use the build tree's

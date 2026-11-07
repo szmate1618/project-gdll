@@ -459,7 +459,7 @@ add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}" "${VIEWER_TES
 
 set(VIEWER_WEAPON_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/assets/weapons")
 set(VIEWER_WEAPON_MODELS)
-foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
+foreach(weapon pistol submachine_gun shotgun sniper he_grenade molotov)
     list(APPEND VIEWER_WEAPON_MODELS "${VIEWER_WEAPON_ASSETS}/${weapon}.glb")
 endforeach()
 add_custom_command(
@@ -467,8 +467,9 @@ add_custom_command(
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_weapon_assets.py"
         --source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/models.json"
         --grenade-source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/he_grenade.json"
+        --molotov-source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/molotov.json"
         --output-dir "${VIEWER_WEAPON_ASSETS}"
-    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json assets/weapons/he_grenade.json
+    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json assets/weapons/he_grenade.json assets/weapons/molotov.json
     COMMENT "Building the low-poly Durango weapon models (offline)"
     VERBATIM
 )
@@ -483,8 +484,8 @@ target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera viewer_day_night_clock)
 viewer_warnings(viewer_sun_lighting)
 
-add_library(viewer_grenades STATIC src/grenades.cpp)
-target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewer_objects viewer_sun_lighting)
+add_library(viewer_grenades STATIC src/grenades.cpp src/fire_effects.cpp src/fire_surfaces.cpp)
+target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewer_dogs viewer_objects viewer_sun_lighting)
 viewer_warnings(viewer_grenades)
 
 if(GD_VIEWER)
@@ -502,7 +503,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src
     src/weapon_overlay.cpp src/player_body_renderer.cpp
     src/building_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
-    src/dog_renderer.cpp src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
+    src/dog_renderer.cpp src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/fire_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
     viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_dogs viewer_sun_lighting viewer_grenades OpenGL::GL)
 target_link_libraries(viewer_renderer PRIVATE viewer_zombie_animation_buffer)
@@ -789,6 +790,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_muzzle_flash PRIVATE viewer_sun_lighting)
     viewer_warnings(test_muzzle_flash)
     add_test(NAME viewer_muzzle_flash COMMAND test_muzzle_flash)
+
+    add_executable(test_fire_effects tests/test_fire_effects.cpp)
+    target_link_libraries(test_fire_effects PRIVATE viewer_grenades)
+    viewer_warnings(test_fire_effects)
+    add_test(NAME viewer_fire_effects COMMAND test_fire_effects)
 
     add_executable(test_grenades tests/test_grenades.cpp)
     target_link_libraries(test_grenades PRIVATE viewer_grenades)

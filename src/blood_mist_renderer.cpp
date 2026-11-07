@@ -2,6 +2,7 @@
 #include "blood_mist_renderer.hpp"
 #include "shader_program.hpp"
 #include "visibility.hpp"
+#include "particle_draw_state.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,34 +12,7 @@
 
 namespace viewer {
 namespace {
-struct GLState {
-    GLint program, vao, buffer, activeTexture, texture;
-    GLint sourceRgb, destRgb, sourceAlpha, destAlpha, equationRgb, equationAlpha;
-    GLboolean depthWrite, depthTest, blend, cull;
-    GLState() {
-        glGetIntegerv(GL_CURRENT_PROGRAM,&program);
-        glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);
-        glGetIntegerv(GL_ARRAY_BUFFER_BINDING,&buffer);
-        glGetIntegerv(GL_ACTIVE_TEXTURE,&activeTexture);
-        glActiveTexture(GL_TEXTURE0);
-        glGetIntegerv(GL_TEXTURE_BINDING_2D,&texture);
-        glGetIntegerv(GL_BLEND_SRC_RGB,&sourceRgb); glGetIntegerv(GL_BLEND_DST_RGB,&destRgb);
-        glGetIntegerv(GL_BLEND_SRC_ALPHA,&sourceAlpha); glGetIntegerv(GL_BLEND_DST_ALPHA,&destAlpha);
-        glGetIntegerv(GL_BLEND_EQUATION_RGB,&equationRgb); glGetIntegerv(GL_BLEND_EQUATION_ALPHA,&equationAlpha);
-        glGetBooleanv(GL_DEPTH_WRITEMASK,&depthWrite);
-        depthTest=glIsEnabled(GL_DEPTH_TEST); blend=glIsEnabled(GL_BLEND); cull=glIsEnabled(GL_CULL_FACE);
-    }
-    ~GLState() {
-        glBindVertexArray(GLuint(vao)); glBindBuffer(GL_ARRAY_BUFFER,GLuint(buffer)); glUseProgram(GLuint(program));
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,GLuint(texture)); glActiveTexture(GLenum(activeTexture));
-        glDepthMask(depthWrite);
-        if (depthTest) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
-        if (blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
-        if (cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
-        glBlendFuncSeparate(GLenum(sourceRgb),GLenum(destRgb),GLenum(sourceAlpha),GLenum(destAlpha));
-        glBlendEquationSeparate(GLenum(equationRgb),GLenum(equationAlpha));
-    }
-};
+
 
 // Generated once: a soft, irregular cloud mask shared by every burst size.
 std::array<std::uint8_t,128*128> mistTexture() {
@@ -60,7 +34,7 @@ std::array<std::uint8_t,128*128> mistTexture() {
 }
 }
 BloodMistRenderer::BloodMistRenderer(const std::filesystem::path& shaders) {
-    const GLState state;
+    const ParticleDrawState state;
     try {
         program_=createShaderProgram(shaders/"blood_mist.vert",shaders/"blood_mist.frag");
         view_=glGetUniformLocation(program_,"uView"); projection_=glGetUniformLocation(program_,"uProjection");
@@ -131,7 +105,7 @@ void BloodMistRenderer::draw(const Camera& camera, float aspect, const std::vect
     }
     if (!count) return;
     std::sort(scratch_.begin(),scratch_.begin()+count,[](const auto& a,const auto& b) { return a.distance>b.distance; });
-    const GLState state;
+    const ParticleDrawState state;
     glUseProgram(program_);
     glUniformMatrix4fv(view_,1,GL_FALSE,glm::value_ptr(view));
     const auto gpuProjection = sceneProjection(camera, aspect);

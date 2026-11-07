@@ -585,6 +585,9 @@ void payload(Wire& w, Snapshot& s) {
     w.list(s.grenades, viewer::Grenades::maxActive, [&](viewer::GrenadePose& g) {
         w.integer(g.id); w.vector(g.center);
         w.number(g.rotation.w); w.number(g.rotation.x); w.number(g.rotation.y); w.number(g.rotation.z);
+        auto kind = static_cast<std::uint8_t>(g.kind); w.integer(kind);
+        if (kind>static_cast<std::uint8_t>(viewer::GrenadeKind::molotov)) throw std::runtime_error("Invalid grenade kind");
+        g.kind = static_cast<viewer::GrenadeKind>(kind);
         if (!g.id || std::abs(glm::length(g.rotation) - 1) > .001f) throw std::runtime_error("Invalid grenade snapshot");
     });
     w.list(s.explosions, viewer::Grenades::maxEvents, [&](viewer::GrenadeExplosion& e) {
@@ -593,6 +596,12 @@ void payload(Wire& w, Snapshot& s) {
     });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
     uniqueIds(s.grenades); uniqueIds(s.explosions);
+    w.list(s.molotovImpacts, viewer::Grenades::maxEvents, [&](viewer::MolotovImpact& impact) {
+        w.integer(impact.id); w.vector(impact.position); w.vector(impact.direction); w.number(impact.age);
+        if (!impact.id || impact.age<0 || impact.age>viewer::molotovFireSeconds ||
+            std::abs(glm::length(impact.direction)-1)>.001f) throw std::runtime_error("Invalid molotov impact");
+    });
+    uniqueIds(s.molotovImpacts);
     w.list(s.woundContents, 1024 * viewer::ZombieCavityPhysics::maxObjectCount,
         [&](glm::mat4& transform) { w.matrix(transform); });
     w.list(s.bloodMist, viewer::BloodMist::capacity, [&](viewer::BloodMistBurst& burst) {

@@ -48,6 +48,7 @@ starter footprints are editable prototype values:
 | Shotgun | 4×2 |
 | Sniper | 5×2 |
 | HE grenade | 1×1 |
+| Molotov cocktail | 1×2 |
 
 The filename prefix, `id`, and `weapon` must match. `weapon` references the
 matching `<id>.gameplay.toml`. Ammo descriptors use `type = "ammo"` in
@@ -86,6 +87,7 @@ catalogs retain their independent version 1 schema.
 | --- | --- |
 | Pistol | `handgun, ranged` |
 | HE grenade | `grenade, throwable, explosive` |
+| Molotov cocktail | `grenade, throwable, incendiary` |
 | Submachine gun | `long_gun, smg, ranged, two_handed` |
 | Shotgun | `long_gun, shotgun, ranged, two_handed` |
 | Sniper | `long_gun, rifle, ranged, two_handed` |
@@ -174,7 +176,7 @@ y = 0
 Use distinct instance IDs for multiple stacks of the same ammo item. Each
 needs its own valid placement. Matching uses the descriptor's `ammo_type`.
 Starting loaded/reserve amounts are pistol 12/120, SMG 30/300, shotgun 6/48,
-sniper 5/30 and HE grenade 1/5 (six grenades total).
+sniper 5/30, HE grenade 1/5 (six total), and Molotov 1/2 (three total).
 
 Each weapon gameplay file defines nonnegative `reload_time_seconds`.
 Reloading adds the selected ammo stack's current storage access time,
@@ -187,14 +189,18 @@ grenade automatically retrieves another of the same ammo type.
 
 ```toml
 [hotbar]
-0 = "pistol"
-1 = "submachine_gun"
-2 = "shotgun"
-3 = "sniper"
-4 = "he_grenade"
+0 = "skill:object_handling"
+1 = "skill:punch"
+2 = "pistol"
+3 = "submachine_gun"
+4 = "shotgun"
+5 = "sniper"
+6 = "he_grenade"
+7 = "molotov"
 ```
 
-All five weapons start owned and assigned in that order; slots 5–9 are empty.
+The starter hotbar uses 0 for Object handling, 1 for Punch, 2–6 for the five
+existing weapons and 7 for Molotov. Slots 8–9 are empty.
 Shortcuts are references, so they add no ownership or storage capacity. Unknown
 or unowned IDs and invalid slot numbers are rejected. Inventory and Skills use
 the same player-owned model, loaded once at startup. Restart to apply
@@ -212,3 +218,8 @@ A confirmed change adds the old put-away time, the combined storage cost and
 the new draw time. Charge each distinct compartment's base once, plus both
 backpack obstruction penalties minus both support bonuses, floored at zero.
 See [weapon switching](../../docs/INVENTORY.md#weapon-switching-and-theoretical-access-ranges).
+
+Molotov gameplay uses `kind = "molotov"` and `throw_speed`; impact ignition is
+fixed at ten rays in a 60° full cone, two metres of reach and ten seconds of
+client-side fire. It has no explosive fuse or blast radius. Bottle and spare
+1×2 stacks start in the backpack; ammo uses the separate `molotovs` type.

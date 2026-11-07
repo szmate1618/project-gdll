@@ -47,23 +47,23 @@ struct Fixture {
 };
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
-    const std::array<const char*, 5> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
-    require(inventory.owned.size() == 16 && inventory.quantities.size() == 11,
-        "All five weapons and eleven ammo stacks must have owned item definitions");
+    const std::array<const char*, 6> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
+    require(inventory.owned.size() == 18 && inventory.quantities.size() == 12,
+        "All six weapons and twelve ammo stacks must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
-        require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–6");
+        require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–7");
         const auto& item = inventory.owned.at(expected[slot]);
         require(item.gameplay().id == expected[slot] && item.inventory().type == "weapon", "Item gameplay reference was lost");
         require(item.inventory().width > 0 && item.inventory().height > 0 && !item.tags().empty(), "Item footprint/tags missing");
-        const std::string category = slot == 0 ? "handgun" : slot == 4 ? "grenade" : "long_gun";
+        const std::string category = slot == 0 ? "handgun" : slot >= 4 ? "grenade" : "long_gun";
         require(std::find(item.tags().begin(), item.tags().end(), category) != item.tags().end(),
             "Weapon category must come from its comma-separated tags file");
     }
     require(inventory.hotbar[1] == "skill:punch" && inventory.skills.at("punch") == "Punch", "Punch shortcut must reference the registered skill");
     require(inventory.hotbar[0] == "skill:object_handling" && inventory.skills.at("object_handling") == "Object handling",
             "Slot 0 must contain the Object handling skill");
-    for (std::size_t slot = 7; slot < inventory.hotbar.size(); ++slot)
-        require(inventory.hotbar[slot].empty(), "Slots 7–9 must start unassigned");
+    for (std::size_t slot = 8; slot < inventory.hotbar.size(); ++slot)
+        require(inventory.hotbar[slot].empty(), "Slots 8–9 must start unassigned");
     const auto& pistol = inventory.owned.at("pistol");
     require(pistol.inventory().width == 2 && pistol.inventory().height == 1, "Pistol must have a 2x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");

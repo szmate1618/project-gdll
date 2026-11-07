@@ -8,6 +8,10 @@
 #include <stdexcept>
 
 namespace viewer {
+const char* equipmentIconClass(std::size_t equipment) {
+    constexpr std::array<const char*,handlingSlot+1> icons{"pistol","smg","shotgun","sniper","grenade","molotov","fists","handling"};
+    return equipment<icons.size() ? icons[equipment] : "unconfirmed";
+}
 void populateActionHotbar(Rml::ElementDocument& document, const PlayerInventory& inventory) {
     std::string contents;
     const auto actions = actionShortcuts(inventory);
@@ -18,9 +22,10 @@ void populateActionHotbar(Rml::ElementDocument& document, const PlayerInventory&
         if (action.name.empty()) contents += "<div class='assignment-name'>Unassigned</div>";
         else {
             const auto* item = inventory.find(inventory.hotbar()[slot]);
-            const bool explosive = item && item->hasTag("explosive");
+            const auto* itemStyle = item && item->hasTag("incendiary") ? "molotov" :
+                item && item->hasTag("grenade") ? "grenade" : "pistol";
             contents += "<span class='assignment-type'>" + std::string(action.skill ? "SKILL" : "ITEM") +
-                "</span><div class='assignment-square " + std::string(action.skill ? (action.equipment == handlingSlot ? "handling" : "punch") : explosive ? "grenade" : "pistol") +
+                "</span><div class='assignment-square " + std::string(action.skill ? (action.equipment == handlingSlot ? "handling" : "punch") : itemStyle) +
                 "'></div><div class='assignment-name'>" + Rml::StringUtilities::EncodeRml(action.name) + "</div>";
         }
         contents += "</div>";
@@ -37,8 +42,7 @@ void populateWeaponSelection(Rml::ElementDocument& document, const PlayerInvento
     int left = 0;
     for (std::size_t i = 0; i < actions.size(); ++i) {
         const auto& action = actions[i];
-        constexpr std::array<const char*, 7> icons{"pistol", "smg", "shotgun", "sniper", "grenade", "fists", "handling"};
-        const auto icon = action.equipment && *action.equipment < icons.size() ? icons[*action.equipment] : "";
+        const auto icon = action.equipment ? equipmentIconClass(*action.equipment) : "";
         const bool enlarged = static_cast<int>(i) == selected;
         contents += "<div class='selection-slot" + std::string(enlarged ? " selected" : "") +
             (action.skill ? " skill" : "") + (action.name.empty() ? " empty" : "") +

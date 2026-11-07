@@ -6,6 +6,7 @@
 #include "zombie_presentation_clock.hpp"
 #include "dog_playback.hpp"
 #include "blood_playback.hpp"
+#include "fire_effects.hpp"
 #include <deque>
 #include <memory>
 
@@ -23,6 +24,7 @@ public:
     const std::vector<viewer::GrenadePose>& grenades() const { return grenades_; }
     std::vector<viewer::MuzzleFlashLight> explosionLights(double now) const;
     std::vector<viewer::GrenadeExplosion> explosions(double now) const;
+    const viewer::FireEffects& fireEffects() const { return fire_; }
     double animationSeconds() const { return renderTick_ / 60; }
     // Stable IDs in ascending order, including entries waiting for their first
     // complete setup/physics pose. Membership is bounded independently of the
@@ -47,6 +49,7 @@ private:
     VehiclePlayback vehicles_;
     DogPlayback dogs_;
     BloodPlayback blood_;
+    viewer::FireEffects fire_;
     ZombiePresentationClock zombieClock_;
     double received_ = 0, renderTick_ = 0, transitSeconds_ = 0;
     // Direct stable-ID lookup lives on the heap. Replica payloads are allocated

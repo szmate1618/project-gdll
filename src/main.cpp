@@ -1,3 +1,4 @@
+#include "fire_effects.hpp"
 #include "zombie_update_profile.hpp"
 #include "renderer.hpp"
 #include "graphics_settings_file.hpp"
@@ -389,7 +390,7 @@ void printHelp() {
               << "Slot 0 or held Alt: Object handling; hold left to drag, release to drop; hold right to charge throw/push\n"
               << "Object handling: mouse moves the held object; WASD moves the grip; right click also pushes objects within reach\n"
               << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade; R reload; hold left mouse for automatic fire\n"
+              << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
@@ -796,7 +797,7 @@ bool updateWeapons(AppState& app, double seconds) {
         return false;
     }
     const auto& config = app.weapons.equipped().config;
-    if (config.grenade && (!app.grenades || !app.grenades->canThrow(app.rig.camera().position(), app.world))) {
+    if (config.grenade && (!app.grenades || !app.grenades->canThrow(app.rig.camera().position(), app.world, config.grenade->kind))) {
         app.weapons.cancelTrigger();
         return false;
     }
@@ -1509,6 +1510,7 @@ int run(const Options& options) {
     // Shared impostor cards stay exclusively in the rendering layer.
     viewer::BoxLayer boxes(physics);
     viewer::Grenades grenades(physics);
+    viewer::FireEffects fireEffects;
     viewer::CollisionWorld collision(model, trunks, &doors);
     const auto undergrowth = trees ? viewer::UndergrowthIndex(*trees) : viewer::UndergrowthIndex{};
     viewer::UndergrowthEmitter undergrowthEmitter;
@@ -1772,6 +1774,7 @@ int run(const Options& options) {
     std::size_t muzzleSlot = 0;
     glm::vec3 muzzleModelPosition{0};
     renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
+    renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "molotov.glb", viewer::GrenadeKind::molotov);
     std::uint32_t lastExplosion = 0;
     std::cout << "Actions: 0 or key left of 1 previews Object handling in slot 0; 1-9 preview hotbar slots, wheel cycles, left click confirms; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
@@ -2083,6 +2086,10 @@ int run(const Options& options) {
         renderer.updateBoxes(boxes);
         if (doodads) renderer.updateDoodads(*doodads);
         renderer.updateVehicles(cars, app.driver.car());
+        fireEffects.receive(grenades.molotovImpacts(simulationClock.seconds()),simulationClock.seconds(),
+            simulationClock.seconds(),simulationClock.seconds(),
+            {collision,physics,zombies ? &*zombies : nullptr,&dogs,&doors,app.displayedAnimationSeconds});
+        renderer.setFireEffects(fireEffects,simulationClock.seconds());
         renderer.updateGrenades(grenades.poses());
         renderer.updateVegetationBlasts(grenades.explosions(simulationClock.seconds()));
         renderer.setExplosionLights(grenades.lights(simulationClock.seconds()));

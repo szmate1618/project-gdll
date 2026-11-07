@@ -8,6 +8,7 @@ submachine_gun = 30
 sniper = 5
 shotgun = 6
 he_grenade = 1
+molotov = 1
 
 [ammo.pistol_rounds_1]
 item = "pistol_rounds"
@@ -53,6 +54,10 @@ quantity = 30
 item = "he_grenades"
 quantity = 5
 
+[ammo.molotovs_1]
+item = "molotovs"
+quantity = 2
+
 # Owned item IDs or skill:<ID> references registered in skills.toml.
 [hotbar]
 0 = "skill:object_handling"
@@ -62,6 +67,7 @@ quantity = 5
 4 = "shotgun"
 5 = "sniper"
 6 = "he_grenade"
+7 = "molotov"
 
 # Item top-left positions in storage cells. References must name equipped gear.
 [placements.pistol]
@@ -146,3 +152,13 @@ y = 0
 storage = "body/tactical_vest/lower_right"
 x = 0
 y = 1
+
+[placements.molotov]
+storage = "backpack/tactical_backpack/main"
+x = 5
+y = 6
+
+[placements.molotovs_1]
+storage = "backpack/tactical_backpack/main"
+x = 6
+y = 6

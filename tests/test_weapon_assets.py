@@ -10,6 +10,7 @@ from unittest.mock import patch
 from src.glb import read_glb
 from tools.build_weapon_assets import WEAPON_IDS, build_model, main
 from tools.prepare_grenade_model import grenade_model
+from tools.prepare_molotov_model import molotov_model
 from collections import Counter
 
 
@@ -34,6 +35,15 @@ class WeaponAssetTests(unittest.TestCase):
         self.assertTrue(all(count == 2 for count in edges.values()), "Grenade shell must have no open seams")
         document, _ = read_glb(build_model(model))
         self.assertEqual(len(document["materials"]), 5)
+    def test_molotov_source_is_reproducible_and_exports_offline(self):
+        model = molotov_model()
+        source = Path(__file__).resolve().parents[1] / "assets/weapons/molotov.json"
+        self.assertEqual(json.loads(source.read_text()), model)
+        document, _ = read_glb(build_model(model))
+        self.assertEqual(len(document["meshes"]), 5)
+        self.assertTrue(any("Wick" in node["name"] for node in document["nodes"]))
+        self.assertAlmostEqual(min(a["min"][1] for a in document["accessors"] if "min" in a), -.14)
+
     def test_self_contained_glb_with_source_bounds_and_material(self):
         document, binary = read_glb(build_model(weapon()))
         self.assertEqual(document["buffers"], [{"byteLength": len(binary)}])

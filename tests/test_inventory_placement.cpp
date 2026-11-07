@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "inventory/inventory_placement.hpp"
 #include "inventory/inventory_config.hpp"
 
@@ -42,8 +43,9 @@ void placements() {
                 "Vest must contain only ammo stacks and grenades");
     }
     const auto& backpack = layout.at("backpack/tactical_backpack/main");
-    require(backpack.items.size() == 1 && backpack.items[0].item == "sniper" &&
-        backpack.items[0].width == 2 && backpack.items[0].height == 5 && inventory.placements.at("sniper").rotation == 90,
+    const auto sniper = std::find_if(backpack.items.begin(),backpack.items.end(),[](const auto& item) { return item.item=="sniper"; });
+    require(backpack.items.size() == 3 && sniper!=backpack.items.end() &&
+        sniper->width == 2 && sniper->height == 5 && inventory.placements.at("sniper").rotation == 90,
         "Sniper must start vertically in the backpack");
     auto changed = inventory;
     changed.placements.at("pistol").storage = "body/left_shoulder_sling/carry";

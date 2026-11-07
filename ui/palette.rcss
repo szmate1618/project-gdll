@@ -108,3 +108,5 @@ body.loadout { background-color: #2b2d2fed; }
     font-family: plex-heading;
 }
 .modern #join-address, .modern #setup-port { font-family: plex-mono; }
+
+.loadout .molotov { background-color: #e3a36b; }

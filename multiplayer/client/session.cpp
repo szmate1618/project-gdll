@@ -379,6 +379,7 @@ struct Graphics {
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
             viewer::WeaponViewBody{playerConfig.height, playerConfig.eyeHeight});
         renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
+        renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "molotov.glb", viewer::GrenadeKind::molotov);
         players = std::make_unique<multiplayer::PlayerRenderer>(weapon.get());
         body = std::make_unique<viewer::PlayerBodyRenderer>(shaders);
         birds = std::make_unique<viewer::BirdRenderer>(shaders, multiplayer::resourceRoot() / "assets/pigeon/flock.json");
@@ -854,6 +855,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 renderer.setRemoteFlashlights(multiplayer::remoteFlashlights(snapshots.players(), self));
                 renderer.setLocalBloodMist(graphics.localBloodMist.sample(now));
                 renderer.setBloodEffectSeconds(now);
+                renderer.setFireEffects(snapshots.fireEffects(),now);
                 renderer.updateGrenades(snapshots.grenades());
                 renderer.updateVegetationBlasts(snapshots.explosions(now));
                 auto pointLights = snapshots.explosionLights(now);

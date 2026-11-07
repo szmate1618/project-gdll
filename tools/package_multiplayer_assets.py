@@ -212,12 +212,12 @@ def collect_assets(root, map_path, zombies, *, dogs=None, trees=True, forests=Tr
         if document["map"]["map_sha256"] != map_hash:
             raise ValueError("Vehicle placement map fingerprint mismatch")
     weapon_definitions = root / "storage/weapons"
-    for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
+    for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov"):
         for suffix in ("gameplay.toml", "inventory.toml", "tags.txt"):
             assets.add(weapon_definitions / f"{name}.{suffix}")
     definitions = sorted([*weapon_definitions.glob("*.toml"), *weapon_definitions.glob("*.tags.txt")])
     ammo_definitions = root / "storage/ammo"
-    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"):
         for suffix in ("inventory.toml", "tags.txt"):
             assets.add(ammo_definitions / f"{name}.{suffix}")
     definitions += sorted([*ammo_definitions.glob("*.toml"), *ammo_definitions.glob("*.tags.txt")])

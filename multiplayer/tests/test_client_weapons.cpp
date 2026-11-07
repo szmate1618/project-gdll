@@ -39,12 +39,12 @@ std::size_t differences(std::size_t a, std::size_t b) {
             const bool hud = (x > 410 && x < 870 && y > 630) || (x > 1000 && y > 550) ||
                 (x < 310 && y < 145) || (x > 425 && x < 910 && y < 95) || (x > 1030 && y < 115) ||
                 (x > 310 && x < 970 && y > 95 && y < 135);
-            // Object handling now adds a vertical equipment tab at the right edge.
-            const bool equipmentTab = x >= frameWidth - 36 && y > frameHeight * .35f && y < frameHeight * .65f;
+            // Inventory and Sleep drawers place tabs along the right edge.
+            const bool drawerTabs = x >= frameWidth - 36;
             // Equipment comparisons isolate the held model; each firearm now
             // has its own legitimate hip-fire crosshair expansion.
             const bool reticle = std::abs(x - frameWidth / 2) < 60 && std::abs(y - frameHeight / 2) < 60;
-            if (hud || equipmentTab || reticle) continue;
+            if (hud || drawerTabs || reticle) continue;
             const auto i = static_cast<std::size_t>(y * frameWidth + x) * 3;
             if (std::abs(int(frames[a][i]) - int(frames[b][i])) > 8 ||
                 std::abs(int(frames[a][i+1]) - int(frames[b][i+1])) > 8 ||
@@ -147,8 +147,8 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 5: capture("shotgun"); authoritative.slot = 3; break;
         case 6: capture("sniper"); authoritative.slot = viewer::handlingSlot; break;
         case 7: {
-            require(differences(0, 6) < 100, "Weapon remained visible with Object handling selected");
             capture("object-handling");
+            require(differences(0, 6) < 100, "Weapon remained visible with Object handling selected");
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
             require(command(in, window, false, 0).left, "Object handling must send held left input");
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);

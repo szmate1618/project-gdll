@@ -2238,7 +2238,7 @@ the highlighted one to show its action name and icon. The mouse
 wheel cycles assigned actions, wrapping over empty positions. **Left click**
 confirms and consumes that click. Selecting the equipped action does nothing;
 Escape cancels the preview. The initial slots are 0 Object handling, 1 Punch, 2 pistol, 3 SMG,
-4 shotgun, 5 sniper, and 6 HE grenade. `inventory.toml` accepts owned item IDs and
+4 shotgun, 5 sniper, 6 HE grenade, and 7 Molotov cocktail. `inventory.toml` accepts owned item IDs and
 `skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
 is not implemented. Punch equips the existing fists, which use no ammunition.
 
@@ -2541,6 +2541,34 @@ interpolate the replicated bodies and fade explosion events by their age.
 `fuse_seconds` (0–30, exclusive of zero), `blast_radius` (0–50 m), and
 `throw_speed` (0–30 m/s). All three must be finite and positive. Grenade inventory
 counts are whole grenades; `muzzle_position` is unused for throws.
+
+**7** equips a Molotov cocktail, a green bottle with a cloth wick. It shares
+HE grenade primary throws, right-click drops/charge, inventory retrieval and
+cooldown rules. One bottle starts ready and two more are stored in the backpack;
+each bottle or ammo stack occupies 1×2 cells. The bottle breaks on its first
+physical contact (including trunk overlaps), rather than waiting for a fuse.
+It creates no HE blast or explosion light. Uncollided bottles expire after 30
+seconds as a bounded cleanup policy.
+
+At impact each client casts exactly ten seeded random rays, uniformly distributed
+inside a **60° full cone** around the incoming flight direction. Rays start 2 cm
+behind the impact surface and have a **2 m** maximum length. Each nearest surface
+hit receives a procedural, emissive flame for **10 seconds**, fading during the
+last second. Misses create no fire. Static town/floor geometry and trunks use
+existing spatial indexes; nearby actor capsules, current door panels and local
+physics bodies provide moving targets. Fire follows hit props, doors, zombie
+bones and dog roots; removing an attached target removes its fire. There is no
+fire damage or propagation. Fixed storage holds 256 patches, replacing oldest
+slots under saturation, and one depth-tested instanced pass draws the flames
+without depth writes, physics bodies or external textures.
+
+Multiplayer protocol 58 sends only bottle kinds/poses and bounded impact history
+(ID, position, incoming direction and age). Clients resolve all ten splash hits
+locally, deduplicate history, and continue animation/fading on local time during
+server stalls. Ten seconds of impact history allows late joins to reconstruct
+remaining fire; hit positions can differ when client target poses differ.
+[Molotov gameplay](../storage/weapons/molotov.gameplay.toml) uses `kind = "molotov"`
+and a positive `throw_speed` up to 30 m/s.
 
 The optional [grenade tree CPU benchmark](../tests/benchmark_grenade_trees.cpp)
 runs without a display, using 40,401 synthetic trunks (4 m spacing, 25 cm radius,

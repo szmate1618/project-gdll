@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "weapon_overlay.hpp"
 #include "weapons.hpp"
+#include "fire_effects.hpp"
 
 #include <GLFW/glfw3.h>
 #include <array>
@@ -115,7 +116,17 @@ void localBloodMist(const std::filesystem::path& captures) {
     renderer.setBloodEffectSeconds(localStart+23);
     replicated.updateBloodEffects(localStart+23);
     require(render("stains-ended")==emptyFloor,"Client ground stains did not fade during a server stall");
-    viewer::Renderer::checkErrors("local and replicated blood mist, droplets and stains");
+    viewer::FireEffects fire;
+    const viewer::FireScene scene{world,{}};
+    fire.receive({{101,{0,-1.7f,-1.5f},{0,-1,0},0}},0,0,localStart,scene);
+    renderer.setFireEffects(fire,localStart+.2);
+    const auto flames = render("molotov-fire");
+    require(flames!=emptyFloor,"Molotov fire was invisible on its local effect clock");
+    renderer.setFireEffects(fire,localStart+.8);
+    require(render("molotov-fire-moving")!=flames,"Flames did not animate while the server clock was frozen");
+    renderer.setFireEffects(fire,localStart+10);
+    require(render("molotov-fire-ended")==emptyFloor,"Molotov fire did not disappear after ten seconds");
+    viewer::Renderer::checkErrors("blood and molotov fire effects");
 }
 
 void check(const std::filesystem::path& captures) {

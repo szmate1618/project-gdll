@@ -38,6 +38,30 @@ struct Fixture {
     }
 };
 
+void molotovImpacts() {
+    for (const float power : {0.f,1.f}) {
+        Fixture f;
+        const viewer::GrenadeConfig config{30,0,14,viewer::GrenadeKind::molotov};
+        require(f.grenades.throwFrom({0,1.7f,0},{0,0,-1},{},0,config,f.world,power),"Molotov must be throwable or droppable");
+        require(f.grenades.poses().at(0).kind==viewer::GrenadeKind::molotov,"Bottle pose lost its model kind");
+        double hitAt = 0;
+        for (int tick=1; tick<=180; ++tick) {
+            hitAt = tick/60.0;
+            f.step(hitAt);
+            if (f.grenades.poses().empty()) break;
+        }
+        const auto impacts = f.grenades.molotovImpacts(hitAt);
+        require(f.grenades.poses().empty() && impacts.size()==1 && f.grenades.explosions(hitAt).empty() &&
+            f.grenades.lights(hitAt).empty(),"Molotov must break on first contact without an HE blast");
+        require(std::abs(glm::length(impacts[0].direction)-1)<.0001f &&
+            (power==0 ? impacts[0].direction.y<-.9f : impacts[0].direction.z<-.8f),
+            "Impact cone lost the incoming flight direction before the collision response");
+        f.grenades.update(hitAt+.1,f.world);
+        require(f.grenades.molotovImpacts(hitAt+.1).size()==1,"Broken bottle published its impact twice");
+        require(f.grenades.molotovImpacts(hitAt+9.99).size()==1 && f.grenades.molotovImpacts(hitAt+10).empty(),
+            "Impact history must cover the ten-second fire lifetime and then expire");
+    }
+}
 void launchPower() {
     for (const float power : {0.f, .5f, 1.f}) {
         Fixture f;
@@ -220,7 +244,7 @@ void vehicleBlast() {
 }
 int main() {
     try {
-        launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast(); vehicleBlast();
+        molotovImpacts(); launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast(); vehicleBlast();
         std::cout << "Grenade CCD, wall/floor/prop/trunk collision, fuse, blast cover and light tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

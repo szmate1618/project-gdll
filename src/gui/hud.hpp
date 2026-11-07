@@ -41,7 +41,7 @@ struct HudState {
     std::optional<float> weariness; // Normalized long-term fatigue; separate from strain.
     std::optional<PlayerHealth> medical; // Owned presentation copy; absent if records are unavailable.
     double lastDamageSeconds = -1; // Successful health loss, in the same clock as seconds.
-    int slot = -1; // Equipment slots 0..4; fists are 5. -1 means unconfirmed.
+    int slot = -1; // Equipment ID from weapons.hpp; -1 means unconfirmed.
     bool mouseCaptured = true;
     bool objectHandling = false, handInventoryActive = false;
     double handAccessRemaining = 0;

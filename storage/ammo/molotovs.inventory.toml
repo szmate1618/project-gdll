@@ -1,0 +1,9 @@
+schema_version = 2
+id = "molotovs"
+name = "Molotov cocktails"
+type = "ammo"
+ammo_type = "molotovs"
+width = 1
+height = 2
+stackable = true
+max_stack = 3

@@ -26,9 +26,9 @@ void selection() {
     selection.highlight(9);
     require(!selection.confirm(actions, 0), "An unassigned slot must not equip anything");
     selection.cycle(-1, actions, viewer::handlingSlot);
-    require(selection.selected() == 6, "Wheel must wrap past empty slots to the grenade");
+    require(selection.selected() == 7, "Wheel must wrap past empty slots to the Molotov");
     selection.cycle(1, actions, 0);
-    require(selection.selected() == 0, "Wheel must wrap from the grenade to object handling");
+    require(selection.selected() == 0, "Wheel must wrap from the Molotov to object handling");
     selection.close(); selection.cycle(1, {}, 0);
     require(!selection.open(), "An empty hotbar must not create a selection");
 }
