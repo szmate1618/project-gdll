@@ -8,10 +8,10 @@
 #graphics-distant-row { top: 174dp; }
 #graphics-shadow-row { top: 282dp; }
 #graphics-lod-row { top: 400dp; }
-#graphics-reset { position: absolute; right: 20dp; bottom: 14dp; width: 180dp; height: 30dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f2bf; font-size: 11dp; text-align: center; cursor: pointer; }
+#graphics-reset { position: absolute; right: 20dp; bottom: 14dp; width: 180dp; height: 30dp; line-height: 30dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f2bf; font-size: 11dp; text-align: center; cursor: pointer; }
 #graphics-reset:hover { background-color: #f5f6f21a; color: #f5f6f2; border-color: #ec6962; }
 .graphics-mode { display: flex; }
-.graphics-mode button { width: 150dp; height: 32dp; margin-right: 8dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f299; font-size: 12dp; text-align: center; cursor: pointer; }
+.graphics-mode button { width: 150dp; height: 32dp; line-height: 32dp; margin-right: 8dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f299; font-size: 12dp; text-align: center; cursor: pointer; }
 .graphics-mode button.selected { color: #f5f6f2; border-bottom: 2dp #ec6962; background-color: #f5f6f21a; }
 .graphics-mode button:hover { color: #f5f6f2; background-color: #f5f6f21a; }
 .graphics-value { height: 19dp; font-size: 14dp; }

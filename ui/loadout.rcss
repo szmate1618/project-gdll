@@ -1,7 +1,7 @@
 body.loadout { pointer-events: auto; }
 #loadout-frame { position: absolute; left: 50%; top: 50%; margin-left: -606dp; margin-top: -330dp; width: 1212dp; height: 660dp; }
 #loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom-width: 1dp; }
-.page-tab { display: block; position: absolute; top: 6dp; height: 40dp; width: 178dp; box-sizing: border-box; padding: 0dp; text-align: left; font-size: 19dp; cursor: pointer; }
+.page-tab { display: block; position: absolute; top: 6dp; height: 40dp; width: 178dp; box-sizing: border-box; padding: 0dp; text-align: left; font-size: 19dp; line-height: 38dp; cursor: pointer; }
 #inventory-tab { left: 0dp; }
 #skills-tab { left: 204dp; }
 #health-tab { left: 408dp; }

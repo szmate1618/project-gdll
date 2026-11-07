@@ -14,7 +14,7 @@ input { tab-index: auto; }
 .action-detail { display: none; }
 #theme-picker { position: absolute; right: 60dp; top: 55dp; height: 30dp; }
 #theme-label { display: inline-block; margin-right: 12dp; }
-.theme-button { display: inline-block; height: 30dp; padding: 4dp 10dp; margin-left: 6dp; }
+.theme-button { display: inline-block; height: 30dp; line-height: 29dp; padding: 0dp 10dp; margin-left: 6dp; }
 #connection-panel { position: absolute; left: 490dp; top: 135dp; width: 410dp; height: 215dp; }
 #address-label, #connection-title, #connection-note { position: absolute; }
 #join-address { position: absolute; left: 0dp; width: 410dp; height: 40dp; padding: 7dp 15dp; }
