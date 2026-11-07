@@ -3,7 +3,7 @@
     width: 364dp; height: 92dp; z-index: 35;
 }
 #sleep-drawer.available { display: block; }
-#sleep-drawer.expanded { right: 0dp; top: 22%; height: 422dp; }
+#sleep-drawer.expanded { right: 0dp; top: 22%; height: 308dp; }
 #sleep-tab {
     position: absolute; left: 0dp; top: 0dp; width: 32dp; height: 92dp;
     background-color: #2b2d2ff2; border: 1dp #f5f6f24d;
@@ -17,22 +17,23 @@
     position: absolute; left: 34dp; top: 0dp; width: 330dp; height: 100%;
     background-color: #383a3cfa; color: #f5f6f2; border-left: 1dp #f5f6f24d;
 }
-.sleep-heading { position: absolute; left: 18dp; top: 16dp; font-size: 12dp; letter-spacing: 2dp; }
+.sleep-heading { position: absolute; left: 16dp; top: 12dp; font-size: 12dp; letter-spacing: 2dp; }
 #sleep-close { position: absolute; right: 12dp; top: 10dp; width: 28dp; height: 28dp; line-height: 26dp; font-size: 18dp; }
-.sleep-clock-row { position: absolute; left: 18dp; top: 49dp; right: 18dp; height: 40dp; }
-#sleep-day { position: absolute; left: 0dp; top: 14dp; color: #f5f6f299; font-size: 11dp; }
-#sleep-clock { position: absolute; right: 0dp; top: 0dp; font-size: 32dp; }
-.sleep-rule { position: absolute; left: 18dp; right: 18dp; top: 100dp; height: 1dp; background-color: #f5f6f226; }
-.sleep-duration-label { position: absolute; left: 18dp; top: 114dp; font-size: 10dp; color: #f5f6f299; }
-.sleep-stepper { position: absolute; top: 134dp; left: 18dp; right: 18dp; height: 48dp; }
-#sleep-duration { position: absolute; left: 54dp; right: 54dp; top: 0dp; line-height: 46dp; text-align: center; font-size: 30dp; }
-#sleep-less, #sleep-more { position: absolute; top: 0dp; width: 44dp; height: 46dp; line-height: 44dp; font-size: 24dp; }
+.sleep-clock-row { position: absolute; left: 16dp; top: 8dp; right: 54dp; height: 36dp; }
+#sleep-day { position: absolute; left: 0dp; top: 23dp; color: #f5f6f299; font-size: 11dp; }
+#sleep-clock { position: absolute; right: 0dp; top: 5dp; font-size: 24dp; }
+.sleep-rule { position: absolute; left: 16dp; right: 16dp; top: 52dp; height: 1dp; background-color: #f5f6f226; }
+.sleep-duration-label { position: absolute; left: 16dp; top: 64dp; font-size: 10dp; color: #f5f6f299; }
+/* Duration and proposal share one row; the roster keeps its three visible lines. */
+.sleep-stepper { position: absolute; top: 82dp; left: 16dp; width: 148dp; height: 34dp; }
+#sleep-duration { position: absolute; left: 38dp; right: 38dp; top: 0dp; line-height: 34dp; text-align: center; font-size: 24dp; }
+#sleep-less, #sleep-more { position: absolute; top: 0dp; width: 32dp; height: 34dp; line-height: 32dp; font-size: 22dp; }
 #sleep-less { left: 0dp; }
 #sleep-more { right: 0dp; }
-#sleep-wake { position: absolute; top: 192dp; left: 18dp; right: 18dp; font-size: 11dp; text-align: center; color: #f5f6f2bf; }
-#sleep-suggest { position: absolute; top: 219dp; left: 18dp; right: 18dp; height: 36dp; line-height: 34dp; }
-#sleep-proposal { position: absolute; top: 269dp; left: 18dp; right: 18dp; font-size: 12dp; }
-#sleep-roster { position: absolute; top: 291dp; left: 18dp; right: 18dp; height: 54dp; overflow-y: auto; font-size: 10dp; }
+#sleep-wake { position: absolute; top: 124dp; left: 16dp; right: 16dp; font-size: 11dp; text-align: center; color: #f5f6f2bf; }
+#sleep-suggest { position: absolute; top: 82dp; left: 176dp; right: 16dp; height: 34dp; line-height: 32dp; font-size: 11dp; }
+#sleep-proposal { position: absolute; top: 150dp; left: 16dp; right: 16dp; font-size: 12dp; }
+#sleep-roster { position: absolute; top: 174dp; left: 16dp; right: 16dp; height: 54dp; overflow-y: auto; font-size: 10dp; }
 .sleep-member { height: 17dp; color: #f5f6f299; }
 .sleep-member span { float: right; }
 .sleep-member.accept, .sleep-member.guard { color: #f5f6f2; }
@@ -41,10 +42,10 @@
 #sleep-roster scrollbarvertical sliderbar { min-height: 16dp; background-color: #f5f6f280; }
 #sleep-roster scrollbarvertical sliderbar:hover { background-color: #f5f6f2bf; }
 #sleep-roster scrollbarvertical sliderarrowdec, #sleep-roster scrollbarvertical sliderarrowinc { height: 0dp; }
-.sleep-responses { position: absolute; top: 352dp; left: 18dp; right: 18dp; height: 30dp; }
+.sleep-responses { position: absolute; top: 238dp; left: 16dp; right: 16dp; height: 30dp; }
 #sleep-accept { position: absolute; left: 0dp; width: 142dp; height: 30dp; }
 #sleep-guard { position: absolute; right: 0dp; width: 142dp; height: 30dp; }
-#sleep-cancel { position: absolute; top: 388dp; left: 18dp; right: 18dp; height: 22dp; line-height: 20dp; font-size: 10dp; }
+#sleep-cancel { position: absolute; top: 274dp; left: 16dp; right: 16dp; height: 22dp; line-height: 20dp; font-size: 10dp; }
 .sleep-button {
     box-sizing: border-box; display: block; text-align: center; line-height: 28dp;
     background-color: #2b2d2f; border: 1dp #f5f6f24d;
@@ -70,7 +71,7 @@
 #sleep-notice-guard { right: 16dp; }
 #sleep-notice-another { position: absolute; left: 16dp; right: 16dp; top: 128dp; height: 28dp; line-height: 26dp; }
 .sleep-notice-hint { position: absolute; left: 16dp; bottom: 6dp; font-size: 9dp; color: #f5f6f299; }
-.sleep-expanded #equipment-drawer { top: 81%; height: 136dp; transition: none; }
+.sleep-expanded #equipment-drawer { top: 22%; margin-top: 320dp; height: 136dp; transition: none; }
 #sleep-blackout { display: none; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; background-color: #000; z-index: 200; }
 .sleeping > div { display: none; }
 .sleeping #sleep-blackout { display: block; }

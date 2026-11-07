@@ -2070,6 +2070,10 @@ open while choosing a duration; use its close button or click outside to dismiss
 it. Inventory moves lower while this panel is open. The clock shows the current
 game day and 24-hour time. Since maps do not define a calendar date, sessions
 start on Day 1 at their configured time, and the day changes at midnight.
+The compact 330 × 308 dp panel pairs the duration selector with the proposal
+button and combines the title, day and current clock in its header. It retains
+the wake-time preview, proposal status, three visible roster rows and all
+response controls; larger groups scroll within the roster.
 
 Use **− / +** to choose **00:30–12:00**, in 30-minute steps. The panel previews
 the time and day after that duration. **Suggest sleep** shares the duration with

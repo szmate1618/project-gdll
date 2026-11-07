@@ -94,8 +94,8 @@
             <div class="sleep-rule"></div>
             <div class="sleep-duration-label">DURATION · HOURS : MINUTES</div>
             <div class="sleep-stepper"><div id="sleep-less" class="sleep-button">−</div><div id="sleep-duration">00:30</div><div id="sleep-more" class="sleep-button">+</div></div>
-            <div id="sleep-wake"></div>
             <div id="sleep-suggest" class="sleep-button primary">Suggest sleep</div>
+            <div id="sleep-wake"></div>
             <div id="sleep-proposal"></div><div id="sleep-roster"></div>
             <div class="sleep-responses"><div id="sleep-accept" class="sleep-button">Accept</div><div id="sleep-guard" class="sleep-button">Stand guard</div></div>
             <div id="sleep-cancel" class="sleep-button">Cancel proposal</div>

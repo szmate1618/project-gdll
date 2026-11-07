@@ -1274,16 +1274,16 @@ int main(int argc, char** argv) {
             draw(); draw();
             click(1260, 210); draw();
             if (argc > 1) capture((std::string(argv[1]) + "-sleep-panel.ppm").c_str(), pixels(1280,720),1280,720);
-            click(1100, 396);
+            click(1195, 257);
             auto action = hud.takeSleepAction();
             require(action && action->kind == viewer::SleepActionKind::Suggest && action->minutes == 30,
                 "Sleep drawer must start at half an hour");
             require(hud.takeInventoryActions().empty(), "Sleep buttons leaked physical inventory actions");
-            for (int step = 0; step < 26; ++step) click(1240, 315);
-            click(1100, 396); action = hud.takeSleepAction();
+            for (int step = 0; step < 26; ++step) click(1098, 257);
+            click(1195, 257); action = hud.takeSleepAction();
             require(action && action->minutes == 720, "Sleep duration must clamp at 12 hours");
-            for (int step = 0; step < 26; ++step) click(990, 315);
-            click(1100, 396); action = hud.takeSleepAction();
+            for (int step = 0; step < 26; ++step) click(982, 257);
+            click(1195, 257); action = hud.takeSleepAction();
             require(action && action->minutes == 30, "Sleep duration must clamp at 30 minutes");
             plan.apply(2, {viewer::SleepActionKind::Suggest, 0, 480}); rest.sleepPlan = plan.state();
             rest.mouseCaptured = true; draw();
@@ -1293,7 +1293,7 @@ int main(int argc, char** argv) {
             require(action && action->kind == viewer::SleepActionKind::Guard && action->revision == plan.state().revision,
                 "Remote notification must offer a revision-bound guard response");
             click(1060, 301); draw(); // Another duration opens the existing proposal in the drawer.
-            click(1240, 315); click(1100, 396); action = hud.takeSleepAction();
+            click(1098, 257); click(1195, 257); action = hud.takeSleepAction();
             require(action && action->kind == viewer::SleepActionKind::Suggest && action->minutes == 510,
                 "Counterproposal must edit the suggested duration in half-hour steps");
             plan.apply(1, *action); rest.sleepPlan = plan.state(); draw();
@@ -1309,14 +1309,14 @@ int main(int argc, char** argv) {
                     (fitted.y + y / 720 * fitted.height) / 1000);
                 fittedDraw(); hud.pointerButton(0, true); fittedDraw(); hud.pointerButton(0, false); fittedDraw();
             };
-            fittedDraw(); fittedClick(1240, 315); fittedClick(1100, 396); action = hud.takeSleepAction();
+            fittedDraw(); fittedClick(1098, 257); fittedClick(1195, 257); action = hud.takeSleepAction();
             require(action && action->minutes == 540,
                 "Scaled sleep controls must use the fitted presentation image for pointer input");
             draw();
             rest.objectHandling = false;
             rest.mouseCaptured = true; draw(); rest.mouseCaptured = false; draw();
             click(1260, 210); // Open again after mouse capture has closed the panel.
-            hud.pointerMove(1100.f / 1280, 396.f / 720); hud.pointerButton(0, true); draw();
+            hud.pointerMove(1195.f / 1280, 257.f / 720); hud.pointerButton(0, true); draw();
             hud.cancelPointerInteraction(); draw(); hud.pointerButton(0, false); draw();
             require(!hud.takeSleepAction(), "Cancelled sleep press sent a proposal");
             require(hud.takeInventoryActions().empty(), "Sleep notification changed equipment");
