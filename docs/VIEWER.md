@@ -1723,7 +1723,8 @@ occluded shots emit nothing; shotgun pellets retain separate hit bursts.
 Multiplayer carries event IDs, positions, sizes and ages, retaining 1.8 seconds
 of history to cover interpolation and packet loss without restarting the fade.
 
-The standalone viewer also emits ten small ballistic blood droplets per hit.
+The standalone viewer and multiplayer clients also emit ten small ballistic
+blood droplets per hit.
 Dismemberment activates a wound-attached emitter at 60 droplets/second for one
 second. The fixed pools hold 1,024 droplets, 16 emitters and 256 floor stains;
 full particle/emitter pools skip excess emission, and stains replace the oldest
@@ -1739,8 +1740,15 @@ over their final three seconds and expire after twenty seconds. This deliberatel
 approximates uneven terrain, stairs and ledges; spray ignores walls and moving
 objects. Emitters retain their initial floor plane while following the ragdoll.
 There are no wall stains, moving-object attachments or blood shadow passes.
-The new droplets/emitters/stains are local to the standalone viewer; multiplayer
-continues to replicate the existing mist events without a protocol change.
+Multiplayer protocol 57 adds bounded spurt-start history (ID, world position,
+direction, age and optional bone-local wound attachment). The server retains
+starts for 1.8 seconds to cover packet loss; it does not simulate droplets,
+query cosmetic floor planes or create stains. Each client starts an event once
+when its timestamp reaches buffered presentation, queries its local static floor,
+and follows available replicated ragdoll poses. Droplets and stains advance on
+the client's monotonic clock, including during server stalls. Confirmed starts
+also reach the shooter whose mist was predicted, without replaying that mist.
+Late joins see only recent starts; old stains are not synchronized.
 
 Prepared characters also load `NAME.hitboxes.json` beside their original GLB.
 These spherical colliders follow the authored waist, neck, shoulders, elbows,

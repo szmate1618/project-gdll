@@ -114,6 +114,7 @@ World::World(Scene& scene) : scene_(scene), birds_(scene), vehicleSeats_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics), melee_(scene.physics) {
     viewer::SimulationClock::instance().reset();
+    scene.zombies.setBloodParticlesEnabled(false);
     scene.zombies.attachPhysics(scene.physics);
     scene.zombies.setHouseNavigation(scene.floorplans.get());
     scene.zombies.setRagdollCleanupHeight(scene.model.boundsMin.y - 10.f);
@@ -547,6 +548,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
     s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds(), id);
+    s.bloodSpurts = scene_.zombies.bloodSpurts().recent(viewer::SimulationClock::instance().seconds());
     for (const auto& [playerId, player] : players_) {
         s.signals.insert(s.signals.end(), player.signals.begin(), player.signals.end());
         const auto& weapon = player.weapons.equipped();

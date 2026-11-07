@@ -211,6 +211,7 @@ void Snapshots::apply(Scene& scene, double now) {
     scene.zombies.setReplicatedWoundContents(b.woundContents);
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
     applyZombies(scene, now, zombieClock_.tick(now));
+    blood_.apply(b.bloodSpurts,double(b.tick)/60,animationSeconds(),now,scene.zombies,*scene.collision);
 }
 void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTick) {
     auto kept = trackedZombieIds_.begin();

@@ -155,6 +155,9 @@ void predictedMistPublication(const Options& options) {
     require(local.size() == 1 && local[0].id == ordinary[0].id && other.size() == 2 &&
             other[0].id == ordinary[0].id && other[1].id != ordinary[0].id,
         "Predicted shot mist replayed for its owner or disappeared for another observer");
+    require(world.snapshot(shooter).bloodSpurts.size() == 2 && world.snapshot(remote).bloodSpurts.size() == 2 &&
+            !scene.zombies.bloodParticles().hasEffects(viewer::SimulationClock::instance().seconds()),
+        "Predicted mist hid the shooter's spurt start, or the server simulated visual droplets");
     require(scene.zombies.bloodMist().sample(viewer::SimulationClock::instance().seconds()).size() == 2 &&
             world.players().at(shooter).shots == 2 &&
             world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 2 &&

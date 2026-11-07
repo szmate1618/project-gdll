@@ -853,6 +853,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 renderer.setFlashlight(in.flashlight);
                 renderer.setRemoteFlashlights(multiplayer::remoteFlashlights(snapshots.players(), self));
                 renderer.setLocalBloodMist(graphics.localBloodMist.sample(now));
+                renderer.setBloodEffectSeconds(now);
                 renderer.updateGrenades(snapshots.grenades());
                 renderer.updateVegetationBlasts(snapshots.explosions(now));
                 auto pointLights = snapshots.explosionLights(now);

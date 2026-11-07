@@ -577,10 +577,11 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         auto bursts = zombieSource_ ? zombieSource_->bloodMist().sample(animationSeconds) : std::vector<BloodMistBurst>{};
         bursts.insert(bursts.end(), localBloodMist_.begin(), localBloodMist_.end());
         const auto* particles = zombieSource_ ? &zombieSource_->bloodParticles() : nullptr;
-        if (!bursts.empty() || (particles && particles->hasEffects(animationSeconds))) {
+        const double bloodSeconds = bloodEffectSeconds_.value_or(animationSeconds);
+        if (!bursts.empty() || (particles && particles->hasEffects(bloodSeconds))) {
             if (!bloodMist_) bloodMist_ = std::make_unique<BloodMistRenderer>(shaderDirectory_);
             bloodMist_->draw(camera,float(width_)/float(height_),bursts,lighting.unlitColor,
-                             particles,animationSeconds);
+                             particles,bloodSeconds);
         }
     }
     if (!transparentScene_.empty()) {

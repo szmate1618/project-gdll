@@ -604,6 +604,27 @@ void payload(Wire& w, Snapshot& s) {
         burst.size = static_cast<viewer::BloodMistSize>(size);
     });
     uniqueIds(s.bloodMist);
+    w.list(s.bloodSpurts, viewer::BloodSpurts::capacity, [&](viewer::BloodSpurtStart& start) {
+        w.integer(start.id); w.vector(start.position); w.vector(start.direction); w.number(start.age);
+        if (!w.reading && (start.attachment.bone < -1 || start.attachment.bone >= int(maxBones)))
+            throw std::runtime_error("Invalid blood spurt bone");
+        // Zero means unattached; real bone indices are offset by one.
+        std::uint16_t bone = static_cast<std::uint16_t>(start.attachment.bone+1);
+        w.integer(bone);
+        if (!start.id || start.age<0 || start.age>viewer::BloodSpurts::historySeconds ||
+            bone > maxBones) throw std::runtime_error("Invalid blood spurt event");
+        start.attachment.bone = int(bone)-1;
+        if (bone) {
+            std::uint32_t zombie = static_cast<std::uint32_t>(start.attachment.zombie);
+            if (!w.reading && start.attachment.zombie>=maxZombies)
+                throw std::runtime_error("Invalid blood spurt actor");
+            w.integer(zombie);
+            if (zombie>=maxZombies) throw std::runtime_error("Invalid blood spurt actor");
+            start.attachment.zombie = zombie;
+            w.vector(start.attachment.point); w.vector(start.attachment.direction);
+        }
+    });
+    uniqueIds(s.bloodSpurts);
 
     w.list(s.vehicles, maxVehicles, [&](VehicleState& v) {
         w.integer(v.id); w.integer(v.type); w.vector(v.velocity);

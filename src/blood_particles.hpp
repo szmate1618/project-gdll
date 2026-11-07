@@ -31,6 +31,7 @@ struct BloodEmitter {
     glm::vec3 point{0}, direction{0,1,0};
     BloodFloor floor;
     double next = 0, end = 0;
+    bool attachmentResolved = false; // Replicated poses can arrive after the start.
 };
 
 // Presentation only: fixed storage, ballistic droplets and predicted landings.

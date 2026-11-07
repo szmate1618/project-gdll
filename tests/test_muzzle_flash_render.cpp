@@ -99,7 +99,23 @@ void localBloodMist(const std::filesystem::path& captures) {
     renderer.setLocalBloodMist(local.sample(localStart + viewer::BloodMist::duration + .1));
     require(render("ended") == empty,
         "Expired local mist must restore the wall pixels while the server animation clock remains frozen");
-    viewer::Renderer::checkErrors("local and replicated blood mist");
+    // Multiplayer droplets use local seconds while scene animation is frozen.
+    camera.setOrientation(-90,-40);
+    const auto emptyFloor = render("floor-off");
+    viewer::CollisionWorld world(model);
+    replicated.startBloodSpurt({0,{0,-.6f,-1.5f},{0,1,0},0,{}},localStart,&world);
+    renderer.setBloodEffectSeconds(localStart+.05);
+    replicated.updateBloodEffects(localStart+.05);
+    const auto droplets = render("droplets");
+    require(droplets!=emptyFloor,"Client droplets were invisible with a different scene clock");
+    renderer.setBloodEffectSeconds(localStart+2);
+    replicated.updateBloodEffects(localStart+2);
+    const auto stains = render("stains");
+    require(stains!=emptyFloor && stains!=droplets,"Client droplets did not leave visible ground stains");
+    renderer.setBloodEffectSeconds(localStart+23);
+    replicated.updateBloodEffects(localStart+23);
+    require(render("stains-ended")==emptyFloor,"Client ground stains did not fade during a server stall");
+    viewer::Renderer::checkErrors("local and replicated blood mist, droplets and stains");
 }
 
 void check(const std::filesystem::path& captures) {

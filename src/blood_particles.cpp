@@ -46,6 +46,7 @@ void BloodParticles::hit(glm::vec3 point, glm::vec3 direction, double seconds, c
 }
 void BloodParticles::moveEmitter(std::size_t slot, glm::vec3 point, glm::vec3 direction) {
     auto& emitter = emitters_.at(slot);
+    emitter.attachmentResolved = true;
     emitter.point = point;
     emitter.direction = glm::length(direction)>.001f ? glm::normalize(direction) : glm::vec3(0,1,0);
 }

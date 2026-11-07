@@ -41,7 +41,7 @@ viewer_warnings(multiplayer_paths)
 add_library(multiplayer_core STATIC server/dog_replication.cpp client/dog_playback.cpp client/flashlights.cpp protocol.cpp session_settings.cpp client/session_setup.cpp client/host_setup.cpp inventory_state.cpp ragdoll_pose_codec.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
     server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
-    client/ragdoll_playback.cpp client/zombie_prediction.cpp client/zombie_presentation_clock.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
+    client/blood_playback.cpp client/ragdoll_playback.cpp client/zombie_prediction.cpp client/zombie_presentation_clock.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_sleep_world)
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
@@ -132,6 +132,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_firearm_hits PRIVATE multiplayer_core)
     viewer_warnings(test_firearm_hits)
     add_test(NAME multiplayer_firearm_hits COMMAND test_firearm_hits)
+
+    add_executable(test_blood_playback tests/test_blood_playback.cpp)
+    target_link_libraries(test_blood_playback PRIVATE multiplayer_core)
+    viewer_warnings(test_blood_playback)
+    add_test(NAME multiplayer_blood_playback COMMAND test_blood_playback)
 
     add_executable(test_trusted_hits tests/test_trusted_hits.cpp)
     target_link_libraries(test_trusted_hits PRIVATE multiplayer_core)

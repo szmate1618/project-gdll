@@ -168,6 +168,8 @@ public:
     void setRemoteFlashlights(const std::vector<FlashlightView>& lights);
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
+    // Optional local particle/stain clock; standalone uses scene animation seconds.
+    void setBloodEffectSeconds(double seconds) { bloodEffectSeconds_ = seconds; }
     // Already aged on the local presentation clock; server mist keeps its own timeline.
     void setLocalBloodMist(const std::vector<BloodMistBurst>& bursts) { localBloodMist_ = bursts; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
@@ -467,6 +469,7 @@ private:
     bool overlayActive_ = false; // Reset by render(); other callers can present the scene directly.
     MuzzleFlashLight muzzleFlash_;
     std::vector<BloodMistBurst> localBloodMist_;
+    std::optional<double> bloodEffectSeconds_;
     std::array<MuzzleFlashLight, maxExplosionLights> explosionLights_{};
     std::size_t explosionLightCount_ = 0;
     Atmosphere atmosphere_;

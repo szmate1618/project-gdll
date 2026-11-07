@@ -5,6 +5,7 @@
 #include "zombie_prediction.hpp"
 #include "zombie_presentation_clock.hpp"
 #include "dog_playback.hpp"
+#include "blood_playback.hpp"
 #include <deque>
 #include <memory>
 
@@ -45,6 +46,7 @@ private:
     std::vector<viewer::GrenadePose> grenades_;
     VehiclePlayback vehicles_;
     DogPlayback dogs_;
+    BloodPlayback blood_;
     ZombiePresentationClock zombieClock_;
     double received_ = 0, renderTick_ = 0, transitSeconds_ = 0;
     // Direct stable-ID lookup lives on the heap. Replica payloads are allocated

@@ -15,7 +15,7 @@
 #include "zombie_bounds.hpp"
 #include "zombie_wounds.hpp"
 #include "blood_mist.hpp"
-#include "blood_particles.hpp"
+#include "blood_spurt.hpp"
 #include "noise.hpp"
 
 #include <memory>
@@ -136,6 +136,9 @@ struct ZombieLayer {
     const ZombieWounds& wounds() const { return wounds_; }
     const BloodMist& bloodMist() const { return bloodMist_; }
     const BloodParticles& bloodParticles() const { return bloodParticles_; }
+    const BloodSpurts& bloodSpurts() const { return bloodSpurts_; }
+    void setBloodParticlesEnabled(bool enabled) { bloodParticlesEnabled_ = enabled; }
+    void startBloodSpurt(const BloodSpurtStart& start, double seconds, const CollisionWorld* world);
     void updateBloodEffects(double seconds); // Resolve sparse ragdoll emitters, then retire droplets.
     void setReplicatedBloodMist(const std::vector<BloodMistBurst>& bursts, double snapshotSeconds) {
         bloodMist_.replace(bursts,snapshotSeconds);
@@ -277,6 +280,8 @@ private:
     ZombieWounds wounds_;
     BloodMist bloodMist_;
     BloodParticles bloodParticles_;
+    BloodSpurts bloodSpurts_;
+    bool bloodParticlesEnabled_ = true;
     mutable std::vector<ZombieWoundRegions> woundGeometry_;
     std::optional<std::vector<glm::mat4>> replicatedWoundContents_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
