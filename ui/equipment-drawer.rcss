@@ -7,27 +7,33 @@
 #equipment-drawer.expanded { right: 0dp; top: 38%; height: 43%; }
 #equipment-tab {
     position: absolute; left: 0dp; top: 0dp; width: 32dp; height: 100%;
-    background-color: #242d2aee; border: 1dp #809485; border-radius: 6dp 0dp 0dp 6dp;
+    background-color: #2b2d2ff2; border: 1dp #f5f6f24d;
 }
 #equipment-tab div {
     position: absolute; top: 50%; left: 0dp; width: 32dp; height: 117dp;
     margin-top: -58dp; line-height: 13dp;
-    text-align: center; font-size: 12dp; color: #e5eadf;
+    text-align: center; font-size: 12dp; color: #f5f6f2;
 }
 #equipment-panel {
     position: absolute; left: 34dp; top: 0dp; width: 280dp; height: 100%;
-    background-color: #141d19f5; color: #e5eadf;
+    background-color: #383a3cfa; color: #f5f6f2; border-left: 1dp #f5f6f226;
 }
-.equipment-title { height: 40dp; padding: 14dp 14dp 0dp; font-size: 13dp; }
-.equipment-title span { float: right; font-size: 9dp; color: #a6b69f; }
+.equipment-title { box-sizing: border-box; height: 40dp; padding: 14dp 14dp 0dp; border-bottom: 1dp #f5f6f226; font-size: 12dp; letter-spacing: 2dp; }
+.equipment-title span { float: right; font-family: hud-system; font-size: 9dp; letter-spacing: 0dp; color: #f5f6f299; }
 #equipment-list { position: absolute; top: 48dp; bottom: 44dp; left: 10dp; width: 260dp; overflow-y: auto; overflow-x: hidden; }
-.equipment-row { width: 238dp; padding: 10dp 9dp; margin-bottom: 5dp; background-color: #2a352fee; border-left: 2dp #6f8775; }
-.equipment-row.hovered { background-color: #405343; border-left-color: #c5d5ae; }
+.equipment-row { width: 238dp; padding: 10dp 9dp; margin-bottom: 5dp; background-color: #2b2d2f; border-left: 2dp #f5f6f226; }
+.equipment-row.hovered { background-color: #4b4d4f; border-left-color: #f5f6f2bf; }
 .equipment-name { width: 236dp; font-size: 13dp; }
-.equipment-access { width: 236dp; margin-top: 4dp; font-size: 10dp; color: #a6b69f; }
-.equipment-empty { padding: 12dp; color: #a6b69f; }
-#equipment-status { position: absolute; left: 14dp; bottom: 12dp; font-size: 10dp; color: #c5d5ae; }
+.equipment-access { width: 236dp; margin-top: 4dp; font-size: 10dp; color: #f5f6f299; }
+.equipment-empty { padding: 12dp; color: #f5f6f299; }
+#equipment-status { position: absolute; left: 14dp; bottom: 12dp; font-size: 10dp; color: #f5f6f2bf; }
+#equipment-drawer.expanded #equipment-tab { background-color: #383a3cfa; border-left-color: #ec6962; }
+#equipment-list scrollbarvertical { width: 8dp; margin-left: 4dp; }
+#equipment-list scrollbarvertical slidertrack { background-color: #2b2d2f; }
+#equipment-list scrollbarvertical sliderbar { min-height: 20dp; background-color: #f5f6f280; }
+#equipment-list scrollbarvertical sliderbar:hover { background-color: #f5f6f2bf; }
+#equipment-list scrollbarvertical sliderarrowdec, #equipment-list scrollbarvertical sliderarrowinc { height: 0dp; }
 
-#equipment-drawer.rejected #equipment-list { border: 2dp #ec6962; background-color: #472426; }
-#equipment-drawer.rejected .equipment-row { background-color: #4c292bee; border-left-color: #ec6962; }
+#equipment-drawer.rejected #equipment-list { border: 2dp #ec6962; background-color: #2b2d2f; }
+#equipment-drawer.rejected .equipment-row { background-color: #ec69621a; border-left-color: #ec6962; }
 #equipment-drawer.rejected #equipment-status { color: #ec6962; }

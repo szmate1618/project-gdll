@@ -87,7 +87,7 @@
         <div id="sleep-wake-status"></div>
     </div>
     <div id="sleep-drawer">
-        <div id="sleep-tab">S<br/>l<br/>e<br/>e<br/>p</div>
+        <div id="sleep-tab">S<br/>L<br/>E<br/>E<br/>P</div>
         <div id="sleep-panel">
             <div class="sleep-heading">SLEEP</div><div id="sleep-close" class="sleep-button">×</div>
             <div class="sleep-clock-row"><div id="sleep-day">DAY 1</div><div id="sleep-clock">12:00</div></div>
@@ -108,7 +108,7 @@
         <div class="sleep-notice-hint">TAB · FREE CURSOR TO RESPOND</div>
     </div>
     <div id="equipment-drawer">
-        <div id="equipment-tab"><div>I<br/>n<br/>v<br/>e<br/>n<br/>t<br/>o<br/>r<br/>y</div></div>
+        <div id="equipment-tab"><div>I<br/>N<br/>V<br/>E<br/>N<br/>T<br/>O<br/>R<br/>Y</div></div>
         <div id="equipment-panel">
             <div class="equipment-title">EQUIPMENT <span>TAB · CURSOR</span></div>
             <div id="equipment-list"></div>

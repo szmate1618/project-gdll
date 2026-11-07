@@ -2049,6 +2049,12 @@ access times. Hold left mouse on an item to retrieve it. It becomes a physical
 held object only after its calculated access time has elapsed. Releasing early
 cancels retrieval; releasing outside the drawer afterwards drops it to the ground.
 
+The Inventory and Sleep drawers share the Modern menu's charcoal surfaces,
+off-white text, thin rules and coral tab/selection accents. Plex Condensed
+headings and Plex Mono readouts match the full pages. Sleep's primary action
+uses a light button; disabled controls, pending proposals and rejected item
+returns retain distinct feedback.
+
 Move the held item back over the drawer and release to return it to its exact
 original compartment, cell and orientation. Closing and reopening the drawer
 while keeping the mouse held preserves this return location. Once an item has
