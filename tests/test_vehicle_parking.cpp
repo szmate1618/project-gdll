@@ -141,8 +141,92 @@ void replicationAndAir() {
     for(int i=0;i<10;++i) world->step(1.f/60,[&](float dt) {cars.beforeStep(dt);});
     require(cars.simulating(0) && cars.pose(0).chassis.center.y<20,"An airborne unattended car froze before landing");
 }
+void sweptActivation() {
+    for (const glm::vec3 velocity : {glm::vec3(0,0,-90), {0,0,90}, {90,0,0}}) {
+        auto world = std::make_shared<viewer::PhysicsWorld>();
+        viewer::VehicleLayer cars(world);
+        cars.add({0,.8f,0});
+        const auto direction = glm::normalize(velocity);
+        const float separation = velocity.x != 0 ? 3.2f : 4.5f;
+        cars.add(glm::vec3(0,.8f,0) + direction * separation);
+        cars.add(glm::vec3(0,.8f,0) - direction * separation);
+        cars.add({10,.8f,10});
+        cars.add({0,8.8f,0});
+        cars.setDriven(0,true);
+        const auto initial = cars.pose(1);
+        cars.setPose(0,cars.pose(0),velocity);
+        cars.beforeStep(viewer::PhysicsWorld::fixedStepSeconds);
+        require(cars.simulating(1),"Travel bounds did not wake a parked car before forward, reverse or lateral impact");
+        require(!cars.simulating(2) && !cars.simulating(3) && !cars.simulating(4),
+                "Travel activation woke a car behind, distant from or above the moving vehicle");
+        require(cars.pose(1).chassis.center == initial.chassis.center && sameWheels(cars.pose(1).wheels,initial.wheels),
+                "Pre-impact activation changed the parked car pose");
+        require(cars.simulatedCars().size() == 2 && b3World_GetCounters(world->id()).jointCount == 8,
+                "Multiple parked shapes activated the same suspension more than once");
+    }
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(world);
+    cars.add({0,.8f,0}); cars.add({2.2f,.8f,0});
+    cars.setDriven(0,true);
+    cars.beforeStep(viewer::PhysicsWorld::fixedStepSeconds);
+    require(!cars.simulating(1),"A stationary car woke an adjacent parked car");
+    // The chassis owns four suspension joints; wheels each own only one.
+    auto filter = b3DefaultQueryFilter(); filter.maskBits = viewer::vehicleBodyCategory;
+    b3World_OverlapAABB(world->id(),{{-1,0,-2},{1,2,2}},filter,[](b3ShapeId shape,void*) {
+        const auto body = b3Shape_GetBody(shape);
+        if (b3Body_GetJointCount(body) == 4) b3Body_SetAngularVelocity(body,{0,18,0});
+        return true;
+    },nullptr);
+    cars.beforeStep(viewer::PhysicsWorld::fixedStepSeconds);
+    require(cars.simulating(1),"A rotating chassis did not wake a car in its angular sweep");
+}
+void pileupAndSettling() {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    const auto model = ground(); viewer::CollisionWorld collision(model);
+    viewer::PhysicsScene scene(world,collision,model.boundsMin,model.boundsMax);
+    viewer::VehicleLayer cars(world);
+    for (int i=0;i<3;++i) cars.add({0,.8f,-3.9f*i});
+    cars.add({20,.8f,0}); collision.setVehicles(&cars);
+    cars.applyImpulse(0,{0,0,-13200},cars.pose(0).chassis.center);
+    bool secondMoved = false, thirdMoved = false;
+    for (int frame=0;frame<600;++frame) {
+        world->step(1.f/60,[&](float dt) {
+            cars.beforeStep(dt); viewer::prepareVehicleScene(cars,scene);
+        });
+        secondMoved |= cars.velocity(1).z < -.5f;
+        thirdMoved |= cars.velocity(2).z < -.5f;
+        require(!cars.simulating(3),"A pileup activated an unrelated parked car");
+    }
+    require(secondMoved && thirdMoved,"Vehicle collisions did not transfer momentum through a parked-car pileup");
+    require(cars.simulatedCars().empty(),"Cars activated by a pileup did not return to static physics after settling");
+}
+void settlingTarget() {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(world);
+    cars.add({0,.8f,0}); cars.add({0,.8f,-4.5f});
+    cars.setDriven(0,true); cars.setDriven(1,true); cars.setDriven(1,false);
+    auto filter = b3DefaultQueryFilter(); filter.maskBits = viewer::vehicleBodyCategory;
+    b3World_OverlapAABB(world->id(),{{-2,-1,-7},{2,3,-2}},filter,[](b3ShapeId shape,void*) {
+        b3Body_SetAwake(b3Shape_GetBody(shape),false); return true;
+    },nullptr);
+    // Sleeping is sufficient support for parking. Put the target just short
+    // of the half-second transition before introducing the incoming vehicle.
+    for (int step=0;step<29;++step) cars.beforeStep(viewer::PhysicsWorld::fixedStepSeconds);
+    require(cars.simulating(1),"Settling target parked before the half-second grace period");
+    cars.setPose(0,cars.pose(0),{0,0,-90});
+    cars.beforeStep(viewer::PhysicsWorld::fixedStepSeconds);
+    require(cars.simulating(1),"An incoming vehicle's target turned static immediately before collision");
+}
+void startingAgainstBumper() {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(world);
+    cars.add({0,.8f,0}); cars.add({0,.8f,-3.65f});
+    cars.drive(0,1,0,false);
+    cars.beforeStep(viewer::PhysicsWorld::fixedStepSeconds);
+    require(cars.simulating(1),"Applying throttle against a parked bumper did not activate the target from rest");
+}
 }
 int main() {
-    try { parkedFleet(); transitions(); grenadeCategoryContact(); replicationAndAir(); }
+    try { parkedFleet(); transitions(); grenadeCategoryContact(); replicationAndAir(); sweptActivation(); pileupAndSettling(); settlingTarget(); startingAgainstBumper(); }
     catch(const std::exception& error) {std::cerr<<error.what()<<'\n';return 1;}
 }

@@ -1842,10 +1842,19 @@ cabin), with no wheels, joints, traction sampling or surrounding terrain-mesh
 preparation. They remain solid obstacles to players, zombies and moving bodies.
 Entering the driver's seat activates the original chassis, four cylindrical
 wheels and suspension; passengers alone leave the parked representation intact.
-After driver exit or disconnect, the car brakes and retains detailed physics
-until supported and settled for half a second, then returns to the two static
-boxes without changing its pose. Parked cars are immovable until activated;
-explicit gameplay impulses can also activate detailed physics temporarily.
+Before each fixed physics step, moving cars query the physics spatial index over
+their chassis/wheel bounds swept by one step's velocity, with a rotation allowance
+and a 10 cm margin. Parked cars in those bounds activate before contact is solved;
+cars pushed by the impact can wake others on subsequent steps. Applying throttle
+also wakes a car immediately against the bumper when starting from rest. Idle
+cars do not spread activation through a parked fleet. Grenade detonations also activate
+exposed cars whose chassis centers lie within the blast radius, applying one
+outward impulse per car using its total configured mass. Throwing a grenade
+against a car without detonating it leaves the parked representation intact.
+Unoccupied cars brake after driver exit, disconnect, or environmental activation
+and retain detailed physics until supported and settled for half a second, then
+return to the two static boxes without changing their poses. Explicit gameplay
+impulses can also activate detailed physics temporarily.
 Only detailed vehicles trigger nearby terrain/door preparation and physical
 zombie group activation. Replicated client cars retain server wheel poses and
 velocity without constructing a second suspension simulation.
@@ -1952,7 +1961,8 @@ steering response and turn geometry (`vehicle_steering.*`),
 placement loading (`vehicle_placement.*`), seat/driver interaction (`vehicle_player.*`),
 swept living-zombie contacts (`vehicle_zombie_collision.*`), and rendering
 (`vehicle_renderer.cpp`). `viewer_vehicle_parking` checks the 1,000-car collider budget, parked contacts,
-activation, settling, re-entry and replica poses. `viewer_vehicles` checks driving, suspension, collision,
+forward/reverse/lateral and angular activation, pileups, settling, re-entry and
+replica poses. `viewer_vehicles` checks driving, suspension, collision,
 entry/exit and zombie reactions without a GPU. `viewer_vehicle_traction` checks
 rolling, wheelspin/skids, moving support bodies and airborne transitions.
 `viewer_vehicle_steering` checks turn geometry and input response;
@@ -2491,11 +2501,12 @@ Their 450 g bodies have octagonal convex colliders and continuous collision
 detection. Throws inherit walking velocity and add a small upward arc.
 
 The 3-second fuse starts on the throw. Detonation removes the body, kills exposed
-zombies within 8 m into ragdolls, pushes exposed dynamic objects outward, emits
-AI noise, and plays a synthesized explosion sound in single player. Solid scene
-geometry, closed doors, and props can shield targets. Explosions currently affect
-zombies and props; they do not apply player damage. A warm explosion point light uses the same pulse
-code as gun muzzles, with a 12 m range and 180 ms quadratic fade. Up to eight
+zombies within 8 m into ragdolls, activates exposed parked cars, pushes exposed
+dynamic objects outward, emits AI noise, and plays a synthesized explosion sound
+in single player. Solid scene geometry, closed doors, and props can shield
+targets. Explosions currently affect zombies, cars and props; they do not apply
+player damage. A warm explosion point light uses the same pulse code as gun
+muzzles, with a 12 m range and 180 ms quadratic fade. Up to eight
 explosion lights can coexist with the gun muzzle light, including with **F** off.
 Nearby old-forest shrubs bend outward and settle with a short rebound within
 0.9 seconds, using their existing cards and matching shadow poses. The visual

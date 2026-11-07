@@ -14,6 +14,7 @@ class PhysicsScene;
 class CollisionWorld;
 class DoorLayer;
 class ZombieLayer;
+class VehicleLayer;
 struct GrenadePose {
     std::uint32_t id = 0;
     glm::vec3 center{0};
@@ -45,9 +46,10 @@ public:
     void prepare(PhysicsScene& scene, DoorLayer& doors); // Before the shared step.
     // After physics: resolve approximate sphere/trunk overlaps, remove expired
     // bodies, apply blast effects and return new simulation noises for dispatch.
+    // Exposed vehicles activate before receiving their blast impulse.
     // Fast throws can miss trunks.
     std::vector<NoiseEvent> update(double seconds, const CollisionWorld& world, ZombieLayer* zombies = nullptr,
-                double animationSeconds = 0);
+                double animationSeconds = 0, VehicleLayer* vehicles = nullptr);
     std::vector<GrenadePose> poses() const;
     std::vector<GrenadeExplosion> explosions(double seconds) const;
     std::vector<MuzzleFlashLight> lights(double seconds) const;

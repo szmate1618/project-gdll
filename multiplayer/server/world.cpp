@@ -451,6 +451,7 @@ void World::step() {
     scene_.dogs.prepareFetchPhysics(physicsScene_,scene_.doors.get());
     scene_.zombies.prepareWoundPhysics(tickSeconds, now, &physicsScene_);
     scene_.physics->step(tickSeconds, [&](float seconds) {
+        scene_.vehicles->beforeStep(seconds);
         viewer::prepareVehicleScene(*scene_.vehicles, physicsScene_);
         for (const auto i : scene_.vehicles->simulatedCars()) {
             scene_.doors->activateNear(scene_.vehicles->pose(i).chassis.center, 10);
@@ -458,7 +459,6 @@ void World::step() {
         zombieDoors_.prepare(*scene_.doors, scene_.zombies);
         melee_.prepare(bodies.data(),bodies.size(),&scene_.zombies,now);
         for (auto* body : bodies) body->beforeStep(seconds);
-        scene_.vehicles->beforeStep(seconds);
         vehicleZombies_.capture(*scene_.vehicles);
     }, [&](float seconds) {
         vehicleZombies_.resolve(*scene_.vehicles,scene_.zombies,*scene_.collision,seconds,now);
@@ -470,7 +470,8 @@ void World::step() {
         const auto car = vehicleSeats_.car(id);
         if (car != noVehicle) player.velocity = scene_.vehicles->velocity(car);
     }
-    for (const auto& noise : scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now)) emitNoise(noise, now);
+    for (const auto& noise : scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now, scene_.vehicles.get()))
+        emitNoise(noise, now);
     for (const auto& noise : scene_.doors->takeNoises()) emitNoise(noise, now);
     for (const auto& impact : scene_.physics->impacts().take()) {
         sounds_.impact(tick_, impact.sound);

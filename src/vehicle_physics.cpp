@@ -1,6 +1,7 @@
 #include "vehicle_physics.hpp"
 #include "vehicle_steering.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -192,6 +193,36 @@ void VehiclePhysics::setPose(const VehiclePose& pose, glm::vec3 velocity) {
     }
     storedWheels = pose.wheels;
     replicatedVelocity = velocity;
+}
+std::optional<b3AABB> VehiclePhysics::sweptBounds(float seconds) const {
+    const auto bounds = b3Body_ComputeAABB(body);
+    auto minimum = glm::vec3(bounds.lowerBound.x, bounds.lowerBound.y, bounds.lowerBound.z);
+    auto maximum = glm::vec3(bounds.upperBound.x, bounds.upperBound.y, bounds.upperBound.z);
+    const auto velocity = b3Body_GetLinearVelocity(body);
+    const glm::vec3 travel = glm::vec3(velocity.x, velocity.y, velocity.z) * seconds;
+    auto lowerTravel = glm::min(travel, glm::vec3(0));
+    auto upperTravel = glm::max(travel, glm::vec3(0));
+    for (const auto wheel : wheels) {
+        const auto box = b3Body_ComputeAABB(wheel);
+        minimum = glm::min(minimum, glm::vec3(box.lowerBound.x, box.lowerBound.y, box.lowerBound.z));
+        maximum = glm::max(maximum, glm::vec3(box.upperBound.x, box.upperBound.y, box.upperBound.z));
+        const auto v = b3Body_GetLinearVelocity(wheel);
+        const auto displacement = glm::vec3(v.x, v.y, v.z) * seconds;
+        lowerTravel = glm::min(lowerTravel, displacement);
+        upperTravel = glm::max(upperTravel, displacement);
+    }
+    const auto massCenter = b3Body_GetWorldCenter(body);
+    const glm::vec3 center(massCenter.x, massCenter.y, massCenter.z);
+    const float radius = glm::length(glm::max(glm::abs(minimum - center), glm::abs(maximum - center)));
+    const auto omega = b3Body_GetAngularVelocity(body);
+    const float angularTravel = radius * std::min(2.f, glm::length(glm::vec3(omega.x, omega.y, omega.z)) * seconds);
+    // A driver applying throttle may already be against a static bumper. Wake
+    // that target even at zero speed, before the solver cancels the drive force.
+    if (glm::length(upperTravel - lowerTravel) + angularTravel < .001f && (brake || throttle == 0)) return {};
+    // Ten centimetres covers small acceleration and contact tolerances. The
+    // angular arc bound also covers turns between the two endpoint poses.
+    const glm::vec3 padding(.1f + angularTravel);
+    return b3AABB{vector(minimum + lowerTravel - padding), vector(maximum + upperTravel + padding)};
 }
 bool VehiclePhysics::canPark(float seconds) {
     if (driven) { settlingSeconds = 0; return false; }

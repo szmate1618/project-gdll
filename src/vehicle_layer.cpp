@@ -45,6 +45,38 @@ struct VehicleLayer::Impl {
         for(auto wheel:car.wheels) owners.erase(b3StoreBodyId(wheel));
         car.park();
     }
+    void activateInTravel(float seconds) {
+        struct Query {
+            const Impl& layer;
+            std::size_t source = 0;
+            std::vector<std::size_t> candidates;
+        } query{*this, 0, {}};
+        auto filter = b3DefaultQueryFilter();
+        filter.maskBits = vehicleBodyCategory;
+        for (const auto index : simulated) {
+            const auto bounds = cars[index]->sweptBounds(seconds);
+            if (!bounds) continue;
+            query.source = index;
+            b3World_OverlapAABB(world->id(), *bounds, filter, [](b3ShapeId shape, void* context) {
+                auto& q = *static_cast<Query*>(context);
+                const auto owner = q.layer.owners.find(b3StoreBodyId(b3Shape_GetBody(shape)));
+                if (owner != q.layer.owners.end() && owner->second != q.source)
+                    q.candidates.push_back(owner->second);
+                return true;
+            }, &query);
+        }
+        // Changing body types/shapes during a broad-phase callback invalidates
+        // its traversal. Deduplicate two-box hits and mutate only after queries.
+        auto& candidates = query.candidates;
+        std::sort(candidates.begin(), candidates.end());
+        candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+        for (const auto index : candidates) {
+            activate(index);
+            // A settled dynamic target must not turn static later in this same
+            // beforeStep, just as an incoming car is about to hit it.
+            cars[index]->settlingSeconds = 0;
+        }
+    }
 };
 VehicleLayer::VehicleLayer(std::shared_ptr<PhysicsWorld> world, std::vector<VehicleConfig> types) : impl_(std::make_unique<Impl>()) {
     if (!world) throw std::invalid_argument("Vehicles require a physics world");
@@ -127,6 +159,7 @@ void VehicleLayer::drive(std::size_t index, float throttle, float steering, bool
 }
 void VehicleLayer::beforeStep(float seconds) {
     if (!std::isfinite(seconds) || seconds <= 0) return;
+    impl_->activateInTravel(seconds);
     for(std::size_t active=0;active<impl_->simulated.size();) {
         const auto id=impl_->simulated[active];
         const auto& c=impl_->cars[id];

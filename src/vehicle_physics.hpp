@@ -2,6 +2,7 @@
 #include "vehicle_layer.hpp"
 #include "physics_world.hpp"
 #include <box3d/box3d.h>
+#include <optional>
 
 namespace viewer {
 // Internal representation owned by VehicleLayer. Parked cars have one static
@@ -17,6 +18,9 @@ struct VehiclePhysics {
     VehiclePose pose(std::size_t index) const;
     void setPose(const VehiclePose& pose, glm::vec3 velocity);
     BoxPose collider(std::size_t index, std::size_t part) const;
+    // Conservative chassis/wheel bounds over the next step, including rotation.
+    // Quiet cars return no query so suspension jitter cannot wake a parked fleet.
+    std::optional<b3AABB> sweptBounds(float seconds) const;
     bool canPark(float seconds);
 
     PhysicsWorld& world;

@@ -5,6 +5,7 @@
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "zombie_layer.hpp"
+#include "vehicle_layer.hpp"
 
 #include <box3d/box3d.h>
 #include <array>
@@ -44,31 +45,51 @@ void reboundFromTrunks(b3BodyId body, const CollisionWorld& world) {
     if (bounced) b3Body_SetLinearVelocity(body, vec(velocity));
 }
 
-void blastBodies(PhysicsWorld& physics, const CollisionWorld& world, glm::vec3 center, float radius) {
+void blastBodies(PhysicsWorld& physics, const CollisionWorld& world, glm::vec3 center, float radius,
+                 VehicleLayer* vehicles) {
+    struct Hit {
+        b3BodyId body;
+        std::optional<std::size_t> car;
+        glm::vec3 point, impulse;
+    };
     struct Blast {
         const CollisionWorld& world;
+        VehicleLayer* vehicles;
         glm::vec3 center;
         float radius;
         std::set<std::uint64_t> visited;
-    } blast{world, center, radius, {}};
+        std::set<std::size_t> visitedCars;
+        std::vector<Hit> hits;
+    } blast{world, vehicles, center, radius, {}, {}, {}};
     auto filter = b3DefaultQueryFilter();
     filter.maskBits &= ~ragdollFloorCategory;
     const auto lo = center - glm::vec3(radius), hi = center + glm::vec3(radius);
     b3World_OverlapAABB(physics.id(), {vec(lo), vec(hi)}, filter, [](b3ShapeId shape, void* context) {
         auto& b = *static_cast<Blast*>(context);
         const auto body = b3Shape_GetBody(shape);
-        if (b3Body_GetType(body) != b3_dynamicBody || !b.visited.insert(b3StoreBodyId(body)).second) return true;
-        const auto point = b3Body_GetPosition(body);
-        const auto offset = vec(point) - b.center;
+        const auto car = b.vehicles ? b.vehicles->carForBody(body) : std::optional<std::size_t>{};
+        if (car && b.visitedCars.count(*car)) return true;
+        if (!car && (b3Body_GetType(body) != b3_dynamicBody || b.visited.count(b3StoreBodyId(body)))) return true;
+        const auto point = car ? b.vehicles->pose(*car).chassis.center : vec(b3Body_GetPosition(body));
+        const auto offset = point - b.center;
         const float distance = glm::length(offset);
         const auto surface = b3Shape_GetClosestPoint(shape, vec(b.center));
         if (distance >= b.radius || !b.world.lineOfSight(b.center, vec(surface))) return true;
         const auto outward = offset + glm::vec3(0, .35f, 0);
         const auto direction = glm::length(outward) > .001f ? glm::normalize(outward) : glm::vec3(0, 1, 0);
-        const float impulse = b3Body_GetMass(body) * 8.0f * (1 - distance / b.radius);
-        b3Body_ApplyLinearImpulse(body, vec(direction * impulse), point, true);
+        const float mass = car ? b.vehicles->config(*car).weightKg : b3Body_GetMass(body);
+        const float impulse = mass * 8.0f * (1 - distance / b.radius);
+        if (car) b.visitedCars.insert(*car);
+        else b.visited.insert(b3StoreBodyId(body));
+        b.hits.push_back({body, car, point, direction * impulse});
         return true;
     }, &blast);
+    // Activation replaces shapes and creates wheels. Finish the spatial query
+    // first, and apply one total-mass impulse per car, regardless of body count.
+    for (const auto& hit : blast.hits) {
+        if (hit.car) vehicles->applyImpulse(*hit.car, hit.impulse, hit.point);
+        else b3Body_ApplyLinearImpulse(hit.body, vec(hit.impulse), vec(hit.point), true);
+    }
 }
 }
 
@@ -154,7 +175,8 @@ void Grenades::prepare(PhysicsScene& scene, DoorLayer& doors) {
         doors.activateNear(center, glm::length(travel) + 3);
     }
 }
-std::vector<NoiseEvent> Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* zombies, double animationSeconds) {
+std::vector<NoiseEvent> Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* zombies,
+                                       double animationSeconds, VehicleLayer* vehicles) {
     std::vector<NoiseEvent> noises;
     if (!std::isfinite(seconds)) return noises;
     auto& events = impl_->events;
@@ -174,7 +196,7 @@ std::vector<NoiseEvent> Grenades::update(double seconds, const CollisionWorld& w
         if (zombies) {
             zombies->explode(position, blastRadius, animationSeconds, world);
         }
-        blastBodies(*impl_->physics, world, position, blastRadius);
+        blastBodies(*impl_->physics, world, position, blastRadius, vehicles);
         noises.push_back({position,130});
     }
     return noises;

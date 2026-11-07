@@ -436,7 +436,7 @@ void physicsParity(const Options& o) {
     viewer::PhysicsScene localScene(local.physics, *local.collision, local.model.boundsMin, local.model.boundsMax);
     const auto localStep = [&] {
         local.physics->step(tickSeconds, [&](float seconds) {
-            viewer::prepareVehicleScene(*local.vehicles, localScene); local.vehicles->beforeStep(seconds);
+            local.vehicles->beforeStep(seconds); viewer::prepareVehicleScene(*local.vehicles, localScene);
         });
     };
     for (int i = 0; i < 120; ++i) { world.step(); localStep(); }
@@ -453,13 +453,48 @@ void physicsParity(const Options& o) {
             glm::distance(server.vehicles->velocity(0), local.vehicles->velocity(0)) < .01f,
             "Multiplayer must preserve single-player acceleration, directional grip and steering physics");
 }
+void environmentalActivation(const Options& o) {
+    for (const bool blast : {false,true}) {
+        Scene server(o), client(o); openGround(server);
+        server.vehicles->add({0,.8f,0});
+        const float length = server.vehicles->config(0).dimensions.z;
+        server.vehicles->add(blast ? glm::vec3(3,.8f,0) : glm::vec3(0,.8f,-length-.25f));
+        server.vehicles->add({20,.8f,0});
+        World world(server); const auto observer = world.join();
+        if (blast) {
+            require(server.grenades->throwFrom({0,2.8f,5},{1,0,0},{},0,{.05f,8,.01f},*server.collision),
+                    "Arm authoritative vehicle blast fixture");
+        } else {
+            const float mass = server.vehicles->config(0).weightKg;
+            server.vehicles->applyImpulse(0,{0,0,-12*mass},server.vehicles->pose(0).chassis.center);
+        }
+        bool moved = false;
+        for (int frame=0;frame<60 && !moved;++frame) {
+            world.step();
+            moved = glm::length(server.vehicles->velocity(1)) > .5f;
+        }
+        require(moved && server.vehicles->simulating(1),"Server failed to activate a parked car after impact or detonation");
+        require(!server.vehicles->simulating(2),"Server activated a distant parked car");
+        const auto state = wire(world.snapshot(observer));
+        bool replicated = false;
+        for (const auto& vehicle : state.vehicles)
+            if (vehicle.id == 1) replicated = glm::length(vehicle.velocity) > .5f;
+        require(replicated,"Environmentally activated car motion was not replicated");
+        Snapshots playback;
+        const double now = double(state.tick)/60;
+        require(playback.push(state,now),"Activated vehicle snapshot was rejected");
+        playback.apply(client,now);
+        require(client.vehicles->count() == 3 && client.vehicles->simulatedCars().empty(),
+                "Replicating an activated car constructed client suspension physics");
+    }
+}
 }
 int main(int argc, char** argv) {
     try {
         require(argc == 3, "Expected test map and scratch directory");
         protocolChecks(); const auto o = options(argv[1]);
         acknowledgedUpdates(o); seatedExertion(o); ownershipAndDriving(o); passengerOnly(o); passengers(o);
-        extrapolation(o); zombieImpacts(o); physicsParity(o); parkedPopulation(o,argv[2]);
+        extrapolation(o); zombieImpacts(o); physicsParity(o); environmentalActivation(o); parkedPopulation(o,argv[2]);
         std::cout << "Multiplayer vehicle ownership, physics, late join, timeout, camera and wire checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

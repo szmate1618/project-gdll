@@ -5,6 +5,7 @@
 #include "door_layer.hpp"
 #include "collision_world.hpp"
 #include "zombie_layer.hpp"
+#include "vehicle_layer.hpp"
 #include "interior_fixture.hpp"
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -186,10 +187,40 @@ void zombieBlast() {
             "Range boundaries and wall cover must protect zombies");
     require(zombies.explode({0, .9f, 0}, 8, 0, f.world) == 0, "Dead zombies must not be activated twice");
 }
+void vehicleBlast() {
+    // Parked and already active cars receive the same single total-mass kick.
+    for (const bool alreadyActive : {false,true}) {
+        Fixture f;
+        viewer::VehicleLayer cars(f.physics);
+        cars.add({3,.8f,0}); cars.add({0,.8f,-5.5f}); cars.add({12,.8f,0});
+        f.world.setVehicles(&cars);
+        if (alreadyActive) cars.setDriven(0,true);
+        require(f.grenades.throwFrom({0,1,0},{1,0,0},{},0,{.2f,8,.01f},f.world),"Arm vehicle blast fixture");
+        const auto center = f.grenades.poses().at(0).center;
+        const auto offset = cars.pose(0).chassis.center - center;
+        const auto expected = glm::normalize(offset + glm::vec3(0,.35f,0)) *
+            (cars.config(0).weightKg / (cars.config(0).weightKg - 100.f)) * 8.f * (1-glm::length(offset)/8.f);
+        f.grenades.update(.19,f.world,nullptr,0,&cars);
+        require(cars.simulating(0) == alreadyActive,"A grenade woke a car before detonation");
+        f.grenades.update(.21,f.world,nullptr,0,&cars);
+        require(cars.simulating(0) && glm::distance(cars.velocity(0),expected) < .001f,
+                "Blast did not wake an exposed car with exactly one total-mass impulse");
+        require(!cars.simulating(1) && !cars.simulating(2),"Blast activated a shielded or out-of-range car");
+        const auto velocity = cars.velocity(0);
+        f.grenades.update(.3,f.world,nullptr,0,&cars);
+        require(cars.velocity(0) == velocity,"An expired grenade applied its vehicle impulse twice");
+        cars.setDriven(0,false);
+        f.scene.ensureNear(f.model.boundsMin,f.model.boundsMax);
+        for (int frame=0;frame<600;++frame) f.physics->step(1.f/60,[&](float dt) {
+            cars.beforeStep(dt);
+        });
+        require(cars.simulatedCars().empty(),"Blast-activated cars did not settle back to static physics");
+    }
+}
 }
 int main() {
     try {
-        launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast();
+        launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast(); vehicleBlast();
         std::cout << "Grenade CCD, wall/floor/prop/trunk collision, fuse, blast cover and light tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

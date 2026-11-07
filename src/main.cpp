@@ -1975,6 +1975,7 @@ int run(const Options& options) {
                 zombies->prepareWoundPhysics(step, app.displayedAnimationSeconds, &physicsScene);
             }
             playerBody.beforeStep(step);
+            cars.beforeStep(step);
             viewer::prepareVehicleScene(cars, physicsScene);
             for (const auto i : cars.simulatedCars()) {
                 doors.activateNear(cars.pose(i).chassis.center, 10);
@@ -1982,7 +1983,6 @@ int run(const Options& options) {
             if (zombies) {
                 zombieDoorCollision.prepare(doors, *zombies);
             }
-            cars.beforeStep(step);
             vehicleZombies.capture(cars);
         };
         const auto afterPhysics = [&](float step) {
@@ -1999,7 +1999,8 @@ int run(const Options& options) {
                 zombies->synchronizePhysics();
             }
             if (app.driver.occupied()) app.driver.updateCamera(cars, app.rig.camera(), app.world);
-            for (const auto& noise : grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds))
+            for (const auto& noise : grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr,
+                    app.displayedAnimationSeconds, &cars))
                 emitNoise(app, noise);
             for (const auto& noise : doors.takeNoises()) emitNoise(app, noise);
             for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
