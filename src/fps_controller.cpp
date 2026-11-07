@@ -29,6 +29,7 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
                             config.proneEyeHeight, config.proneWidth, config.proneLength,
                             config.crouchTransitionSeconds, config.proneTransitionSeconds,
                             config.exertion.runningDrain, config.exertion.strainRate,
+                            config.exertion.strainRecoveryPerDay, config.exertion.sleepingStrainRecoveryMultiplier,
                             config.exertion.walkingRecovery, config.exertion.crouchedRecoveryMultiplier,
                             config.exertion.seatedRecoveryMultiplier, config.exertion.proneRecoveryMultiplier,
                             config.exertion.loadDecaySeconds, config.exertion.loadDrainMultiplier,
@@ -38,6 +39,7 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
             throw std::invalid_argument("FPS configuration must contain finite, nonnegative values");
         }
     }
+    setDayLengthSeconds(config.exertion.dayLengthSeconds);
     if (config.runSpeed <= config.walkSpeed || config.radius <= 0.0F || config.height < 2.0F * config.radius ||
         config.eyeHeight <= 0.0F || config.eyeHeight > config.height ||
         config.fixedDt <= 0.0F || config.fixedDt > 0.05F ||
@@ -49,6 +51,12 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
         config.exertion.loadDecaySeconds <= 0) {
         throw std::invalid_argument("Invalid FPS capsule, timestep, slope, or speed configuration (run must exceed walk)");
     }
+}
+
+void FPSController::setDayLengthSeconds(double seconds) {
+    if (!std::isfinite(seconds) || seconds < 0 || (seconds > 0 && seconds < 1))
+        throw std::invalid_argument("Day length must be zero or at least one finite simulation second");
+    config_.exertion.dayLengthSeconds = seconds;
 }
 
 bool FPSController::walkable(glm::vec3 normal) const {
@@ -349,16 +357,14 @@ void FPSController::standGuard(float dt) {
     exertion_.decay(dt, config_.exertion);
     exertion_.advance(dt, false, 1, config_.exertion);
 }
-void FPSController::restSleeping(float dt, float gameHours) {
-    if (!std::isfinite(dt) || dt <= 0 || !std::isfinite(gameHours) || gameHours < 0) return;
+void FPSController::restSleeping(float dt) {
+    if (!std::isfinite(dt) || dt <= 0) return;
     noises_.clear();
     horizontalVelocity_ = {}; verticalVelocity_ = 0; movementIntent_ = {};
     jumpHeld_ = jumpQueued_ = proneQueued_ = false;
     exertion_.decay(dt, config_.exertion);
-    // Eight game hours recover one full normalized strain unit. Sleep does not
-    // heal wounds or remove bleeding; those remain medical responsibilities.
-    exertion_.strain = std::max(0.f, exertion_.strain - gameHours / 8);
-    exertion_.advance(dt, false, config_.exertion.proneRecoveryMultiplier, config_.exertion);
+    exertion_.advance(dt, false, config_.exertion.proneRecoveryMultiplier, config_.exertion,
+        config_.exertion.sleepingStrainRecoveryMultiplier);
 }
 
 void FPSController::update(float dt, const FPSInput& input, const CollisionWorld& world) {

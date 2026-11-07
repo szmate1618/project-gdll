@@ -2083,9 +2083,10 @@ Rendering of the world is skipped for sleepers and guards. Actual acceleration d
 CPU capacity; the day-length setting still determines how much simulation time
 each game hour represents. A frozen calendar cannot start sleep.
 
-Sleep restores stamina using prone recovery and removes one normalized strain
-unit per eight game hours. Guards receive ordinary standing stamina recovery,
-without sleep's strain recovery. Sleep does not heal injuries or stop bleeding. The group
+Sleep restores stamina using prone recovery and removes **150 percentage points
+of strain per game day** (**50 points per eight game hours**) while stamina is above zero.
+Guards receive ordinary standing stamina recovery and the base strain recovery
+of **75 percentage points per game day**. Sleep does not heal injuries or stop bleeding. The group
 wakes when the duration ends, a sleeper or guard takes damage, a player joins/leaves, or
 a living member of a scenario horde configured with `movement = "travel"`
 approaches within **60 metres of a sleeper**. This distance-only wake-up represents
@@ -2655,8 +2656,8 @@ pitch, so looking up or down cannot make the player fly. Diagonal input is
 normalized. Walking speed is 3 m/s in every direction. Shift targets 6 m/s
 forward, 4.5 m/s backward, and 5.25 m/s sideways. Running diagonals average the
 two directions: 5.625 m/s forward/sideways and 4.875 m/s backward/sideways.
-All directions and stances share a **1.2 m/s²** acceleration limit: accelerating
-from forward walking to forward running takes **2.5 s**. Braking uses **2.4 m/s²**,
+All directions and stances share a **9.6 m/s²** acceleration limit: accelerating
+from forward walking to forward running takes **0.3125 s**. Braking uses **19.2 m/s²**,
 including releasing movement keys, choosing a slower stance, or reversing.
 Starts and turns also approach the requested velocity gradually. Multiplayer
 checkpoints retain this velocity for prediction and replay.
@@ -2664,8 +2665,8 @@ Acceleration and braking are chosen independently on the current forward/backwar
 and sideways axes. Each reversing axis brakes to zero before accelerating in the
 opposite direction. The axes share a normalized effort budget, so diagonal starts
 and stops keep the same overall limits as straight movement. When one axis brakes
-while the other accelerates at full strength, their rates are **2.4/√2** and
-**1.2/√2 m/s²**. An axis close to its target consumes less effort. Existing momentum
+while the other accelerates at full strength, their rates are **19.2/√2** and
+**9.6/√2 m/s²**. An axis close to its target consumes less effort. Existing momentum
 stays in world space when the camera turns.
 
 Leg injuries limit target speed and acceleration through
@@ -2712,7 +2713,12 @@ Running with movement input drains stamina at `runningDrain * (1 + 0.5 * load)`.
 The tunable prototype base rate is **0.04/s**. Once stamina reaches zero, only the
 remaining exhausted portion of the step adds strain, at
 `strainRate * (1 + 0.5 * load)`. The prototype base strain rate is **1/300 units/s**;
-strain accumulates independently of weariness and currently has no recovery.
+strain accumulates independently of weariness. While stamina is above zero,
+strain continuously recovers at **75 percentage points per in-game day**,
+including during running, walking, rest and car travel. Sleeping doubles this
+to **150 points per game day**. Recovery follows the configured day/night cycle,
+stops at zero strain, and pauses with a frozen calendar. At zero stamina,
+recovery resumes as soon as stamina starts regenerating.
 Between **0% and 100% strain**, maximum stamina decreases linearly from **100% to
 80%**, and stamina regeneration scales linearly from **100% to 50%** of its base
 rate. Both penalties stop increasing at 100% strain, although strain can keep
@@ -2725,8 +2731,9 @@ At zero strain, when not running, walking or standing restores empty stamina in
 Crouching on the ground and sitting in a car use **2×** recovery (**60 s**);
 lying prone on the ground uses **4×** (**30 s**). Posture transitions use the active
 movement stance. Airborne recovery uses the walking rate.
-At 100% strain, reaching the reduced 80% capacity from empty takes **192 s**
-walking/standing, **96 s** crouching/seated, or **48 s** prone.
+If strain is held at 100%, reaching the reduced 80% capacity from empty takes
+**192 s** walking/standing, **96 s** crouching/seated, or **48 s** prone. During
+normal recovery, the falling strain gradually raises capacity and regeneration.
 These rates, the load coefficients, drain and strain rates live in `FPSConfig::exertion`
 ([player_exertion.hpp](../src/player_exertion.hpp)); the faster recovery multipliers
 are prototype tuning values. Teleports, entering/exiting cars and changing camera

@@ -681,7 +681,10 @@ guard alerts. Each guard checks the nearest 20 living zombies every five simulat
 seconds, within 50 m at night and 100 m by day with a twilight blend. A visible
 head and movement roughly toward the guard wake the group. The spotting guard
 faces the detected zombie; everyone sees the guard's name and compass direction.
-Guards recover stamina at the standing rate and receive no sleep strain recovery.
+Guards recover stamina at the standing rate. While stamina is above zero, strain
+recovers by 75 percentage points per in-game day while awake (including guard
+duty and car seats), doubled to 150 points per day when sleeping. These rates
+follow the session's configured day/night cycle.
 Any sleeper or guard receiving gameplay noise above 30 dB at their ear position
 wakes the whole group. Source levels use distance-only attenuation. Door slams
 emit no event below 0.8 rad/s; otherwise their level is 60 dB at 2 rad/s, scaled

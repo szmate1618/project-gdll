@@ -89,7 +89,7 @@ void speedsAndStamina(const CollisionWorld& world) {
     near(player.movementSpeed(true, 0, -1), 4.2f, "Leftward speed must include the injured left leg");
     FPSInput input; input.forward = 1; input.yawDegrees = 0; input.run = true;
     player.update(1.f / 120, input, world);
-    near(player.movementState().horizontalVelocity.x, .00425f, "Stamina must win when worse than the injury acceleration penalty");
+    near(player.movementState().horizontalVelocity.x, .034f, "Stamina must win when worse than the injury acceleration penalty");
 
     PlayerHealth mild;
     mild.addInjury({InjuryBodyPart::RightFoot, InjuryType::Cut, .2f, .1f});
@@ -97,7 +97,7 @@ void speedsAndStamina(const CollisionWorld& world) {
     near(tired.movementSpeed(true), 5.04f, "Stamina must win when worse than injury speed penalties");
     auto fresh = spawn(world, health);
     fresh.update(1.f / 120, input, world);
-    near(fresh.movementState().horizontalVelocity.x, .006f, "Injury acceleration must win over healthy stamina");
+    near(fresh.movementState().horizontalVelocity.x, .048f, "Injury acceleration must win over healthy stamina");
 
     for (const auto stance : {PlayerStance::Crouched, PlayerStance::Prone}) {
         auto state = player.movementState(); state.stance = state.takeoffStance = stance;
@@ -119,7 +119,7 @@ void directionalAcceleration(const CollisionWorld& world) {
                 FPSInput input; input.yawDegrees = yaw; input.right = direction;
                 player.update(1.f / 120, input, world);
                 const bool useInjury = injuredLeft == (direction > 0);
-                near(glm::dot(player.movementState().horizontalVelocity, right), direction * (useInjury ? .005f : .01f),
+                near(glm::dot(player.movementState().horizontalVelocity, right), direction * (useInjury ? .04f : .08f),
                      "Lateral acceleration must use the opposite leg relative to the current camera yaw");
                 near(glm::dot(player.movementState().horizontalVelocity, forward), 0, "Strafing must not inject forward movement");
             }
@@ -130,15 +130,15 @@ void directionalAcceleration(const CollisionWorld& world) {
     auto player = spawn(world, health);
     FPSInput input; input.forward = 1; input.right = -1; input.yawDegrees = 0;
     player.update(1.f / 120, input, world);
-    near(player.movementState().horizontalVelocity.x, .003535534f, "Diagonal forward acceleration must share effort at its injured rate");
-    near(player.movementState().horizontalVelocity.y, -.007071068f, "Diagonal left acceleration must share effort at its healthy rate");
-    auto state = player.movementState(); state.horizontalVelocity = {0, .03f}; player.restoreMovement(state);
+    near(player.movementState().horizontalVelocity.x, .028284272f, "Diagonal forward acceleration must share effort at its injured rate");
+    near(player.movementState().horizontalVelocity.y, -.056568544f, "Diagonal left acceleration must share effort at its healthy rate");
+    auto state = player.movementState(); state.horizontalVelocity = {0, .24f}; player.restoreMovement(state);
     input.forward = input.right = 0;
     player.update(1.f / 120, input, world);
-    near(player.movementState().horizontalVelocity.y, .01f, "Braking rightward momentum uses leftward force from the right leg");
-    state = player.movementState(); state.horizontalVelocity = {0, -.03f}; player.restoreMovement(state);
+    near(player.movementState().horizontalVelocity.y, .08f, "Braking rightward momentum uses leftward force from the right leg");
+    state = player.movementState(); state.horizontalVelocity = {0, -.24f}; player.restoreMovement(state);
     player.update(1.f / 120, input, world);
-    near(player.movementState().horizontalVelocity.y, -.02f, "Braking leftward momentum must retain double the injured rightward acceleration");
+    near(player.movementState().horizontalVelocity.y, -.16f, "Braking leftward momentum must retain double the injured rightward acceleration");
 }
 void ownershipAndRestore(const CollisionWorld& world) {
     PlayerVitals vitals;

@@ -527,7 +527,6 @@ struct AppState {
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     viewer::Hud* hud = nullptr; // Borrows the graphics-thread HUD.
     viewer::SleepPlan* sleepPlan = nullptr;
-    double sleepDayLengthSeconds = 1200;
     bool flashlight = true;
     bool distantSceneCache = false;
     glm::vec3 playerVelocity{0};
@@ -851,7 +850,7 @@ bool updateWeapons(AppState& app, double seconds) {
 
 void moveCamera(AppState& app, float dt) {
     if (app.sleepPlan && app.sleepPlan->state().asleep(1)) {
-        app.rig.restSleeping(dt, static_cast<float>(dt * 24 / app.sleepDayLengthSeconds));
+        app.rig.restSleeping(dt);
         app.playerVelocity = {};
         return;
     }
@@ -1752,7 +1751,7 @@ int run(const Options& options) {
     viewer::SleepPlan sleepPlan;
     sleepPlan.join(1);
     app.sleepPlan = &sleepPlan;
-    app.sleepDayLengthSeconds = options.dayNight.dayLengthSeconds;
+    app.rig.setDayLengthSeconds(options.dayNight.dayLengthSeconds);
     float sleepHealth = app.vitals.health();
     std::vector<std::size_t> sleepThreatCandidates;
     hud.setGroundItems(groundItems, app.weapons, app.world);

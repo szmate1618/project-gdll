@@ -78,8 +78,9 @@ public:
     void restoreMovement(const FPSState& state);
     // Sitting has no movement/collision step but still decays load and recovers stamina.
     void restSeated(float dt);
-    void restSleeping(float dt, float gameHours);
+    void restSleeping(float dt);
     void standGuard(float dt);
+    void setDayLengthSeconds(double seconds);
     [[nodiscard]] const PlayerExertion& exertion() const { return exertion_; }
     void setMovementHealth(const PlayerHealth& health) { injuryMovement_ = playerInjuryMovement(health); }
 

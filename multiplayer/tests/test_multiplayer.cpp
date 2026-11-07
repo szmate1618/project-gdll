@@ -269,21 +269,26 @@ void injuryPrediction() {
 void seatedExertionPrediction() {
     using namespace multiplayer;
     const auto model = ground(); const viewer::CollisionWorld collision(model);
-    viewer::FPSController server;
-    auto state = server.movementState(); state.exertion = {.2f, 1.5f, 2}; server.restoreMovement(state);
-    PlayerState seated; seated.id = 1; seated.vehicle = 0; seated.seat = 0; seated.movement = state;
-    Prediction client; client.reconcile(seated, collision);
-    for (int i = 0; i < 60; ++i) {
-        client.advance({}, collision);
-        if (i < 35) server.restSeated(tickSeconds);
+    for (const double dayLengthSeconds : {24., 2400., 0.}) {
+        viewer::FPSController server;
+        server.setDayLengthSeconds(dayLengthSeconds);
+        auto state = server.movementState(); state.exertion = {.2f, 1.5f, 2}; server.restoreMovement(state);
+        PlayerState seated; seated.id = 1; seated.vehicle = 0; seated.seat = 0; seated.movement = state;
+        Prediction client; client.setDayLengthSeconds(dayLengthSeconds); client.reconcile(seated, collision);
+        for (int i = 0; i < 60; ++i) {
+            client.advance({}, collision);
+            if (i < 35) server.restSeated(tickSeconds);
+        }
+        const auto expected = client.controller().exertion();
+        seated.resolved = 35; seated.movement = server.movementState();
+        client.reconcile(seated, collision);
+        const auto actual = client.controller().exertion();
+        const float recoveredStrain = dayLengthSeconds > 0 ? static_cast<float>(1.5 - .75 / dayLengthSeconds) : 1.5f;
+        require(actual.stamina == expected.stamina && actual.load == expected.load && actual.strain == expected.strain &&
+                std::abs(actual.strain - recoveredStrain) < .00002f &&
+                actual.stamina > .208f && actual.stamina < .209f && actual.load < 1.22f,
+                "Seated reconciliation must replay stamina and calendar-based strain recovery exactly once");
     }
-    const auto expected = client.controller().exertion();
-    seated.resolved = 35; seated.movement = server.movementState();
-    client.reconcile(seated, collision);
-    const auto actual = client.controller().exertion();
-    require(actual.stamina == expected.stamina && actual.load == expected.load && actual.strain == 1.5f &&
-            actual.stamina > .208f && actual.stamina < .209f && actual.load < 1.22f,
-            "Seated reconciliation must replay recovery and load decay without clearing strain");
 }
 void prediction() {
     using namespace multiplayer;

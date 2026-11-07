@@ -1,15 +1,20 @@
 #pragma once
 
+#include "day_night_clock.hpp"
+
 #include <algorithm>
 #include <cmath>
 
 namespace viewer {
 
-// Rates use normalized stamina/strain per simulation second. Speeds and
+// Rates use normalized stamina/strain per simulation second unless noted. Speeds and
 // accelerations remain FPSConfig's responsibility.
 struct PlayerExertionConfig {
     float runningDrain = .04f;
     float strainRate = 1.f / 300;
+    float strainRecoveryPerDay = .75f; // Normalized units per in-game day.
+    float sleepingStrainRecoveryMultiplier = 2;
+    double dayLengthSeconds = DayNightCycle{}.dayLengthSeconds; // Zero freezes strain recovery.
     float walkingRecovery = 1.f / 120;
     float crouchedRecoveryMultiplier = 2;
     float seatedRecoveryMultiplier = 2;
@@ -42,9 +47,14 @@ struct PlayerExertion {
     void decay(float dt, const PlayerExertionConfig& config) {
         load *= std::exp(-dt / config.loadDecaySeconds);
     }
-    void advance(float dt, bool running, float recoveryMultiplier, const PlayerExertionConfig& config) {
+    void advance(float dt, bool running, float recoveryMultiplier, const PlayerExertionConfig& config,
+                 float strainRecoveryMultiplier = 1) {
         stamina = std::min(stamina, maximumStamina());
         if (!running) {
+            // Positive regeneration leaves zero stamina immediately. With no
+            // regeneration, zero stamina must continue to block strain recovery.
+            if (stamina > 0 || config.walkingRecovery * recoveryMultiplier * regenerationMultiplier() > 0)
+                recoverStrain(dt, strainRecoveryMultiplier, config);
             stamina = std::min(maximumStamina(),
                 stamina + config.walkingRecovery * recoveryMultiplier * regenerationMultiplier() * dt);
             return;
@@ -54,8 +64,16 @@ struct PlayerExertion {
         // strain, including when a step crosses zero stamina.
         const float drain = config.runningDrain * effort;
         const float fueledSeconds = drain > 0 ? std::min(dt, stamina / drain) : (stamina > 0 ? dt : 0);
+        recoverStrain(fueledSeconds, strainRecoveryMultiplier, config);
         stamina = std::max(0.f, stamina - drain * fueledSeconds);
         strain += config.strainRate * effort * (dt - fueledSeconds);
+    }
+
+private:
+    void recoverStrain(float seconds, float multiplier, const PlayerExertionConfig& config) {
+        if (config.dayLengthSeconds > 0)
+            strain = std::max(0.f, strain - static_cast<float>(
+                seconds / config.dayLengthSeconds * config.strainRecoveryPerDay * multiplier));
     }
 };
 

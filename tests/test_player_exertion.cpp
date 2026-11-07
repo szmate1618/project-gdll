@@ -61,14 +61,12 @@ void curvesAndDepletion() {
     exertion = {1, 0, 2};
     exertion.advance(1, true, 1, config);
     near(exertion.stamina, .92f, "Movement load must multiply stamina consumption");
-    const auto strain = exertion.strain;
-    exertion.advance(1, false, 1, config);
-    near(exertion.strain, strain, "Rest must preserve accumulated strain independently of stamina");
     exertion.decay(2, config);
     near(exertion.load, .7357589f, "Movement load must retain exp(-1) after two seconds");
 }
 void strainPenalties(const viewer::CollisionWorld& world) {
-    const viewer::PlayerExertionConfig config;
+    viewer::PlayerExertionConfig config;
+    config.strainRecoveryPerDay = 0; // Isolate stamina penalties at constant strain.
     struct Case { float strain, maximum, regeneration; };
     for (const auto test : {Case{0, 1, 1}, {.25f, .95f, .875f}, {.5f, .9f, .75f}, {1, .8f, .5f}, {2, .8f, .5f}}) {
         viewer::PlayerExertion exertion{0, test.strain, 0};
@@ -91,7 +89,10 @@ void strainPenalties(const viewer::CollisionWorld& world) {
     capped.stamina = .125f;
     near(capped.speedMultiplier(), .92f, "Strain must preserve the absolute low-stamina movement thresholds");
 
-    auto walking = spawn(world, {}, 0), crouched = spawn(world, {}, 0), prone = spawn(world, {}, 0), seated = spawn(world, {}, 0);
+    viewer::FPSConfig fixedStrain;
+    fixedStrain.exertion = config;
+    auto walking = spawn(world, fixedStrain, 0), crouched = spawn(world, fixedStrain, 0),
+         prone = spawn(world, fixedStrain, 0), seated = spawn(world, fixedStrain, 0);
     for (auto* player : {&walking, &crouched, &prone, &seated}) {
         auto state = player->movementState(); state.exertion.strain = 1; player->restoreMovement(state);
     }
@@ -112,6 +113,67 @@ void strainPenalties(const viewer::CollisionWorld& world) {
     bool rejected = false;
     try { walking.restoreMovement(invalid); } catch (const std::invalid_argument&) { rejected = true; }
     require(rejected, "Reconciliation must reject stamina above the strain-limited maximum");
+}
+void strainRecovery(const viewer::CollisionWorld& world) {
+    viewer::PlayerExertionConfig config;
+    for (const double daySeconds : {1200., 2400.}) {
+        config.dayLengthSeconds = daySeconds;
+        viewer::PlayerExertion awake{.5f, 1, 0}, asleep = awake;
+        // Eight game hours: 25 percentage points awake, 50 asleep.
+        awake.advance(static_cast<float>(daySeconds / 3), false, 1, config);
+        asleep.advance(static_cast<float>(daySeconds / 3), false, 4, config, 2);
+        near(awake.strain, .75f, "Awake strain recovery must follow the configured in-game day");
+        near(asleep.strain, .5f, "Sleep must double base strain recovery");
+        awake.advance(static_cast<float>(daySeconds), false, 1, config);
+        near(awake.strain, 0, "Strain must recover fully and stop at zero");
+        require(awake.valid() && asleep.valid(), "Recovery must respect the expanding stamina capacity");
+    }
+    config = {};
+    viewer::PlayerExertion continuous{.5f, 1, 0};
+    for (int tick = 0; tick < 120 * 1200; ++tick) continuous.advance(1.f / 120, false, 1, config);
+    near(continuous.strain, .25f, "Fixed steps must recover 75 percentage points per game day", .004f);
+
+    config.dayLengthSeconds = 24;
+    config.walkingRecovery = 0;
+    viewer::PlayerExertion exhausted{0, 1, 0};
+    exhausted.advance(8, false, 1, config);
+    near(exhausted.strain, 1, "Zero stamina must block recovery when stamina cannot regenerate");
+    exhausted.stamina = .001f;
+    exhausted.advance(8, false, 1, config);
+    near(exhausted.strain, .75f, "Any positive stamina must allow strain recovery");
+    exhausted = {0, 1, 0};
+    config.walkingRecovery = viewer::PlayerExertionConfig{}.walkingRecovery;
+    exhausted.advance(8, false, 1, config);
+    near(exhausted.strain, .75f, "Regaining stamina must resume strain recovery immediately");
+
+    viewer::PlayerExertion runner{.02f, 1, 0};
+    runner.advance(1, true, 1, config);
+    near(runner.strain, 1 - .015625f + config.strainRate * .5f,
+         "Depletion must split fueled recovery from exhausted strain accumulation");
+    config.dayLengthSeconds = 0;
+    exhausted = {.5f, 1, 0};
+    exhausted.advance(8, false, 1, config);
+    near(exhausted.strain, 1, "A frozen calendar must freeze calendar-based strain recovery");
+
+    // All controller paths share the same calendar rate, including seated rest
+    // and automatic guard duty. Stamina posture multipliers do not affect strain.
+    for (int mode = 0; mode < 6; ++mode) {
+        auto player = spawn(world);
+        player.setDayLengthSeconds(24);
+        auto state = player.movementState(); state.exertion = {.5f, 1, 0}; player.restoreMovement(state);
+        viewer::FPSInput input; input.forward = 1;
+        input.crouch = mode == 1;
+        for (int tick = 0; tick < 120 * 8; ++tick) {
+            input.toggleProne = mode == 2 && tick == 0;
+            if (mode < 3) player.update(1.f / 120, input, world);
+            else if (mode == 3) player.restSeated(1.f / 120);
+            else if (mode == 4) player.standGuard(1.f / 120);
+            else player.restSleeping(1.f / 120);
+        }
+        near(player.exertion().strain, mode == 5 ? .5f : .75f,
+             "Every controller path must apply its calendar-based strain recovery", .0001f);
+        require(player.exertion().valid(), "Strain recovery must preserve movement checkpoint validity");
+    }
 }
 void movementPercentages(const viewer::CollisionWorld& world) {
     viewer::FPSConfig config;
@@ -241,7 +303,8 @@ void cameraModePreservesExertion(const viewer::CollisionWorld& world) {
 int main() {
     try {
         const auto model = floor(); const viewer::CollisionWorld world(model);
-        curvesAndDepletion(); strainPenalties(world); movementPercentages(world); movementLoad(world); recovery(world); fixedStepsAndRestore(world);
+        curvesAndDepletion(); strainPenalties(world); strainRecovery(world);
+        movementPercentages(world); movementLoad(world); recovery(world); fixedStepsAndRestore(world);
         cameraModePreservesExertion(world);
         std::cout << "Player exertion tests passed\n";
         return 0;

@@ -136,6 +136,7 @@ std::uint32_t World::join(const std::string& characterName) {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
     const auto id = nextPlayer_++;
     auto& player = players_.try_emplace(id, scene_.initialWeapons, scene_.initialInventory, scene_.physics).first->second;
+    player.controller.setDayLengthSeconds(scene_.dayNight.dayLengthSeconds);
     player.characterName = characterName.empty() ? "Player " + std::to_string(id) : characterName;
     player.undergrowth = viewer::UndergrowthEmitter(id);
     auto spawn = scene_.spawnEye;
@@ -287,8 +288,7 @@ void World::step() {
                 player.pendingInventoryActions.clear();
                 player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
                 if (sleepPlan_.state().asleep(id))
-                    player.controller.restSleeping(tickSeconds / inputs,
-                        static_cast<float>(tickSeconds / inputs * 24 / scene_.dayNight.dayLengthSeconds));
+                    player.controller.restSleeping(tickSeconds / inputs);
                 else player.controller.standGuard(tickSeconds / inputs);
                 player.velocity = {};
                 player.body.follow(player.camera.position(), player.camera.direction(), false);

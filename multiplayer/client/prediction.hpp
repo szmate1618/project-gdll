@@ -6,6 +6,7 @@
 namespace multiplayer {
 class Prediction {
 public:
+    void setDayLengthSeconds(double seconds) { controller_.setDayLengthSeconds(seconds); }
     Command advance(Command command, const viewer::CollisionWorld& collision);
     void reconcile(const PlayerState& authoritative, const viewer::CollisionWorld& collision);
     Commands commandsToSend() const;

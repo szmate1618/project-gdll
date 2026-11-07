@@ -476,6 +476,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
     auto& scene = *loaded;
     for (auto& instance : scene.zombies.instances) instance.removed = true;
     multiplayer::Prediction prediction;
+    prediction.setDayLengthSeconds(scene.dayNight.dayLengthSeconds);
     multiplayer::Snapshots snapshots;
     viewer::boid::Replica birds;
     bool birdCheckpointRequested=false;

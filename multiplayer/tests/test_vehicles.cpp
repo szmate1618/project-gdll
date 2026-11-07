@@ -214,9 +214,9 @@ void seatedExertion(const Options& o) {
         controller.restSeated(tickSeconds);
     }
     const auto exertion = controller.exertion();
-    require(std::abs(exertion.stamina - .2166667f) < .0001f && exertion.strain == 1.5f &&
+    require(std::abs(exertion.stamina - .2166667f) < .0001f && std::abs(exertion.strain - 1.49875f) < .00002f &&
             std::abs(exertion.load - .7357589f) < .0001f,
-            "Repeated seat positioning must preserve recovery, strain and decaying load");
+            "Repeated seat positioning must preserve stamina and strain recovery and decaying load");
     require(seats.toggle(1, controller, camera), "Rested player must exit the parked car");
     require(controller.exertion().stamina == exertion.stamina && controller.exertion().strain == exertion.strain &&
             controller.exertion().load == exertion.load, "Exiting a car must preserve exertion");

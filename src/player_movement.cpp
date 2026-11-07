@@ -47,8 +47,8 @@ glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& inpu
     // not rotate the existing velocity with the camera.
     const glm::vec2 velocity(glm::dot(horizontalVelocity_, forward), glm::dot(horizontalVelocity_, right));
     const glm::vec2 delta = target - velocity;
-    // One shared acceleration in m/s²: forward walk -> run takes 2.5 s.
-    const float baseAcceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f;
+    // One shared acceleration in m/s²: forward walk -> run takes 0.3125 s.
+    const float baseAcceleration = (config_.runSpeed - config_.walkSpeed) / .3125f;
     // Lateral force uses the opposite leg, including when braking or reversing.
     const glm::vec2 injuryAcceleration(injuryMovement_.forwardAcceleration,
         delta.y < 0 ? injuryMovement_.leftAcceleration : injuryMovement_.rightAcceleration);

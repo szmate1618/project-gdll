@@ -103,7 +103,7 @@ void testFlatMovementAndTime() {
     run(thirty, world, 4.0F, input, 30);
     run(sixty, world, 4.0F, input, 60);
     run(fast, world, 4.0F, input, 144);
-    require(std::abs(thirty.feet().x - 8.2625F) < 0.03F, "Walking start must ramp to 3 m/s in 2.5 seconds");
+    require(std::abs(thirty.feet().x - 11.543667F) < 0.03F, "Walking start must ramp to 3 m/s in 0.3125 seconds");
     require(glm::length(thirty.feet() - sixty.feet()) < 0.03F &&
                 glm::length(thirty.feet() - fast.feet()) < 0.03F,
             "Walking displacement depends on render rate");
@@ -113,13 +113,13 @@ void testFlatMovementAndTime() {
     input.right = 1.0F;
     auto diagonal = spawned(world);
     run(diagonal, world, 2.0F, input);
-    require(std::abs(glm::length(glm::vec2(diagonal.feet().x, diagonal.feet().z)) - 2.41F) < 0.01F,
+    require(std::abs(glm::length(glm::vec2(diagonal.feet().x, diagonal.feet().z)) - 5.543667F) < 0.01F,
             "Diagonal walking is faster than straight walking");
     auto sprint = spawned(world);
     input.right = 0.0F;
     input.run = true;
     run(sprint, world, 2.0F, input);
-    require(std::abs(sprint.feet().x - 2.41F) < 0.02F, "Running from rest must use the same acceleration as walking");
+    require(std::abs(sprint.feet().x - 10.15F) < 0.02F, "Running from rest must use the same acceleration as walking");
 }
 
 void testDirectionalSpeedsAndAcceleration() {
@@ -144,51 +144,53 @@ void testDirectionalSpeedsAndAcceleration() {
 
     auto player = spawned(world);
     viewer::FPSInput input; input.forward = 1; input.yawDegrees = 0;
-    run(player, world, 2.5f, input);
+    run(player, world, 38.f / 120, input);
     require(std::abs(player.movementState().horizontalVelocity.x - 3) < .0001f, "Walking must reach 3 m/s");
     input.run = true;
-    run(player, world, 1.25f, input);
-    require(std::abs(player.movementState().horizontalVelocity.x - 4.5f) < .0001f, "Half of walk-to-run must reach 4.5 m/s");
+    run(player, world, .15f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 4.44f) < .0001f, "Walk-to-run must gain 1.44 m/s in 0.15 seconds");
     const auto checkpoint = player.movementState();
     viewer::FPSController restored;
     restored.restoreMovement(checkpoint);
-    run(player, world, 1.25f, input);
-    run(restored, world, 1.25f, input);
+    run(player, world, 20.f / 120, input);
+    run(restored, world, 20.f / 120, input);
     require(std::abs(player.movementState().horizontalVelocity.x - 6) < .0001f &&
             glm::length(player.feet() - restored.feet()) < .0001f,
-            "Walk-to-run must take 2.5 seconds and replay identically from a partial acceleration");
+            "Walk-to-run must reach running speed within 38 ticks and replay identically from a partial acceleration");
     input.run = false;
-    run(player, world, .625f, input);
-    require(std::abs(player.movementState().horizontalVelocity.x - 4.5f) < .0001f, "Braking must be twice as fast");
-    run(player, world, .625f, input);
-    require(std::abs(player.movementState().horizontalVelocity.x - 3) < .0001f, "Run-to-walk must take 1.25 seconds");
+    run(player, world, .075f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 4.56f) < .0001f, "Braking must be twice as fast");
+    run(player, world, 10.f / 120, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 3) < .0001f, "Run-to-walk must reach walking speed within 19 ticks");
+    auto reversing = player.movementState(); reversing.horizontalVelocity = {3.2f, 0};
+    player.restoreMovement(reversing);
     input.forward = -1;
-    run(player, world, 1.25f, input);
+    run(player, world, 1.f / 6, input);
     require(glm::length(player.movementState().horizontalVelocity) < .0001f, "Reversing must brake to rest first");
-    run(player, world, 1.25f, input);
-    require(std::abs(player.movementState().horizontalVelocity.x + 1.5f) < .0001f, "Reversing must accelerate at the same limit");
+    run(player, world, .15f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x + 1.44f) < .0001f, "Reversing must accelerate at the same limit");
     input.forward = 0;
-    run(player, world, .625f, input);
+    run(player, world, .075f, input);
     require(glm::length(player.movementState().horizontalVelocity) < .0001f, "Releasing input must brake to rest");
     const auto stopped = player.feet();
     run(player, world, .5f);
     require(glm::length(player.feet() - stopped) < .0001f, "Finished braking must not drift");
     player.restoreMovement(checkpoint);
     input = {}; input.forward = 1; input.yawDegrees = 0; input.run = true; input.crouch = true;
-    run(player, world, .25f, input);
-    require(std::abs(player.movementState().horizontalVelocity.x - 3.9f) < .0001f,
+    run(player, world, .125f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 2.04f) < .0001f,
             "Entering crouch must brake gradually at the shared limit");
     input.crouch = false; input.toggleProne = true;
     player.update(1.f / 120, input, world);
     input.toggleProne = false;
-    run(player, world, .25f - 1.f / 120, input);
-    require(std::abs(player.movementState().horizontalVelocity.x - 3.3f) < .0001f,
+    run(player, world, .125f - 1.f / 120, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - .75f) < .0001f,
             "Entering prone must keep the same braking limit without snapping to crawl speed");
     player.restoreMovement(checkpoint);
     input = {}; input.right = 1; input.yawDegrees = 0; input.run = true;
     player.update(1.f / 120, input, world);
-    require(player.movementState().horizontalVelocity.x > 4.48f &&
-            player.movementState().horizontalVelocity.y > 0 && player.movementState().horizontalVelocity.y < .02f,
+    require(player.movementState().horizontalVelocity.x > 4.32f &&
+            player.movementState().horizontalVelocity.y > 0 && player.movementState().horizontalVelocity.y < .08f,
             "Changing direction must steer gradually rather than replace the velocity instantly");
     player.teleport({0, .002f, 0});
     require(player.movementState().horizontalVelocity == glm::vec2(0), "Teleport must clear movement momentum");
@@ -203,11 +205,11 @@ void testDirectionalSpeedsAndAcceleration() {
             moving.restoreMovement(state);
             input = {}; input.forward = direction.forward; input.right = direction.right;
             input.run = true; input.crouch = stance == viewer::PlayerStance::Crouched;
-            run(moving, world, .25f, input);
-            require(std::abs(glm::length(moving.movementState().horizontalVelocity) - .3f) < .0001f,
+            run(moving, world, .025f, input);
+            require(std::abs(glm::length(moving.movementState().horizontalVelocity) - .24f) < .0001f,
                     "Every direction and stance must share the same acceleration");
             input.forward = input.right = 0;
-            run(moving, world, .125f, input);
+            run(moving, world, 2.f / 120, input);
             require(glm::length(moving.movementState().horizontalVelocity) < .0001f,
                     "Every direction and stance must share double-rate braking");
         }
@@ -221,23 +223,23 @@ void testAxisAccelerationBudget() {
         glm::vec2 velocity, input, expected;
         const char* message;
     };
-    // One 1/120 s tick: full single-axis acceleration changes speed by .01 m/s.
+    // One 1/120 s tick: full single-axis acceleration changes speed by .08 m/s.
     const Case cases[] = {
-        {{0, 0}, {1, 1}, {.007071068f, .007071068f},
+        {{0, 0}, {1, 1}, {.056568544f, .056568544f},
          "Diagonal acceleration must share the straight-line budget"},
-        {{3, 3}, {0, 0}, {2.985857864f, 2.985857864f},
+        {{3, 3}, {0, 0}, {2.886862912f, 2.886862912f},
          "Diagonal braking must share the double-strength budget"},
-        {{3, 0}, {0, 1}, {2.985857864f, .007071068f},
+        {{3, 0}, {0, 1}, {2.886862912f, .056568544f},
          "A right turn must brake forward at twice the sideways acceleration"},
-        {{0, -3}, {-1, 0}, {-.007071068f, -2.985857864f},
+        {{0, -3}, {-1, 0}, {-.056568544f, -2.886862912f},
          "Negative-axis movement must use the same mixed braking and acceleration"},
-        {{.005f, 0}, {-1, 0}, {-.0075f, 0},
+        {{.04f, 0}, {-1, 0}, {-.06f, 0},
          "Reversal within a tick must brake to zero before using the remaining time to accelerate"},
-        {{.005f, 0}, {-1, 1}, {-.004571068f, .007071068f},
+        {{.04f, 0}, {-1, 1}, {-.036568544f, .056568544f},
          "Reversing one axis must share effort with acceleration on the other"},
-        {{1.7975f, 0}, {.6f, .8f}, {1.799925356f, .009701425f},
+        {{1.78f, 0}, {.6f, .8f}, {1.799402848f, .0776114f},
          "An axis near its target must leave more effort for sideways acceleration without overshooting"},
-        {{.005f, 0}, {0, 1}, {.000149287f, .009701425f},
+        {{.04f, 0}, {0, 1}, {.001194296f, .0776114f},
          "An axis almost stopped must leave more effort for sideways acceleration"},
         {{0, 0}, {.0003f, .0004f}, {.0009f, .0012f},
          "Small analog targets within the budget must be reached without overshooting"},
@@ -272,7 +274,7 @@ void testAxisAccelerationBudget() {
     player.restoreMovement(state);
     viewer::FPSInput input; input.forward = 1; input.yawDegrees = 90;
     player.update(1.f / 120, input, world);
-    require(glm::length(player.movementState().horizontalVelocity - glm::vec2(2.985857864f, .007071068f)) < .000002f,
+    require(glm::length(player.movementState().horizontalVelocity - glm::vec2(2.886862912f, .056568544f)) < .000002f,
             "Turning the camera must steer existing world momentum gradually");
 }
 

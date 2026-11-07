@@ -83,12 +83,13 @@ void lifecycle() {
     FPSController player; auto movement = player.movementState();
     movement.feet = {4,0,8}; movement.exertion.strain = 1; movement.exertion.stamina = .1f;
     player.restoreMovement(movement);
-    player.restSleeping(400,8);
-    require(player.feet() == movement.feet && player.exertion().strain == 0 && player.exertion().stamina == 1,
-        "Sleep recovery must restore exertion without moving or healing the player");
+    player.restSleeping(400);
+    require(player.feet() == movement.feet && std::abs(player.exertion().strain - .5f) < .0001f &&
+        std::abs(player.exertion().stamina - .9f) < .0001f,
+        "Eight hours of sleep must recover 50 percentage points of strain without moving the player");
     player.restoreMovement(movement); player.standGuard(400);
-    require(player.feet() == movement.feet && player.exertion().strain == 1,
-        "Automatic watch must not move the guard or award sleep strain recovery");
+    require(player.feet() == movement.feet && std::abs(player.exertion().strain - .75f) < .0001f,
+        "Automatic watch must recover strain at the ordinary awake rate without moving the guard");
     plan.apply(1,{SleepActionKind::Suggest,plan.state().revision,30});
     plan.apply(2,{SleepActionKind::Guard,plan.state().revision,30});
     require(plan.begin(504,{12,1200}), "Cannot start another guarded sleep");
