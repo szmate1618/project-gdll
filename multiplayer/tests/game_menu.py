@@ -148,6 +148,16 @@ def key(name):
     time.sleep(.04)
 
 
+def abandon_mission():
+    key("Escape")
+    time.sleep(.1)
+    key("Down")
+    key("Return")
+    time.sleep(.1)
+    key("Down")
+    key("Return")
+
+
 def close_window():
     event = Event()
     event.message.type = 33
@@ -200,7 +210,7 @@ with log.open("w") as output:
             if cycle == 0:
                 time.sleep(.15)
                 capture("single-player")
-            key("Escape")
+            abandon_mission()
             wait_for(lambda: "Choose a game mode" in title(window), "Leaving single-player did not restore menu")
         key("4")
         wait_for(lambda: "| Characters" in title(window), "Character preview could not reopen after gameplay")
@@ -217,7 +227,7 @@ with log.open("w") as output:
                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         children.append(remote)
         wait_for(lambda: "Joined player 2" in log.read_text(), "Remote client did not join integrated host")
-        key("Escape")
+        abandon_mission()
         wait_for(lambda: "| Host game" in title(window), "Host leave did not preserve setup")
         key("Escape")
         wait_for(lambda: "Choose a game mode" in title(window), "Host leave did not restore menu")

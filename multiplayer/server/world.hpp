@@ -56,7 +56,7 @@ struct ServerPlayer {
     std::optional<std::uint64_t> birdTick;
     viewer::PlayerHouseState house;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
-    float sleepHealth = 1;
+    std::uint64_t sleepDamageEvents = 0;
     std::string characterName;
     viewer::SleepGuardWatch sleepWatch;
 };
@@ -94,7 +94,8 @@ private:
     viewer::VehicleZombieCollision vehicleZombies_;
     std::map<std::uint32_t, ServerPlayer> players_;
     std::uint32_t nextPlayer_ = 1;
-    std::uint64_t tick_ = 0;
+    std::uint64_t tick_ = 0, nextMapMark_ = 1;
+    std::vector<viewer::MapMark> mapMarks_;
     ServerSounds sounds_;
     viewer::SleepPlan sleepPlan_;
     std::vector<std::size_t> sleepThreatCandidates_;

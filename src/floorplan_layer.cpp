@@ -8,6 +8,7 @@
 #include "building_footprints.hpp"
 #include "house_navigation.hpp"
 #include "authored_floorplan.hpp"
+#include "basic_floorplan.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -116,6 +117,7 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
     // Reserve by sorted identity and loaded window rows, never activation order.
     for (auto& entry : data.sources) {
         auto& source = entry.second;
+        source.name = entry.first;
         if (source.doors.empty()) continue;
         const auto authored = model.authoredFloorplans.find(source.name);
         if (authored != model.authoredFloorplans.end()) {
@@ -155,6 +157,10 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
     std::set<std::string> candidates;
     for (const auto p : observers) {
         if (!finite(p)) continue;
+        for (const auto& name : data.footprints->near(p, 20)) {
+            const auto found = data.sources.find(name);
+            if (found != data.sources.end() && found->second.doors.empty()) candidates.insert(name);
+        }
         for (int x = cell(p.x - 20); x <= cell(p.x + 20); ++x) for (int z = cell(p.z - 20); z <= cell(p.z + 20); ++z) {
             const auto found = data.cells.find({x, z});
             if (found == data.cells.end()) continue;
@@ -173,6 +179,7 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
             generateAuthoredFloorplan(*authored->second, data.sources.at(name), data.entrances) :
             block == data.blocks.end() ? generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances) :
             generatePrefabFloorplan(*data.source, data.sources.at(name), data.entrances, block->second);
+        if (!plan) plan = generateBasicFloorplan(*data.source, data.sources.at(name), data.entrances, *data.footprints);
         if (!plan) { data.rejected.insert(name); continue; }
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);
         data.resident.emplace(name, std::move(*plan)); changed = true;

@@ -1,5 +1,5 @@
 #version 330 core
-uniform vec4 uBounds[23];
+uniform vec4 uBounds[24];
 uniform vec2 uViewport;
 uniform float uPadding;
 uniform bool uSectorPass;
@@ -13,9 +13,9 @@ void main() {
     vec2 point;
     if (uSectorPass) {
         float step = float(gl_VertexID / 2) / uSectorSegments;
-        bool page = gl_InstanceID >= 3;
-        float angle = radians(page ? float(gl_InstanceID - 3) * 72.0 - 35.0 + step * 70.0 :
-                                     float(gl_InstanceID) * 120.0 - 60.0 + step * 120.0);
+        bool page = gl_InstanceID >= 4;
+        float angle = radians(page ? float(gl_InstanceID - 4) * 72.0 - 35.0 + step * 70.0 :
+                                     float(gl_InstanceID) * 90.0 - 45.0 + step * 90.0);
         vec2 radii = page ? uPageRadii : uSectorRadii;
         float radius = ((gl_VertexID & 1) == 0 ? radii.x : radii.y) * min(rectangle.z, rectangle.w);
         point = rectangle.xy + rectangle.zw * 0.5 + vec2(sin(angle), -cos(angle)) * radius;

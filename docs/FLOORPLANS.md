@@ -20,6 +20,15 @@ fitting between them. `house_layout_geometry` emits their planes and door
 panels. `floorplan_layer` owns streaming. Rendering and collision consume the
 same generated result separately.
 
+Buildings that do not produce a specialized family-house, apartment or authored
+layout still receive a walkable ground floor through
+[`basic_floorplan.cpp`](../src/basic_floorplan.cpp). The slab projects the
+published roof triangles to the main-floor datum, retaining concave boundaries
+and courtyard holes. It adds no partitions or upper storeys. Buildings with
+entrances use the normal open-door streaming trigger; buildings without doors
+stream through the footprint spatial index within 20 m of an observer. Both
+use the existing 30 m eviction distance and shared rendering/collision geometry.
+
 ## Eligible houses
 
 This is a footprint heuristic, not a building-use label. A house needs a roof,

@@ -1,7 +1,7 @@
 #version 330 core
 uniform sampler2D uScene;
 uniform sampler2D uHistory;
-uniform vec4 uBounds[23];
+uniform vec4 uBounds[24];
 uniform vec2 uViewport;
 uniform float uDeltaSeconds;
 uniform bool uHistoryValid;
@@ -29,9 +29,9 @@ void main() {
         vec2 fraction = (vec2(x, y) + 0.5) / 8.0;
         vec2 point;
         if (group >= 15) {
-            bool page = group >= 18;
-            float angle = radians(page ? float(group - 18) * 72.0 - 35.0 + fraction.x * 70.0 :
-                                         float(group - 15) * 120.0 - 60.0 + fraction.x * 120.0);
+            bool page = group >= 19;
+            float angle = radians(page ? float(group - 19) * 72.0 - 35.0 + fraction.x * 70.0 :
+                                         float(group - 15) * 90.0 - 45.0 + fraction.x * 90.0);
             vec2 radii = page ? uPageRadii : uSectorRadii;
             float radius = sqrt(mix(radii.x * radii.x, radii.y * radii.y, fraction.y)) *
                            min(rectangle.z, rectangle.w);

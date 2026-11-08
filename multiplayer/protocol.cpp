@@ -224,8 +224,9 @@ void command(Wire& w, Command& c) {
         }
     });
     auto signal = static_cast<std::uint8_t>(c.signal); w.integer(signal);
-    if (signal > 3) throw std::runtime_error("Invalid signal command");
+    if (signal > 4) throw std::runtime_error("Invalid signal command");
     c.signal = static_cast<SignalKind>(signal);
+    w.integer(c.removeMapMark);
     bool hasShot = c.firearmShot.has_value();
     w.flag(hasShot);
     if (hasShot) {
@@ -514,7 +515,7 @@ void medicalRecords(Wire& w, std::optional<viewer::PlayerHealth>& medical) {
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
-        w.integer(p.id); w.integer(p.resolved); w.number(p.health);
+        w.integer(p.id); w.integer(p.resolved); w.number(p.health); w.integer(p.damageEvents);
         if (p.health < 0 || p.health > 1) throw std::runtime_error("Invalid player health");
         medicalRecords(w, p.medical);
         if (p.medical && std::abs(p.health - p.medical->health()) > 1e-5f)
@@ -706,6 +707,12 @@ void payload(Wire& w, Snapshot& s) {
         if (!signal.id || kind < 1 || kind > 3 || signal.expires <= s.tick || signal.expires - s.tick > signalLifetimeTicks)
             throw std::runtime_error("Invalid signal snapshot");
         signal.kind = static_cast<SignalKind>(kind);
+    });
+    std::set<std::uint64_t> markIds;
+    w.list(s.mapMarks, maxMapMarks, [&](viewer::MapMark& mark) {
+        w.integer(mark.id); w.integer(mark.player); w.vector(mark.position);
+        if (!mark.id || !mark.player || !markIds.insert(mark.id).second)
+            throw std::runtime_error("Invalid map mark");
     });
     std::map<std::uint32_t, std::size_t> signalCounts;
     for (const auto& signal : s.signals)

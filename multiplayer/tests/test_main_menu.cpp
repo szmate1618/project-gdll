@@ -117,7 +117,12 @@ int main(int argc, char** argv) {
         key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Host);
         require(menu.takeCommand() == multiplayer::MenuCommand::Back, "Host setup Escape must return to the main menu");
         draw();
-        key(GLFW_KEY_TAB); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("127.0.0.1:12345");
+        glfwSetClipboardString(window, "127.0.0.1:12345");
+        key(GLFW_KEY_TAB); key(GLFW_KEY_A, GLFW_MOD_CONTROL); key(GLFW_KEY_V, GLFW_MOD_CONTROL);
+        draw();
+        require(menu.address() == "127.0.0.1:12345", "Join address must paste from the system clipboard");
+        key(GLFW_KEY_A, GLFW_MOD_CONTROL); key(GLFW_KEY_C, GLFW_MOD_CONTROL); draw();
+        require(std::string(glfwGetClipboardString(window)) == "127.0.0.1:12345", "Join address must copy to the system clipboard");
         key(GLFW_KEY_ENTER); key(GLFW_KEY_3); draw();
         require(menu.address() == "127.0.0.1:12345", "Join input must preserve address punctuation");
         require(menu.takeCommand() == multiplayer::MenuCommand::Join, "Enter must end field editing before mode shortcuts");

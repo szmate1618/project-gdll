@@ -11,14 +11,16 @@
 #command-page-health .page-caption { left: 281.7dp; top: 357.7dp; }
 #command-page-map .page-caption { left: 58.3dp; top: 357.7dp; }
 #command-page-graphics .page-caption { left: -10.7dp; top: 145.3dp; }
-/* Move each complete 120-degree sector 3dp outward along its center direction. */
+/* Move each action sector 3dp outward along its center direction. */
 #command-danger { top: -3dp; }
-#command-move { left: 2.59808dp; top: 1.5dp; }
-#command-backup { left: -2.59808dp; top: 1.5dp; }
+#command-move { left: 3dp; }
+#command-backup { left: -3dp; }
+#command-mark { top: 3dp; }
 .command-caption { position: absolute; width: 102dp; height: 54dp; }
 #command-danger .command-caption { left: 99dp; top: 28dp; }
-#command-move .command-caption { left: 181dp; top: 170dp; }
-#command-backup .command-caption { left: 17dp; top: 170dp; }
+#command-move .command-caption { left: 192dp; top: 116dp; }
+#command-backup .command-caption { left: 6dp; top: 116dp; }
+#command-mark .command-caption { left: 99dp; top: 211dp; }
 .command-symbol { position: absolute; top: 5dp; left: 40dp; width: 22dp; height: 24dp; line-height: 24dp; text-align: center; font-size: 18dp; }
 .command-label { position: absolute; top: 34dp; width: 102dp; text-align: center; font-size: 11dp; line-height: 14dp; letter-spacing: 0.5dp; }
 #command-center { position: absolute; left: 117dp; top: 117dp; width: 64dp; height: 64dp; border-width: 1dp; border-radius: 33dp; }

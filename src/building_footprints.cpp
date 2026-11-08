@@ -20,7 +20,7 @@ std::string buildingName(const std::string& name, const char* suffix) {
         name.compare(name.size() - ending.size(), ending.size(), ending)) return {};
     return name.substr(0, name.size() - ending.size());
 }
-std::vector<std::vector<glm::vec2>> rings(const Shell& shell) {
+std::vector<std::vector<glm::vec2>> traceRings(const Shell& shell) {
     std::vector<glm::vec2> vertices;
     const auto vertex = [&](glm::vec2 p) {
         for (std::size_t i = 0; i < vertices.size(); ++i)
@@ -116,7 +116,7 @@ BuildingFootprints::BuildingFootprints(const Model& model) {
     }
     std::vector<VisibilityBounds> bounds;
     for (const auto& [id, shell] : shells) {
-        auto boundary = rings(shell);
+        auto boundary = traceRings(shell);
         if (boundary.empty() || !std::isfinite(shell.low) || !std::isfinite(shell.high)) continue;
         glm::vec3 low(std::numeric_limits<float>::max()), high(-low);
         float area = 0;
@@ -152,6 +152,19 @@ std::optional<std::string> BuildingFootprints::find(glm::vec3 point) const {
 bool BuildingFootprints::contains(const std::string& building, glm::vec3 point) const {
     const auto found = byId_.find(building);
     return found != byId_.end() && buildings_[found->second].contains(point);
+}
+
+const std::vector<std::vector<glm::vec2>>* BuildingFootprints::rings(const std::string& building) const {
+    const auto found = byId_.find(building);
+    return found == byId_.end() ? nullptr : &buildings_[found->second].rings;
+}
+std::vector<std::string> BuildingFootprints::near(glm::vec3 point, float radius) const {
+    std::vector<std::string> result;
+    if (!finite(point) || !std::isfinite(radius) || radius < 0) return result;
+    std::vector<std::size_t> candidates;
+    index_.query({point - glm::vec3(radius), point + glm::vec3(radius)}, candidates);
+    for (const auto index : candidates) result.push_back(buildings_[index].id);
+    return result;
 }
 
 } // namespace viewer

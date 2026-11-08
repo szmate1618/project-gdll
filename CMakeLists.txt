@@ -434,7 +434,7 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/authored_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/hand_inventory.cpp)
+add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/basic_floorplan.cpp src/authored_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/hand_inventory.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)

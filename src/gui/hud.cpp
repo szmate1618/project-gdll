@@ -12,6 +12,7 @@
 #include "graphics_view.hpp"
 #include "health_view.hpp"
 #include "gui/map_view.hpp"
+#include "map_markers.hpp"
 #include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
 #include "player_vitals.hpp"
@@ -30,12 +31,12 @@ namespace {
 bool hudActive = false; // One gameplay HUD at a time, sharing the application UI runtime.
 
 struct BackdropGroup { const char* id; bool textOnly; };
-constexpr std::array<BackdropGroup, 23> backdropGroups{{
+constexpr std::array<BackdropGroup, 24> backdropGroups{{
     {"compass", false}, {"coordinates", false}, {"map-caption", true}, {"vitals", false},
     {"mode-status", false}, {"movement-status", false}, {"speed-status", false}, {"weapon", false},
     {"prompt", true}, {"capture", true}, {"selection-hint", true}, {"weapon-switch", false},
     {"command-title", true}, {"command-hint", true}, {"command-cancel-hint", true},
-    {"command-danger", false}, {"command-move", false}, {"command-backup", false},
+    {"command-danger", false}, {"command-move", false}, {"command-mark", false}, {"command-backup", false},
     {"command-page-inventory", false}, {"command-page-skills", false}, {"command-page-health", false},
     {"command-page-map", false}, {"command-page-graphics", false}
 }};
@@ -75,12 +76,25 @@ glm::vec4 backdropBounds(Rml::Element& element, bool textOnly) {
 class SatelliteMapElement final : public Rml::Element {
 public:
     explicit SatelliteMapElement(const Rml::String& tag) : Rml::Element(tag) {}
+    std::vector<MapPlayer> players;
+    std::vector<MapMark> marks;
+    glm::dvec2 center{0};
+    bool available = false;
     HudRenderInterface* renderer = nullptr; // Shared UI runtime; outlives this element.
 protected:
     void OnRender() override {
         if (!renderer) return;
         const auto offset = GetAbsoluteOffset(Rml::BoxArea::Content), size = GetBox().GetSize(Rml::BoxArea::Content);
         renderer->drawMinimap(offset, size);
+        if (!available) return;
+        const double density = GetContext()->GetDensityIndependentPixelRatio();
+        Rml::Mesh mesh;
+        appendMapMarkers(mesh, *this, players, marks, [&](glm::dvec2 world, double yaw) {
+            return minimapMarker(world, yaw, center, {offset.x, offset.y}, {size.x, size.y}, density);
+        }, density, true);
+        if (!mesh.indices.empty()) {
+            auto geometry = GetRenderManager()->MakeGeometry(std::move(mesh)); geometry.Render({0,0});
+        }
     }
 };
 
@@ -102,7 +116,9 @@ struct Hud::Impl {
     HudRenderInterface& renderer;
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
-    std::array<Rml::ElementDocument*, 5> screens{};
+    std::array<Rml::ElementDocument*, 6> screens{};
+    std::unique_ptr<MissionMenu> missionMenu;
+    std::vector<MissionMenuKey> missionKeys;
     GraphicsSettings graphicsSettings;
     std::unique_ptr<GraphicsView> graphicsView;
     std::unique_ptr<HealthView> healthView;
@@ -180,6 +196,7 @@ struct Hud::Impl {
     }
     ~Impl() { shutdown(); }
     void shutdown() {
+        missionMenu.reset();
         graphicsView.reset();
         healthView.reset();
         navigation.reset();
@@ -201,7 +218,7 @@ struct Hud::Impl {
         elements.at(id)->SetInnerRML(Rml::StringUtilities::EncodeRml(value));
     }
     void updateCompass(float yaw) {
-        const int next = (static_cast<int>(std::lround(yaw + 90)) % 360 + 360) % 360;
+        const int next = mapBearingDegrees(yaw);
         if (next == bearing) return;
         bearing = next;
         setText("heading", std::to_string(bearing) + "°");
@@ -226,7 +243,7 @@ struct Hud::Impl {
         if (screen == next) return;
         const auto screenDocument = [&](HudScreen selected) {
             if (selected == HudScreen::Gameplay) return document;
-            constexpr std::array<const char*, 5> files{"inventory.rml", "skills.rml", "health.rml", "map.rml", "graphics.rml"};
+            constexpr std::array<const char*, 6> files{"inventory.rml", "skills.rml", "health.rml", "map.rml", "graphics.rml", "mission-menu.rml"};
             const auto index = static_cast<std::size_t>(selected) - 1;
             auto*& page = screens.at(index);
             if (!page) {
@@ -242,6 +259,7 @@ struct Hud::Impl {
                 }
                 if (selected == HudScreen::Skills)
                     populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
+                if (selected == HudScreen::MissionMenu) missionMenu = std::make_unique<MissionMenu>(*page);
                 if (selected == HudScreen::Graphics) graphicsView = std::make_unique<GraphicsView>(*page, graphicsSettings);
                 if (selected == HudScreen::Health) healthView = std::make_unique<HealthView>(*page);
                 if (selected == HudScreen::Map) {
@@ -253,6 +271,9 @@ struct Hud::Impl {
             return page;
         };
         auto* nextDocument = screenDocument(next);
+        if (next != HudScreen::MissionMenu) missionKeys.clear();
+        if (next == HudScreen::MissionMenu) missionMenu->open();
+        if (next == HudScreen::Map) mapView->open();
         if (next == HudScreen::Inventory || next == HudScreen::Skills) populateActionHotbar(*nextDocument, inventory);
         navigation->cancel();
         if (screen == HudScreen::Inventory) {
@@ -273,9 +294,15 @@ struct Hud::Impl {
             context->SetDensityIndependentPixelRatio(std::min(float(width) / 1280, float(height) / 720));
         }
         const bool asleep = state.sleepPlan.asleep(state.localPlayer);
-        showScreen(asleep ? HudScreen::Gameplay : state.screen);
+        showScreen(state.screen == HudScreen::MissionMenu ? state.screen : asleep ? HudScreen::Gameplay : state.screen);
         const auto presentation = presentationViewport(width, height,
             presentationWidth > 0 ? presentationWidth : width, presentationHeight > 0 ? presentationHeight : height);
+        if (screen == HudScreen::MissionMenu) {
+            for (const auto key : missionKeys) missionMenu->key(key);
+            missionKeys.clear();
+            renderer.render(*context, width, height, [&] { missionMenu->process(pointerEvents, width, height, presentation); });
+            pointerEvents.clear(); return;
+        }
         if (asleep) {
             renderer.render(*context, width, height, [&] {
                 sleepDrawer->process(state, pointerEvents, width, height, presentation);
@@ -345,6 +372,11 @@ struct Hud::Impl {
             setText("switch-countdown", countdown.str());
         }
         renderer.setMinimapPosition({state.position.x, state.position.z});
+        auto& minimap = *static_cast<SatelliteMapElement*>(document->GetElementById("minimap"));
+        minimap.available = hasSatelliteImage;
+        minimap.center = {state.position.x, state.position.z};
+        minimap.players = state.mapPlayers; minimap.marks = state.mapMarks;
+        if (state.showLocalMapPlayer) minimap.players.push_back({minimap.center,state.yawDegrees,"YOU",true});
         // Coordinates remain local metres; the reference's latitude/longitude
         // cannot be inferred from a runtime position without map georeferencing.
         setText("north-coordinate", "N " + std::to_string(std::lround(-state.position.z)) + " m");
@@ -422,6 +454,14 @@ void Hud::setGraphicsSettings(const GraphicsSettings& settings) {
 std::optional<GraphicsSettings> Hud::takeGraphicsSettingsRequest() {
     return impl_->graphicsView ? impl_->graphicsView->takeRequest() : std::nullopt;
 }
+std::optional<std::uint64_t> Hud::takeMapMarkRemoval() {
+    return impl_->mapView ? impl_->mapView->takeMarkRemoval() : std::nullopt;
+}
+std::optional<MissionMenuAction> Hud::takeMissionMenuAction() {
+    return impl_->missionMenu ? impl_->missionMenu->takeAction() : std::nullopt;
+}
+void Hud::missionMenuKey(MissionMenuKey key) { impl_->missionKeys.push_back(key); }
+bool Hud::cancelMissionConfirmation() { return impl_->missionMenu && impl_->missionMenu->cancelConfirmation(); }
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
     auto actions = impl_->equipmentDrawer->takeActions();
     if (impl_->healthView) {

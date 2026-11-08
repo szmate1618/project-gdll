@@ -203,7 +203,8 @@ versions. Details and focused checks are in [BOIDS.md](../docs/BOIDS.md).
 ## Team command wheel
 
 In Single Player, Host Game and Join Game, hold **middle mouse** on foot to
-open the command wheel. Move toward **Danger**, **Move there**, or **Backup**,
+open the command wheel. Move toward **Danger**, **Move there**, **Backup**,
+or **Mark location**,
 then release to send. Return to the center or press **Escape** to cancel.
 Move farther out to select the outer ring's **Inventory**, **Skills**, **Health**,
 **Map**, or **Graphics** button, then release middle mouse to open that page.
@@ -217,6 +218,13 @@ aiming into the sky creates no ping. Backup marks the sender's feet. The server
 accepts at most one ping per second; pings last six seconds and expire
 independently. All players, including late joiners, see the active set. Markers
 outside the view sit at the screen edge. Disconnecting removes that player's pings.
+
+**Mark location** uses the same aimed surface, but creates a persistent shared X
+on the full map and minimap. Offscreen X markers stay at the minimap border.
+Any player can select an X on the F4 map and click **Delete selected mark** to
+remove it for everyone. Marks survive the sender leaving and are included for
+late joiners. The session retains up to 256 marks; adding another replaces the
+oldest. Mark creation shares the one-second command cooldown.
 
 The wheel and labels use the shared RmlUi HUD runtime, font, scaling, and
 [palette](../ui/palette.rcss); [command-wheel.rcss](../ui/command-wheel.rcss)
@@ -523,8 +531,8 @@ world settings automatically.
   It starts no server. For IPv6, use `[ADDRESS]:PORT`.
 
 Startup shows loading/connection feedback. Gameplay starts after the initial
-server-confirmed player state arrives. Escape leaves a session and returns to
-the menu; closing the window also stops any embedded server. A normal host exit
+server-confirmed player state arrives. Confirming **Abandon mission** leaves a
+session and returns to the menu; closing the window also stops any embedded server. A normal host exit
 reports "Host ended the session" to remote clients; an abrupt crash or lost
 connection produces a server timeout and returns graphical clients to the menu.
 Startup and connection errors also return to the menu for retry. Cancellation
@@ -576,7 +584,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 61; rebuild both client and server together.
+The current wire protocol is version 62; rebuild both client and server together.
 Runtime [family-house floorplans](../docs/FLOORPLANS.md) are generated separately
 by each peer. Geometry is neither saved nor replicated; stable generated door
 IDs use the existing authoritative door-angle snapshots.
@@ -587,8 +595,9 @@ damage per game hour. Base regeneration heals half each injury's original damage
 per game day, twice as fast for sleepers; guards use the ordinary rate. Healed
 injuries disappear. Clients receive their own medical records and can apply one
 of their four starting bandages from the Health page to stop a selected wound's
-bleeding immediately. Clients present health and damage pulses without resolving
-attacks. Movement owns stamina and strain; weariness remains reserved.
+bleeding immediately. Clients use a replicated direct-hit counter for damage
+pulses; blood loss never restarts the pulse. Clients present health without
+resolving attacks. Movement owns stamina and strain; weariness remains reserved.
 Ammo quantities, reload progress and inventory placements are authoritative.
 Sequenced inventory move operations run through the server's storage rules and
 timers. Clients reconcile completed moves after acknowledgement, so moving an
@@ -673,13 +682,14 @@ duration. The server shares the proposal and each player's response, rejects
 responses to superseded proposals, and asks everyone again when the duration
 changes. Plans can be cancelled or responses withdrawn. Agreement blacks out
 accepted sleepers' screens, with a remaining-time display and Wake up control;
-Escape also wakes everyone. Guards use the same blackout on automatic watch,
+Escape opens the mission menu without waking sleepers. Guards use the same blackout on automatic watch,
 with Go to sleep and Wake up controls. Guarded sleep also targets 30× normal speed,
 retaining fixed physics ticks and sending snapshots at 20 Hz of wall time. All participants'
 input sequences continue to be acknowledged while gameplay actions are blocked.
 Waking resets presentation timing so the client resumes at the new world time.
 Members of scenario hordes configured with `movement = "travel"` within 60 metres
-of a sleeper, damage, group changes or the selected deadline end sleep. Horde
+of a sleeper, fresh attack damage, group changes or the selected deadline end sleep.
+Existing bleeding and accumulating blood loss do not interrupt sleep. Horde
 membership still counts after arrival or a switch to pursuit. Ordinary/idle
 zombies and dogs do not cause distance-only wake-ups; guard sightings and damage
 remain independent triggers. Distant travellers use coarse path progress with no obstacle checks;
@@ -703,7 +713,10 @@ these authoritative checks; replicas never infer gameplay noise from poses.
 Wake notices show a short story reason above **Sleep ended**
 for eight seconds, with distinct radio announcements for arrivals and departures.
 
-F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
+F12 opens/closes the Graphics page; Home releases/recaptures the mouse.
+Escape opens the in-game mission menu with **Resume** and **Abandon mission**.
+Abandon requires a second confirmation before leaving the session; Escape from
+the confirmation returns to the mission menu, and Escape there resumes play. Losing focus releases
 controls. The window title shows ammo, mode, rendered FPS, GPU render time,
 CPU render time and client simulation time, refreshed about once per second.
 CPU times are mean wall milliseconds per rendered frame; client simulation

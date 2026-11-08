@@ -8,6 +8,8 @@
             <button id="map-from-me">FROM ME</button>
             <button id="map-clear">CLEAR</button>
             <button id="map-center">CENTER ON ME</button>
+            <div id="map-mark-selection">Click an X to select a mark</div>
+            <button id="map-delete-mark">DELETE SELECTED MARK</button>
             <div id="map-total">HORIZONTAL DISTANCE</div>
             <div id="map-preview-total"></div>
             <div id="map-player-label"></div>

@@ -6,8 +6,8 @@
 
 namespace viewer {
 namespace {
-constexpr std::array<const char*, 4> names{"CANCEL", "DANGER", "MOVE THERE", "BACKUP"};
-constexpr std::array<const char*, 4> classes{"", "danger", "move", "backup"};
+constexpr std::array<const char*, 5> names{"CANCEL", "DANGER", "MOVE THERE", "BACKUP", "MARK LOCATION"};
+constexpr std::array<const char*, 5> classes{"", "danger", "move", "backup", "mark"};
 constexpr std::array<const char*, 5> pages{"inventory", "skills", "health", "map", "graphics"};
 
 void quad(Rml::Mesh& mesh, Rml::Vector2f a, Rml::Vector2f b, Rml::Vector2f c, Rml::Vector2f d,
@@ -17,7 +17,7 @@ void quad(Rml::Mesh& mesh, Rml::Vector2f a, Rml::Vector2f b, Rml::Vector2f c, Rm
     for (const int index : {0, 1, 2, 0, 2, 3}) mesh.indices.push_back(first + index);
 }
 
-// Inner signals use 120-degree sectors; the outer ring has five page choices.
+// Inner actions use 90-degree sectors; the outer ring has five page choices.
 // Meshes use framebuffer pixels; RmlUi supplies layout scaling and rendering state.
 class CommandSector final : public Rml::Element {
 public:
@@ -39,8 +39,8 @@ protected:
             const float outer = (page ? CommandPageGeometry::outerRadius : CommandSectorGeometry::outerRadius) * scale;
             const float stroke = std::max(.75f, scale);
             constexpr float radians = 3.1415926536f / 180;
-            const float start = (GetAttribute<int>("sector", 0) * (page ? 72 : 120) - (page ? 35 : 60)) * radians;
-            const float sweep = (page ? 70 : 120) * radians;
+            const float start = (GetAttribute<int>("sector", 0) * (page ? 72 : 90) - (page ? 35 : 45)) * radians;
+            const float sweep = (page ? 70 : 90) * radians;
             const auto point = [&](float radius, float angle) {
                 return center + Rml::Vector2f(std::sin(angle), -std::cos(angle)) * radius;
             };

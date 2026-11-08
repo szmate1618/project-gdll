@@ -6,6 +6,7 @@
 #include <vector>
 
 namespace viewer {
+inline constexpr double minimapSpanMeters = 300;
 struct MapPlayer {
     glm::dvec2 position{0}; // Runtime X east/Z south, metres.
     double yawDegrees = -90;
@@ -53,4 +54,8 @@ private:
     glm::dvec2 originalPoint_{0};
     bool measuring_ = false, pressed_ = false, dragging_ = false;
 };
+// Rectangular north-up minimap: triangles in view, border dots outside it.
+std::optional<MapView::Marker> minimapMarker(glm::dvec2 world, double yawDegrees,
+    glm::dvec2 center, glm::dvec2 offset, glm::dvec2 size, double density = 1);
+int mapBearingDegrees(double yawDegrees);
 } // namespace viewer

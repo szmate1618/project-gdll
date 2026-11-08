@@ -78,6 +78,7 @@ struct Input {
     bool canThrowGrenade = false;
     bool flashlight = true;
     bool leave = false;
+    std::uint64_t removeMapMark = 0;
     std::vector<viewer::InventoryDragAction> inventoryActions;
     std::optional<viewer::SleepAction> sleepAction;
     bool inSleepSession = false; // Sleeping or standing automatic watch; both suspend direct control.
@@ -115,11 +116,8 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
 }
 void key(GLFWwindow* window, int code, int, int action, int) {
     auto& in = input(window);
-    if (in.inSleepSession && code != GLFW_KEY_TAB && code != GLFW_KEY_HOME) {
-        if (code == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-            in.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Cancel, in.sleepRevision, 30};
-        return;
-    }
+    if (in.inSleepSession && in.hudScreen != viewer::HudScreen::MissionMenu &&
+        code != GLFW_KEY_TAB && code != GLFW_KEY_HOME && code != GLFW_KEY_ESCAPE) return;
     if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) {
         const bool wasTemporaryHandling = in.temporaryHandling();
         in.altHeld[code == GLFW_KEY_RIGHT_ALT ? 1 : 0] = action != GLFW_RELEASE &&
@@ -138,6 +136,16 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (action != GLFW_PRESS) return;
+    if (in.hudScreen == viewer::HudScreen::MissionMenu) {
+        if (in.hud) {
+            if (code == GLFW_KEY_UP) in.hud->missionMenuKey(viewer::MissionMenuKey::Previous);
+            if (code == GLFW_KEY_DOWN) in.hud->missionMenuKey(viewer::MissionMenuKey::Next);
+            if (code == GLFW_KEY_ENTER || code == GLFW_KEY_KP_ENTER) in.hud->missionMenuKey(viewer::MissionMenuKey::Activate);
+        }
+        if (code == GLFW_KEY_ESCAPE && (!in.hud || !in.hud->cancelMissionConfirmation()))
+            showHudScreen(window, viewer::HudScreen::Gameplay);
+        return;
+    }
     if ((code >= GLFW_KEY_F1 && code <= GLFW_KEY_F4) || code == GLFW_KEY_F12 ||
         (code == GLFW_KEY_ESCAPE && in.hudScreen != viewer::HudScreen::Gameplay)) {
         constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
@@ -169,7 +177,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (code == GLFW_KEY_ESCAPE && in.wheelOpen) { in.cancelSignal(); return; }
     if (in.wheelOpen && code != GLFW_KEY_HOME) return;
     if (code == GLFW_KEY_ESCAPE && in.actionSelection.open()) { in.actionSelection.close(); return; }
-    if (code == GLFW_KEY_ESCAPE) in.leave = true;
+    if (code == GLFW_KEY_ESCAPE) { showHudScreen(window, viewer::HudScreen::MissionMenu); return; }
     if (code == GLFW_KEY_ENTER && in.capture) in.enterVehicle = true;
     if (in.driver.occupied() && code != GLFW_KEY_HOME) return;
     if (code == GLFW_KEY_C) in.prone = true;
@@ -203,7 +211,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
-    if (in.inSleepSession && in.capture) { in.firstMouse = true; return; }
+    if (in.inSleepSession && in.capture && in.hudScreen == viewer::HudScreen::Gameplay) { in.firstMouse = true; return; }
     if (in.hudScreen != viewer::HudScreen::Gameplay || !in.capture) {
         hudPointer(window, in.hud, x, y);
         if (in.equipmentCursor && !in.firstMouse)
@@ -425,6 +433,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     multiplayer::Command c;
     c.inventoryActions.swap(in.inventoryActions);
     c.sleepAction = std::exchange(in.sleepAction, std::nullopt);
+    c.removeMapMark = std::exchange(in.removeMapMark, 0);
     const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling(), swayScale);
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
@@ -615,7 +624,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.suppressLeftUntilRelease |= in.leftHeld; in.suppressRightUntilRelease |= in.rightHeld;
                     in.firstMouse = true;
                 }
-                if (in.inSleepSession) { in.hudScreen = viewer::HudScreen::Gameplay; in.cancelSignal(); in.actionSelection.close(); in.altHeld.fill(false); }
+                if (in.inSleepSession) {
+                    if (in.hudScreen != viewer::HudScreen::MissionMenu) in.hudScreen = viewer::HudScreen::Gameplay;
+                    in.cancelSignal(); in.actionSelection.close(); in.altHeld.fill(false);
+                }
 #else
                 (void)wasResting;
 #endif
@@ -630,7 +642,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
 #ifdef MP_GRAPHICS
                     // Only accepted, newer snapshots reach here. The first one
                     // establishes a baseline; repeats cannot restart the flash.
-                    if (ready && p.health < ownState.health) lastDamageSeconds = now;
+                    if (ready && p.damageEvents > ownState.damageEvents) lastDamageSeconds = now;
 #endif
                     if (!ready || p.slot != ownState.slot || p.vehicle != ownState.vehicle || p.seat != ownState.seat) {
                         if (!weaponDefinitions.equip(p.slot))
@@ -937,15 +949,14 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 hudState.feet = prediction.controller().feet();
                 hudState.forward = in.camera.direction();
                 hudState.position = in.driver.occupied() ? in.driver.eyePosition(*scene.vehicles) : in.camera.position();
-                hudState.yawDegrees = in.camera.yawDegrees();
+                hudState.yawDegrees = viewCamera.yawDegrees();
                 hudState.showLocalMapPlayer = prediction.ready();
-                if (in.hudScreen == viewer::HudScreen::Map) {
-                    for (const auto& player : snapshots.players()) {
-                        if (player.id == self) continue;
-                        const auto position = player.movement.feet;
-                        hudState.mapPlayers.push_back({{position.x, position.z}, player.yaw,
-                            "PLAYER " + std::to_string(player.id), false});
-                    }
+                if (!snapshots.empty()) hudState.mapMarks = snapshots.latest().mapMarks;
+                for (const auto& player : snapshots.players()) {
+                    if (player.id == self) continue;
+                    const auto position = player.movement.feet;
+                    hudState.mapPlayers.push_back({{position.x, position.z}, player.yaw,
+                        "PLAYER " + std::to_string(player.id), false});
                 }
                 const auto stance = prediction.controller().stance();
                 hudState.movement = in.driver.occupied() ? (in.driver.driving() ? "DRIVING" : "PASSENGER") :
@@ -1002,6 +1013,11 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                             hudState.prompt="Birds diving! Move aside, duck or reach cover"; break;
                         }
                 graphics.hud->draw(hudState, width, height);
+                if (const auto mark = graphics.hud->takeMapMarkRemoval()) in.removeMapMark = *mark;
+                if (const auto action = graphics.hud->takeMissionMenuAction()) {
+                    if (*action == viewer::MissionMenuAction::Abandon) in.leave = true;
+                    else showHudScreen(graphics.window, viewer::HudScreen::Gameplay);
+                }
                 if (const auto requested = graphics.hud->takeScreenRequest()) showHudScreen(graphics.window, *requested);
                 intervalRenderSeconds += std::chrono::duration<double>(Clock::now() - renderStart).count();
                 graphics.gpuTimer->end();

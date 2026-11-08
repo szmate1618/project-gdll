@@ -22,6 +22,15 @@ int main() {
         require(player.healthState().bandage(injury.id()) && !player.bleeding(), "Treating the only wound stops bleeding");
         for (float invalid : {0.f, -1.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
             require(player.applyDamage(invalid) == 0 && player.health() == .875f, "Invalid damage must preserve health");
+        viewer::PlayerVitals bleeding;
+        bleeding.applyDamage(.02f);
+        const auto hitEvents = bleeding.damageEvents();
+        const auto beforeBleeding = bleeding.health();
+        bleeding.advance(10, {12, 1200}, true);
+        require(bleeding.health() < beforeBleeding && bleeding.damageEvents() == hitEvents,
+                "Blood loss must lower health without producing another direct-hit event");
+        bleeding.applyDamage(.01f);
+        require(bleeding.damageEvents() == hitEvents + 1, "A new attack during bleeding must produce a direct-hit event");
         const auto other = player;
         require(player.applyDamage(std::numeric_limits<float>::max()) == .875f && player.health() == 0 &&
                 player.healthState().injuries().size() == 2, "Overkill must attach only the remaining health as damage");

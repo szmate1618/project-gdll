@@ -14,6 +14,8 @@ public:
     explicit BuildingFootprints(const Model& model);
     std::optional<std::string> find(glm::vec3 point) const;
     bool contains(const std::string& building, glm::vec3 point) const;
+    const std::vector<std::vector<glm::vec2>>* rings(const std::string& building) const;
+    std::vector<std::string> near(glm::vec3 point, float radius) const;
     std::size_t size() const { return buildings_.size(); }
 private:
     struct Building {

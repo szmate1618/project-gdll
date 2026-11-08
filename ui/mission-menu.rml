@@ -1,0 +1,19 @@
+<rml>
+<head><title>Mission menu</title><link type="text/rcss" href="hud.rcss" /><link type="text/rcss" href="mission-menu.rcss" /></head>
+<body class="mission-menu">
+    <div id="mission-panel">
+        <div class="mission-title">MISSION MENU</div>
+        <div class="mission-choices">
+            <button id="mission-resume">RESUME</button>
+            <button id="mission-abandon">ABANDON MISSION</button>
+        </div>
+        <div class="mission-confirmation">
+            <div class="mission-question">Abandon this mission?</div>
+            <div class="mission-description">You will leave the current session.</div>
+            <button id="mission-cancel">KEEP PLAYING</button>
+            <button id="mission-confirm">CONFIRM ABANDON</button>
+        </div>
+        <div class="mission-hint">ESC · BACK</div>
+    </div>
+</body>
+</rml>

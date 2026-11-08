@@ -75,10 +75,15 @@ void transitions() {
     const auto initial=cars.pose(0);
     cars.setDriven(0,true);
     auto count=b3World_GetCounters(world->id());
-    require(count.bodyCount==5 && count.shapeCount==5 && count.jointCount==4 && cars.simulatedCars().size()==1,
+    require(count.bodyCount==5 && count.shapeCount==6 && count.jointCount==4 && cars.simulatedCars().size()==1,
             "Driver did not enable exactly one chassis, four wheels and four suspension joints");
     require(cars.pose(0).chassis.center==initial.chassis.center && sameWheels(cars.pose(0).wheels,initial.wheels),
             "Driver entry changed the car pose");
+    std::vector<viewer::Contact> cabinContacts;
+    cars.appendContacts({.70f, 1.4f, 0}, .2f, .3f, 0, cabinContacts);
+    require(!cabinContacts.empty(), "Driven cabin is missing from walking contacts");
+    const auto roof = cars.groundAt(0, 0, 1.3f, 2);
+    require(roof && roof->height > 1.6f, "Driven cabin is missing from ground queries");
     const auto tick=[&](int frames) {
         for(int i=0;i<frames;++i) {
             viewer::prepareVehicleScene(cars,scene);

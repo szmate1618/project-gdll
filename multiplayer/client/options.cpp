@@ -18,7 +18,7 @@ GameOptions parseGameOptions(int argc, char** argv, const std::optional<viewer::
             if (mode != GameMode::Join) continue;
         }
         if (argument == "--help") std::cout << "Game: no mode flag opens the menu. --single-player starts a private local game;\n"
-            "--host [--port 27020] hosts; --connect IP:PORT joins. Escape leaves a session.\n";
+            "--host [--port 27020] hosts; --connect IP:PORT joins. Escape opens the mission menu.\n";
         shared.push_back(argv[i]);
         // Leave option values to the shared parser, even when they resemble flags.
         if (argument == "--connect" || argument == "--port" || argument == "--zombies" ||

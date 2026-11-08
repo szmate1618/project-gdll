@@ -1,5 +1,6 @@
 #include "hud_render_interface.hpp"
 #include "minimap_road_renderer.hpp"
+#include "map_view.hpp"
 #include "shader_program.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Vertex.h>
@@ -186,7 +187,7 @@ void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
     if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
     // Top of the control is north (-Z). World coverage is independent of HUD
     // resolution; only uniforms change as the player moves.
-    constexpr double spanMeters = 300;
+    constexpr double spanMeters = minimapSpanMeters;
     const auto x = glm::vec2(minimap_.uvFromWorld * glm::dvec3(spanMeters, 0, 0));
     const auto y = glm::vec2(minimap_.uvFromWorld * glm::dvec3(0, spanMeters, 0));
     const auto center = glm::vec2(minimap_.uvFromWorld * glm::dvec3(minimapPosition_, 1));

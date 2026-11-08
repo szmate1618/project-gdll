@@ -198,7 +198,6 @@ void World::step() {
     interiorObservers.reserve(players_.size());
     for (auto& [id, player] : players_) {
         interiorObservers.push_back(player.controller.feet());
-        if (sleepPlan_.state().inSleepSession(id)) player.sleepHealth = player.vitals.health();
         player.vitals.advance(tickSeconds, scene_.dayNight, sleepPlan_.state().asleep(id));
     }
     scene_.floorplans->update(interiorObservers);
@@ -269,6 +268,7 @@ void World::step() {
             command.movement.toggleProne = false; command.reload = false; command.drag = {};
             command.inventoryActions.clear();
             command.signal = SignalKind::None;
+            command.removeMapMark = 0;
             command.sleepAction.reset();
             command.enterVehicle = false;
             if (player.started && !player.pending.empty()) {
@@ -290,7 +290,7 @@ void World::step() {
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
             const bool wasAsleep = sleepPlan_.state().asleep(id);
             if (command.sleepAction) sleepPlan_.apply(id, *command.sleepAction, now);
-            if (!wasAsleep && sleepPlan_.state().asleep(id)) player.sleepHealth = player.vitals.health();
+            if (!wasAsleep && sleepPlan_.state().asleep(id)) player.sleepDamageEvents = player.vitals.damageEvents();
             if (sleepPlan_.state().inSleepSession(id)) {
                 player.weapons.cancelTrigger();
                 player.interaction.cancel();
@@ -340,13 +340,20 @@ void World::step() {
             const auto playerVelocity = (player.controller.feet() - previousFeet) / (tickSeconds / inputs);
             noises.insert(noises.end(), player.controller.noises().begin(), player.controller.noises().end());
             player.camera.setPosition(player.controller.eyePosition());
+            player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
+            if (consumed && command.removeMapMark)
+                mapMarks_.erase(std::remove_if(mapMarks_.begin(), mapMarks_.end(), [&](const auto& mark) {
+                    return mark.id == command.removeMapMark;
+                }), mapMarks_.end());
             if (consumed && command.signal != SignalKind::None && tick_ >= player.nextSignalTick) {
                 const auto target = command.signal == SignalKind::Backup ?
                     std::optional<glm::vec3>(player.controller.feet()) : signalRayTarget(*scene_.collision, player.camera);
                 player.nextSignalTick = tick_ + signalCooldownTicks;
-                if (target) player.signals.push_back({id, command.signal, *target, tick_ + signalLifetimeTicks});
+                if (target && command.signal == SignalKind::Mark) {
+                    if (mapMarks_.size() == maxMapMarks) mapMarks_.erase(mapMarks_.begin());
+                    mapMarks_.push_back({nextMapMark_++, id, *target});
+                } else if (target) player.signals.push_back({id, command.signal, *target, tick_ + signalLifetimeTicks});
             }
-            player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
             const bool switchedWeapon = player.weaponSwitch.begin(player.weapons, player.inventory, command.slot, now);
             const bool handlingMode = command.objectHandling || player.weapons.slot() == viewer::handlingSlot;
             const bool handling = !command.cancelInteraction && handlingMode && command.slot == player.weapons.slot() &&
@@ -534,11 +541,11 @@ void World::step() {
     }
     if (sleepPlan_.begin(now, scene_.dayNight))
         for (auto& [id, player] : players_) {
-            (void)id; player.sleepHealth = player.vitals.health(); player.sleepWatch.reset();
+            (void)id; player.sleepDamageEvents = player.vitals.damageEvents(); player.sleepWatch.reset();
         }
     for (auto& [id, player] : players_) {
         if (!sleepPlan_.state().guarding(id)) { player.sleepWatch.reset(); continue; }
-        if (player.vitals.health() <= 0 || player.vitals.health() < player.sleepHealth) continue;
+        if (player.vitals.health() <= 0 || player.vitals.damageEvents() != player.sleepDamageEvents) continue;
         const auto sighting = player.sleepWatch.update(scene_.zombies, *scene_.collision,
             player.controller.feet(), player.controller.eyePosition(), now, scene_.dayNight.hourAt(now));
         if (!sighting) continue;
@@ -549,7 +556,7 @@ void World::step() {
     }
     for (const auto& [id, player] : players_) {
         if (!sleepPlan_.state().inSleepSession(id)) continue;
-        if (player.vitals.health() <= 0 || player.vitals.health() < player.sleepHealth)
+        if (player.vitals.health() <= 0 || player.vitals.damageEvents() != player.sleepDamageEvents)
             sleepPlan_.wake(viewer::SleepWakeReason::Damage, now);
         else if (sleepPlan_.state().asleep(id) &&
             viewer::sleepThreatNearby(&scene_.zombies, player.controller.feet(), sleepThreatCandidates_))
@@ -567,6 +574,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     auto& observer = players_.at(id);
     Snapshot s; s.tick = tick_;
     s.sleepPlan = sleepPlan_.state();
+    s.mapMarks = mapMarks_;
     s.sounds = sounds_.forListener(tick_, id, observer.camera.position());
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
@@ -584,6 +592,7 @@ Snapshot World::snapshot(std::uint32_t id) {
             player.weaponSwitch.timing() ? static_cast<float>(player.weaponSwitch.timing()->total()) : 0.f,
             static_cast<float>(player.weaponReload.remaining(viewer::SimulationClock::instance().seconds())),
             static_cast<float>(player.weaponReload.duration()), {}, bool(player.inventory.held()) || !player.pendingInventoryActions.empty(), {}});
+        s.players.back().damageEvents = player.vitals.damageEvents();
         s.players.back().sword = (player.weapons.slot() == viewer::axeSlot ? player.weapons.axe() : player.weapons.sword()).pose(viewer::SimulationClock::instance().seconds());
         s.players.back().swordSampleSeconds = static_cast<float>(viewer::SimulationClock::instance().seconds());
         s.players.back().flashlight = player.held.flashlight;

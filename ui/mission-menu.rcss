@@ -1,0 +1,11 @@
+body.mission-menu { background-color: #111315b3; }
+#mission-panel { position: absolute; left: 50%; top: 50%; margin-left: -210dp; margin-top: -145dp; width: 364dp; padding: 28dp; background-color: #2b2d2ff5; border: 1dp #f5f6f24d; color: #f5f6f2; }
+.mission-title { font-family: plex-heading; font-size: 24dp; margin-bottom: 24dp; text-align: center; }
+#mission-panel button { display: block; width: 100%; box-sizing: border-box; padding: 12dp; margin-top: 12dp; background-color: #414548; border: 1dp #f5f6f24d; color: #f5f6f2; text-align: center; font-size: 15dp; }
+#mission-panel button:hover, #mission-panel button:focus { background-color: #596064; }
+#mission-confirm { border-color: #d76b61; }
+.mission-confirmation, .confirming .mission-choices { display: none; }
+.confirming .mission-confirmation { display: block; }
+.mission-question { font-size: 18dp; text-align: center; }
+.mission-description { font-size: 13dp; margin-top: 8dp; text-align: center; }
+.mission-hint { font-size: 11dp; margin-top: 20dp; text-align: center; }

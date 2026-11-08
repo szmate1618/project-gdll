@@ -42,7 +42,8 @@ disable playback while retaining simulation hearing.
 ## HUD
 
 The viewer and graphical multiplayer client share an RmlUi HUD. It displays
-live equipment and ammunition, a scrolling compass ribbon, local east/north
+live equipment and ammunition, a scrolling compass ribbon using the rendered
+camera heading (north = runtime -Z), local east/north
 coordinates, control mode, stance, horizontal speed in km/h and cursor capture.
 The layout is transparent: navigation at the upper right, vitals at the lower
 left, mode/stance/speed along the bottom, and equipment/ammo at the lower right.
@@ -87,7 +88,10 @@ appearance; the source pixels and scene terrain are unchanged. The contrast
 argument in `drawMinimap()` in
 [hud_render_interface.cpp](../src/gui/hud_render_interface.cpp) is `1.15`; use `1.0`
 to restore original colors.
-The white square remains centered as the map scrolls, and areas beyond the
+Your green triangle stays centered and shows your facing direction. Other
+players use light triangles; offscreen players appear as dots at the border.
+Shared location marks use X symbols, also clamped to the border when offscreen.
+Areas beyond the
 published terrain are blank rather than stretched or repeated. Resizing the HUD
 changes screen size only; its world coverage remains 300 × 300 m. The map has no
 size caption beneath it.
@@ -131,7 +135,8 @@ Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
 and strain have tinted tracks at 60% opacity with white outlines at 80%.
 Health shows the player's current percentage (100% at full health) and filled amount;
-successful damage briefly pulses the screen edges red. Stamina shows its remaining
+new direct attack damage briefly pulses the screen edges red. Accumulating
+blood loss does not trigger the hit pulse or interrupt sleep. Stamina shows its remaining
 percentage and fill. Health uses a green Rod of Asclepius icon and green fill;
 stamina uses a blue icon and fill. Strain replaces the inactive weariness row with
 a red heartbeat icon, percentage and fill. Its value is unbounded (100% = one strain unit), and its
@@ -340,14 +345,16 @@ Health and Map omit the action hotbar. Scenes without satellite imagery show
 
 On the F4 map, wheel scrolling zooms around the pointer (up to 32×), and a
 left-button drag pans without placing a measurement point. Zooming out fully
-fits the original image again. The view stays where you leave it while players
-move; **Center on me** explicitly recenters it, subject to the image boundaries.
+fits the original image again. Opening the map centers on your current position
+as far as the image boundaries allow. While it stays open, **Center on me**
+recenters it explicitly.
 Your filled green triangle indicates position and facing direction. The client
 also shows light triangles for players in its existing interpolated snapshots;
 hovering a marker identifies it. Hollow edge triangles point toward offscreen
 players rather than showing their facing direction. These controls and markers
-are viewer/client presentation only: no measurement state is sent over the
-network, and neither the protocol nor server replication changes.
+use existing player snapshots. Measurements stay local. The radial **Mark
+location** action creates a shared persistent X at the aimed location. Click an X
+on the map, then **Delete selected mark**, to remove it for everyone.
 
 Select **Measure**, then click successive corners to draw connected straight
 segments. A dashed preview follows the pointer, with committed distance and
@@ -1867,7 +1874,8 @@ grabbing and weapon selection are suspended while seated.
 Parked cars use one static physics body with two box colliders (lower body and
 cabin), with no wheels, joints, traction sampling or surrounding terrain-mesh
 preparation. They remain solid obstacles to players, zombies and moving bodies.
-Entering the driver's seat activates the original chassis, four cylindrical
+Entering the driver's seat retains a separate cabin collision box and activates
+the original chassis, four cylindrical
 wheels and suspension; passengers alone leave the parked representation intact.
 Before each fixed physics step, moving cars query the physics spatial index over
 their chassis/wheel bounds swept by one step's velocity, with a rotation allowance

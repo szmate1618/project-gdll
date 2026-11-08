@@ -147,9 +147,42 @@ void heuristic() {
         viewer::FloorplanLayer layer(model, doors, collision);
         require(doors.present(0), "Scaled house fixtures must retain a valid exterior door");
         doors.setAngle(0, .5f); layer.update({doors.panel(0).center});
-        require(layer.residentCount() == (variant == 5 ? 1u : 0u), "House heuristic must reject sheds, large/elongated shells, courtyards, and missing roofs");
+        require(layer.residentCount() == (variant == 3 || variant == 4 ? 0u : 1u), "Valid sheds and large/elongated shells need a floor; incomplete shell fixtures must remain rejected");
+        if (variant < 3) {
+            const auto& plan = layer.resident().begin()->second;
+            require(plan.kind == viewer::HouseFloorplan::Kind::BasicBuilding && !plan.structure.draws.empty() && plan.doors.empty(),
+                "Unclassified shells need a basic floor without invented partitions");
+            const auto ground = collision.groundAt(0, 0, -.1f, .2f);
+            require(ground && std::abs(ground->height - .01f) < .001f, "Basic floor is missing from collision queries");
+        }
         if (variant == 5) require(layer.resident().begin()->second.upperFloors.empty(), "Single window row must not invent upper floors");
     }
+}
+void courtyardWithoutDoors() {
+    viewer::Model model; model.materials.push_back({});
+    const auto wallRing = [&](float half) {
+        const std::array<glm::vec2,4> ring{{{-half,-half},{half,-half},{half,half},{-half,half}}};
+        for (std::size_t i = 0; i < 4; ++i) {
+            const auto a = ring[i], b = ring[(i+1)%4];
+            interior_fixture::quad(model, {a.x,-.08f,a.y}, {b.x,-.08f,b.y}, {b.x,4,b.y}, {a.x,4,a.y}, "building_court_walls", glm::mat4(1), true);
+        }
+    };
+    wallRing(10); wallRing(2);
+    for (const auto rect : {glm::vec4(-10,-10,-2,10), {2,-10,10,10}, {-2,-10,2,-2}, {-2,2,2,10}})
+        interior_fixture::quad(model, {rect.x,4,rect.y}, {rect.x,4,rect.w}, {rect.z,4,rect.w}, {rect.z,4,rect.y}, "building_court_roof");
+    interior_fixture::bounds(model);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::CollisionWorld collision(model, {}, &doors);
+    viewer::FloorplanLayer floors(model, doors, collision);
+    floors.update({{5,1,0}});
+    require(floors.residentCount() == 1, "A building without exterior doors must still stream a floor nearby");
+    const auto& plan = floors.resident().begin()->second;
+    require(plan.courtyards.size() == 1 && !plan.contains({0,0}) && plan.contains({5,0}), "Basic floor lost the courtyard boundary");
+    const auto ground = collision.groundAt(5,0,-.1f,.2f);
+    require(ground && std::abs(ground->height - .01f) < .001f && !collision.groundAt(0,0,-.1f,.2f),
+        "Basic floor must provide support under the building while leaving the courtyard open");
+    floors.update({}); require(floors.residentCount() == 0, "Basic floor did not evict after observers left");
 }
 void activationOrder() {
     auto model = house_fixture::house();
@@ -202,7 +235,7 @@ int main(int argc, char** argv) {
     try {
         streaming(glm::mat4(1));
         streaming(glm::translate(glm::mat4(1), {87, 5, -39}) * glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));
-        heuristic();
+        heuristic(); courtyardWithoutDoors();
         activationOrder();
         if (argc > 1) realMap(argv[1]);
         std::cout << "Floorplan generation, streaming, collision, and inward door tests passed\n";

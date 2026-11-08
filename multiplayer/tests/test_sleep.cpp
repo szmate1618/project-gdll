@@ -225,6 +225,27 @@ void server(const char* map) {
     require(!world.snapshot(second).sleepPlan.sleeping && world.snapshot(second).sleepPlan.wakeReason == viewer::SleepWakeReason::Threat,
         "A configured travel-horde member inside sixty metres did not wake the sleeper");
 }
+void bleedingDoesNotWake(const char* map) {
+    using namespace multiplayer;
+    Options options; options.map = map; options.trees = options.forests = options.cars = false; options.zombieCount = 0;
+    Scene scene(options); scene.dayNight = {12,1200}; World world(scene);
+    const auto id = world.join();
+    auto& player = const_cast<ServerPlayer&>(world.players().at(id));
+    player.vitals.applyDamage(.02f);
+    Command command; command.sequence = 1;
+    command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Suggest,0,240};
+    world.submit(id, Commands{{command}});
+    for (int i = 0; i < 10; ++i) world.step();
+    require(world.simulationRate() == 30, "An existing bleeding injury prevented sleep");
+    const auto before = player.vitals.health();
+    for (int i = 0; i < 120; ++i) world.step();
+    require(player.vitals.health() < before && world.snapshot(id).sleepPlan.sleeping,
+            "Accumulating blood loss must not wake a sleeper");
+    player.vitals.applyDamage(.01f); world.step();
+    require(!world.snapshot(id).sleepPlan.sleeping &&
+        world.snapshot(id).sleepPlan.wakeReason == viewer::SleepWakeReason::Damage,
+        "A fresh attack during bleeding must wake the sleeper");
+}
 void guardedWake(const char* map) {
     using namespace multiplayer;
     Options options; options.map = map; options.trees = options.forests = options.cars = false; options.zombieCount = 0;
@@ -322,7 +343,7 @@ void brokenDoorWakesGroup(const char* map) {
 int main(int argc, char** argv) {
     try {
         calendar(); planning(); lifecycle(); wire(); noiseThreshold();
-        require(argc == 2, "Expected test map"); server(argv[1]); guardedWake(argv[1]); brokenDoorWakesGroup(argv[1]);
+        require(argc == 2, "Expected test map"); server(argv[1]); bleedingDoesNotWake(argv[1]); guardedWake(argv[1]); brokenDoorWakesGroup(argv[1]);
         std::cout << "Sleep planning, calendar, protocol and server checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

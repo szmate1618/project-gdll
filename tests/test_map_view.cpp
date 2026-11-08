@@ -86,6 +86,22 @@ int main() {
         const auto remote = view.marker({10000,0},-90);
         require(remote&&remote->atEdge&&remote->direction.x>0,"Offscreen marker did not point toward player");
 
+        require(viewer::mapBearingDegrees(-90) == 0 && viewer::mapBearingDegrees(0) == 90 &&
+                viewer::mapBearingDegrees(90) == 180 && viewer::mapBearingDegrees(180) == 270,
+                "Compass cardinal directions must agree with runtime map north");
+        const auto miniSelf = viewer::minimapMarker({20,30}, -90, {20,30}, {100,50}, {120,120});
+        require(miniSelf && !miniSelf->atEdge, "Local minimap player must remain in view");
+        near(miniSelf->position, {160,110}, "Minimap local player must be centered");
+        near(miniSelf->direction, {0,-1}, "Minimap local triangle must face north");
+        const auto miniRemote = viewer::minimapMarker({10020,30}, 0, {20,30}, {100,50}, {120,120});
+        require(miniRemote && miniRemote->atEdge, "Offscreen minimap player must use an edge marker");
+        near(miniRemote->position, {213,110}, "Offscreen east player must stay inside the right border");
+        const auto miniNorth = viewer::minimapMarker({20,-70}, -90, {20,30}, {100,50}, {120,120});
+        near(miniNorth->position, {160,70}, "North minimap player must appear above the local player");
+        view.setViewport({0,0},{400,300}); view.zoomAt({200,150},4); view.centerOn({20,10});
+        near(view.screenAt({20,10}), {200,150}, "Center on player must use the viewport center when coverage allows it");
+        view.centerOn({200,150});
+        near(view.screenAt({200,150}), {400,300}, "Centering at the map edge must clamp to imagery coverage");
         auto transformed = minimapFixture();
         transformed.draws[0].transform = glm::translate(glm::mat4(1),{430,12,-810}) *
             glm::rotate(glm::mat4(1),glm::radians(90.f),{0,1,0}) * glm::scale(glm::mat4(1),{-2,1,3});

@@ -1,5 +1,5 @@
 #pragma once
 
 namespace viewer {
-enum class HudScreen { Gameplay, Inventory, Skills, Health, Map, Graphics };
+enum class HudScreen { Gameplay, Inventory, Skills, Health, Map, Graphics, MissionMenu };
 }

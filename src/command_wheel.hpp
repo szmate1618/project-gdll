@@ -7,7 +7,7 @@
 #include <optional>
 
 namespace viewer {
-enum class SignalKind : std::uint8_t { None, Danger, Move, Backup };
+enum class SignalKind : std::uint8_t { None, Danger, Move, Backup, Mark };
 
 // The five page choices surround the signal ring. All distances are design dp.
 constexpr float commandPageInnerRadius = 160.f, commandPageOuterRadius = 219.f;
@@ -25,7 +25,8 @@ inline SignalKind signalWheelSelection(glm::vec2 offset) {
     if (!std::isfinite(offset.x) || !std::isfinite(offset.y) ||
         std::hypot(offset.x, offset.y) < 24 || commandWheelPageSelection(offset)) return SignalKind::None;
     const float angle = std::atan2(offset.x, -offset.y);
-    if (std::abs(angle) < 1.0471975512f) return SignalKind::Danger;
-    return angle > 0 ? SignalKind::Move : SignalKind::Backup;
+    const int sector = (static_cast<int>(std::floor(angle / 1.5707963268f + .5f)) + 4) % 4;
+    constexpr SignalKind actions[]{SignalKind::Danger, SignalKind::Move, SignalKind::Mark, SignalKind::Backup};
+    return actions[sector];
 }
 } // namespace viewer

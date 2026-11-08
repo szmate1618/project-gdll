@@ -62,6 +62,8 @@ body.loadout { pointer-events: auto; }
 #map-tools { display: none; position: absolute; left: 20dp; top: 54dp; width: 300dp; }
 .has-satellite #map-tools { display: block; }
 #map-tools button { display: block; width: 280dp; height: 34dp; box-sizing: border-box; margin-bottom: 8dp; font-family: hud-system; font-size: 11dp; line-height: 32dp; border-width: 1dp; border-left-width: 2dp; text-align: center; cursor: pointer; }
+#map-mark-selection { font-size: 11dp; margin-top: 12dp; margin-bottom: 6dp; }
+#map-tools button:disabled { opacity: 0.45; }
 #map-total { margin-top: 18dp; font-size: 12dp; line-height: 22dp; }
 #map-preview-total { font-size: 12dp; line-height: 22dp; }
 #map-player-label { margin-top: 18dp; font-size: 12dp; }

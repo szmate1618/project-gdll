@@ -395,7 +395,7 @@ void printHelp() {
               << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov, 8 Sword, 9 Axe; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
+              << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape mission menu\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
@@ -578,10 +578,9 @@ void framebufferCallback(GLFWwindow* window, int width, int height) {
 
 void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     auto& app = state(window);
-    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && key != GLFW_KEY_TAB && key != GLFW_KEY_HOME) {
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.hudScreen != viewer::HudScreen::MissionMenu &&
+        key != GLFW_KEY_TAB && key != GLFW_KEY_HOME && key != GLFW_KEY_ESCAPE) {
         if (key >= 0 && key <= GLFW_KEY_LAST) app.keys[static_cast<std::size_t>(key)] = false;
-        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-            app.sleepPlan->wake(viewer::SleepWakeReason::Cancelled, viewer::SimulationClock::instance().seconds());
         return;
     }
     const bool wasTemporaryHandling = app.temporaryHandling();
@@ -598,6 +597,17 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         return;
     }
     if (action != GLFW_PRESS) return;
+    if (app.hudScreen == viewer::HudScreen::MissionMenu) {
+        if (key == GLFW_KEY_ESCAPE && app.hud && app.hud->cancelMissionConfirmation()) return;
+        if (key != GLFW_KEY_ESCAPE) {
+            if (app.hud) {
+                if (key == GLFW_KEY_UP) app.hud->missionMenuKey(viewer::MissionMenuKey::Previous);
+                if (key == GLFW_KEY_DOWN) app.hud->missionMenuKey(viewer::MissionMenuKey::Next);
+                if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) app.hud->missionMenuKey(viewer::MissionMenuKey::Activate);
+            }
+            return;
+        }
+    }
     if ((key >= GLFW_KEY_F1 && key <= GLFW_KEY_F4) || key == GLFW_KEY_F12 ||
         (key == GLFW_KEY_ESCAPE && app.hudScreen != viewer::HudScreen::Gameplay)) {
         constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
@@ -637,7 +647,13 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     if (app.driver.occupied() && key != GLFW_KEY_ESCAPE && key != GLFW_KEY_HOME &&
         key != GLFW_KEY_LEFT_ALT && key != GLFW_KEY_RIGHT_ALT) return;
     if (key == GLFW_KEY_ESCAPE && app.actionSelection.open()) { app.actionSelection.close(); return; }
-    if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
+    if (key == GLFW_KEY_ESCAPE) {
+        app.hudScreen = viewer::HudScreen::MissionMenu;
+        app.keys.fill(false); app.proneToggleQueued = false;
+        app.weapons.cancelTrigger(); app.interaction.cancel(); app.firstMouse = true;
+        if (app.hud) app.hud->cancelPointerInteraction();
+        if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
     else if (key == GLFW_KEY_0 || key == GLFW_KEY_GRAVE_ACCENT || (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)) {
         app.interaction.cancel();
         app.actionSelection.highlight((key == GLFW_KEY_0 || key == GLFW_KEY_GRAVE_ACCENT) ? 0 : key - GLFW_KEY_1 + 1);
@@ -692,7 +708,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
-    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture) { app.firstMouse = true; return; }
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture && app.hudScreen == viewer::HudScreen::Gameplay) { app.firstMouse = true; return; }
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
         hudPointer(window, app.hud, x, y);
         if (app.equipmentCursor && !app.firstMouse) app.interaction.moveGrip(float(x - app.lastX), float(app.lastY - y));
@@ -715,7 +731,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
-    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture) return;
+    if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture && app.hudScreen == viewer::HudScreen::Gameplay) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
         app.weapons.secondaryTrigger(false, viewer::SimulationClock::instance().seconds());
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
@@ -1281,7 +1297,10 @@ void inputSelfTest(GLFWwindow* window) {
     glfwPollEvents();
     glfwGetFramebufferSize(window, &app.width, &app.height);
     key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
-    if (!glfwWindowShouldClose(window)) throw std::runtime_error("Escape callback self-test failed");
+    if (glfwWindowShouldClose(window) || app.hudScreen != viewer::HudScreen::MissionMenu)
+        throw std::runtime_error("Escape must open the mission menu without leaving");
+    key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+    if (app.hudScreen != viewer::HudScreen::Gameplay) throw std::runtime_error("Escape must resume from the mission menu");
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     app.keys.fill(false);
     app.rig.camera() = original;
@@ -1790,7 +1809,7 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "C")
-              << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, End frame scene, Alt handling / vehicle camera, Home cursor, Escape quit\n";
+              << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, End frame scene, Alt handling / vehicle camera, Home cursor, Escape mission menu\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
     for (std::size_t i=0; i<droppedModels.size(); ++i)
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
@@ -1815,7 +1834,7 @@ int run(const Options& options) {
     sleepPlan.join(1);
     app.sleepPlan = &sleepPlan;
     app.rig.setDayLengthSeconds(options.dayNight.dayLengthSeconds);
-    float sleepHealth = app.vitals.health();
+    std::uint64_t sleepDamageEvents = app.vitals.damageEvents();
     std::vector<std::size_t> sleepThreatCandidates;
     hud.setGroundItems(groundItems, app.weapons, app.world);
     app.hud = &hud;
@@ -1967,7 +1986,6 @@ int run(const Options& options) {
         };
         const auto beforePhysics = [&](float step) {
             simulated = true;
-            if (sleepPlan.state().asleep(1)) sleepHealth = app.vitals.health();
             app.vitals.advance(step, options.dayNight, sleepPlan.state().asleep(1));
             simulationClock.advance(step);
             sleepPlan.update(simulationClock.seconds());
@@ -2094,7 +2112,7 @@ int run(const Options& options) {
                     if (app.vitals.applyDamage(.01f) > 0) app.lastDamageSeconds = simulationClock.seconds();
             }
             if (sleepPlan.state().asleep(1)) {
-                if (app.vitals.health() < sleepHealth || app.vitals.health() <= 0)
+                if (app.vitals.damageEvents() != sleepDamageEvents || app.vitals.health() <= 0)
                     sleepPlan.wake(viewer::SleepWakeReason::Damage, simulationClock.seconds());
                 else if (viewer::sleepThreatNearby(zombies ? &*zombies : nullptr, app.rig.player().feet(), sleepThreatCandidates))
                     sleepPlan.wake(viewer::SleepWakeReason::Threat, simulationClock.seconds());
@@ -2218,7 +2236,7 @@ int run(const Options& options) {
         hudState.feet = app.driver.occupied() ? app.driver.eyePosition(cars) - glm::vec3(0, 1.65f, 0) : app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position() - glm::vec3(0, 1.65f, 0);
         hudState.forward = app.rig.camera().direction();
         hudState.position = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
-        hudState.yawDegrees = app.rig.camera().yawDegrees();
+        hudState.yawDegrees = viewCamera.yawDegrees();
         hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") :
             !app.rig.walking() ? "FREE FLY" : app.rig.player().stance() == viewer::PlayerStance::Prone ? "PRONE" :
             app.rig.player().stance() == viewer::PlayerStance::Crouched ? "CROUCH" : "STAND";
@@ -2258,12 +2276,16 @@ int run(const Options& options) {
             viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::hud);
             hud.draw(hudState, app.width, app.height);
         }
+        if (const auto action = hud.takeMissionMenuAction()) {
+            if (*action == viewer::MissionMenuAction::Abandon) glfwSetWindowShouldClose(window.get(), GLFW_TRUE);
+            else { app.hudScreen = viewer::HudScreen::Gameplay; captureMouse(window.get(), app.capture); }
+        }
         if (const auto requested = hud.takeScreenRequest()) app.hudScreen = *requested;
         if (const auto action = hud.takeSleepAction()) sleepPlan.apply(1, *action, simulationClock.seconds());
         if (sleepPlan.state().ready() && !sleepPlan.state().sleeping && !app.rig.walking() && !app.driver.occupied())
             app.rig.enterWalking(app.rig.camera().position());
         if ((app.rig.walking() || app.driver.occupied()) && sleepPlan.begin(simulationClock.seconds(), options.dayNight)) {
-            sleepHealth = app.vitals.health(); app.keys.fill(false); app.proneToggleQueued = false;
+            sleepDamageEvents = app.vitals.damageEvents(); app.keys.fill(false); app.proneToggleQueued = false;
             app.handInventory.release(app.interaction, groundItems, app.weapons);
             app.interaction.cancel(); app.weapons.cancelTrigger();
         }

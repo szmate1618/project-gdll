@@ -17,7 +17,7 @@
     </div>
     <div id="navigation">
         <div id="coordinates"><div id="north-coordinate">N 0 m</div><div id="east-coordinate">E 0 m</div></div>
-        <minimap id="minimap"><div id="player-marker" class="hud-icon"></div></minimap>
+        <minimap id="minimap"></minimap>
         <div id="map-caption" class="map-caption">NO MAP</div>
     </div>
     <div id="vitals">
@@ -62,7 +62,8 @@
         <command-sector id="command-page-graphics" class="command-choice command-page" page="true" sector="4"><div class="page-caption"><div class="page-label">GRAPHICS</div><div class="page-key">F12</div></div></command-sector>
         <command-sector id="command-danger" class="command-choice" sector="0"><div class="command-caption"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div></command-sector>
         <command-sector id="command-move" class="command-choice" sector="1"><div class="command-caption"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div></command-sector>
-        <command-sector id="command-backup" class="command-choice" sector="2"><div class="command-caption"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div></command-sector>
+        <command-sector id="command-backup" class="command-choice" sector="3"><div class="command-caption"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div></command-sector>
+        <command-sector id="command-mark" class="command-choice" sector="2"><div class="command-caption"><div class="command-symbol">X</div><div class="command-label">MARK LOCATION</div></div></command-sector>
         <div id="command-center"><div class="command-key">MMB</div><div id="command-center-label">CANCEL</div></div>
         <div id="command-cursor"></div>
         <div id="command-hint" class="command-hint">HOLD MIDDLE MOUSE · SELECT · RELEASE TO SEND / OPEN</div>

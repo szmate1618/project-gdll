@@ -107,14 +107,15 @@ void generated(const std::vector<glm::vec2>& outline, const glm::mat4& transform
         for (std::size_t j = 0; j < a.vertices.size(); ++j) require(a.vertices[j].position == b.vertices[j].position, "Regeneration must retain exact irregular coordinates");
     }
 }
-void rejected(const std::vector<glm::vec2>& outline) {
+void basicFloor(const std::vector<glm::vec2>& outline) {
     auto model = house_fixture::outlined(outline, glm::mat4(1), 1);
     auto physics = std::make_shared<viewer::PhysicsWorld>();
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
     viewer::CollisionWorld collision(model, {}, &doors);
     viewer::FloorplanLayer floors(model, doors, collision);
     doors.setAngle(0, .7f); floors.update({doors.panel(0).center});
-    require(floors.residentCount() == 0, "Strongly diagonal or highly indented footprints must remain ineligible");
+    require(floors.residentCount() == 1 && floors.resident().begin()->second.kind == viewer::HouseFloorplan::Kind::BasicBuilding,
+        "Strongly diagonal or highly indented footprints need a basic floor");
 }
 } // namespace
 int main() {
@@ -128,8 +129,8 @@ int main() {
              {{-5,-6},{-5,6},{5.25f,6},{5,-6}}}) { // Slightly skew wall.
             for (const auto transform : {glm::mat4(1), moved}) for (const int levels : {1, 2, 3}) generated(outline, transform, levels);
         }
-        rejected({{-5,-6},{-5,6},{-1,6},{-1,-1},{5,-1},{5,-6}});
-        rejected({{-5,-6},{-5,6},{5,6},{2,-6}});
+        basicFloor({{-5,-6},{-5,6},{-1,6},{-1,-1},{5,-1},{5,-6}});
+        basicFloor({{-5,-6},{-5,6},{5,6},{2,-6}});
         std::cout << "Irregular footprint, clipping, rooms, staircases and regeneration tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

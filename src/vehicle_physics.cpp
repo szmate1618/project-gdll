@@ -72,6 +72,13 @@ void VehiclePhysics::replaceBoxes(bool active) {
         shape.density = (config.weightKg - 100.f) / (8 * half.x * half.y * half.z);
         const auto hull = b3MakeBoxHull(half.x, half.y, half.z);
         boxes[0] = b3CreateHullShape(body, &shape, &hull.base);
+        // The cabin participates in contacts without changing the tuned chassis
+        // mass/inertia or the suspension's weight budget.
+        shape.density = 0;
+        const auto cabinSize = cabinHalf * scale;
+        const auto cabin = b3MakeOffsetBoxHull(cabinSize.x, cabinSize.y, cabinSize.z,
+                                               vector(fittedCenter(cabinCenter, config)));
+        boxes[1] = b3CreateHullShape(body, &shape, &cabin.base);
         // Preserve the original lowered center of mass and unconstrained tilt.
         auto mass = b3Body_GetMassData(body);
         mass.center.y = -.18f * scale.y;
@@ -163,7 +170,7 @@ VehiclePose VehiclePhysics::pose(std::size_t index) const {
 }
 BoxPose VehiclePhysics::collider(std::size_t index, std::size_t part) const {
     const auto q = rotation(body);
-    if (detailed) return {index, position(body), activeHalf(config), q};
+    if (detailed && part == 0) return {index, position(body), activeHalf(config), q};
     return {index, position(body) + q * fittedCenter(part == 0 ? lowerCenter : cabinCenter,config),
             (part == 0 ? lowerHalf : cabinHalf) * bodyScale(config), q};
 }

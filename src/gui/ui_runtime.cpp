@@ -2,6 +2,8 @@
 #include "command_wheel.hpp"
 #include "map_view.hpp"
 #include <RmlUi/Core.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
@@ -15,6 +17,13 @@ class UiSystem final : public Rml::SystemInterface {
 public:
     double GetElapsedTime() override {
         return std::chrono::duration<double>(std::chrono::steady_clock::now() - start_).count();
+    }
+    void SetClipboardText(const Rml::String& text) override {
+        glfwSetClipboardString(glfwGetCurrentContext(), text.c_str());
+    }
+    void GetClipboardText(Rml::String& text) override {
+        const auto* value = glfwGetClipboardString(glfwGetCurrentContext());
+        text = value ? value : "";
     }
     bool LogMessage(Rml::Log::Type, const Rml::String& message) override {
         std::cerr << "RmlUi: " << message << '\n';

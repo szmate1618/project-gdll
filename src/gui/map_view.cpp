@@ -1,5 +1,6 @@
 #include "gui/map_view.hpp"
 #include "gui/hud.hpp"
+#include "map_markers.hpp"
 #include "gui/hud_render_interface.hpp"
 #include "presentation_viewport.hpp"
 #include <RmlUi/Core.h>
@@ -36,6 +37,8 @@ public:
     MapView* view = nullptr;
     HudRenderInterface* renderer = nullptr;
     const std::vector<MapPlayer>* players = nullptr;
+    const std::vector<MapMark>* marks = nullptr;
+    const std::uint64_t* selected = nullptr;
 protected:
     void OnRender() override {
         if (!view || !renderer) return;
@@ -84,15 +87,9 @@ protected:
         const auto& points = view->points();
         for (std::size_t i = 1; i < points.size(); ++i) line(view->screenAt(points[i-1]), view->screenAt(points[i]), false);
         if (const auto preview = view->preview()) line(view->screenAt(points.back()), view->screenAt(*preview), true);
-        if (players) for (const auto& player : *players) {
-            const auto marker = view->marker(player.position, player.yawDegrees);
-            if (!marker) continue;
-            const auto p = marker->position, d = marker->direction, n = glm::dvec2(-d.y, d.x);
-            const auto color = GetProperty<Rml::Colourb>(player.local ? "map-self-color" : "map-player-color").ToPremultiplied();
-            triangle(p+d*11.*scale, p-d*7.*scale+n*7.*scale, p-d*7.*scale-n*7.*scale, outline);
-            triangle(p+d*8.*scale, p-d*5.*scale+n*4.5*scale, p-d*5.*scale-n*4.5*scale, color);
-            if (marker->atEdge) triangle(p+d*4.*scale, p-d*3.*scale+n*2.*scale, p-d*3.*scale-n*2.*scale, outline);
-        }
+        if (players && marks) appendMapMarkers(mesh, *this, *players, *marks, [&](glm::dvec2 world, double yaw) {
+            return view->marker(world, yaw);
+        }, scale, false, selected ? *selected : 0);
         for (std::size_t i = 0; i < points.size(); ++i) {
             const auto p = view->screenAt(points[i]);
             const bool last = view->measuring() && i+1 == points.size() && points.size() >= 2;
@@ -113,7 +110,7 @@ protected:
 };
 }
 void registerMapViewElement() {
-    for (const auto* name : {"map-line-color", "map-self-color", "map-player-color"})
+    for (const auto* name : {"map-line-color", "map-self-color", "map-player-color", "map-mark-color", "map-selected-mark-color"})
         Rml::StyleSheetSpecification::RegisterProperty(name, "white", false).AddParser("color");
     static Rml::ElementInstancerGeneric<MapElement> instancer;
     Rml::Factory::RegisterElementInstancer("satellite-map", &instancer);
@@ -122,7 +119,7 @@ MapViewUi::MapViewUi(Rml::ElementDocument& document, HudRenderInterface& rendere
     auto* map = dynamic_cast<MapElement*>(document.GetElementById("satellite-overview"));
     total_ = document.GetElementById("map-total"); hint_ = document.GetElementById("map-hint");
     if (!map || !total_ || !hint_) throw std::runtime_error("Incomplete map view layout");
-    map_ = map; map->view = &view_; map->renderer = &renderer; map->players = &players_;
+    map_ = map; map->view = &view_; map->renderer = &renderer; map->players = &players_; map->marks = &marks_; map->selected = &selectedMark_;
 }
 void MapViewUi::setSource(const std::optional<MinimapSource>& source) { view_.setSource(source); }
 void MapViewUi::process(const std::vector<HudPointerEvent>& events, int width, int height,
@@ -130,23 +127,37 @@ void MapViewUi::process(const std::vector<HudPointerEvent>& events, int width, i
     const auto offset = map_->GetAbsoluteOffset(Rml::BoxArea::Content), size = map_->GetBox().GetSize(Rml::BoxArea::Content);
     const double density = document_.GetContext()->GetDensityIndependentPixelRatio();
     view_.setViewport({offset.x,offset.y}, {size.x,size.y}, density);
+    if (centerOnOpen_ && state.showLocalMapPlayer) {
+        view_.centerOn({state.position.x, state.position.z}); centerOnOpen_ = false;
+    }
     const auto pointer = [&] { return glm::dvec2(presentation.scenePointer(normalizedPointer_.x,normalizedPointer_.y,width,height)); };
     view_.move(pointer());
+    marks_ = state.mapMarks;
+    if (std::none_of(marks_.begin(), marks_.end(), [&](const auto& mark) { return mark.id == selectedMark_; })) selectedMark_ = 0;
     players_ = state.mapPlayers;
     if (state.showLocalMapPlayer) players_.push_back({{state.position.x,state.position.z},state.yawDegrees,"YOU",true});
-    constexpr std::array<const char*,4> controls{"map-measure", "map-clear", "map-center", "map-from-me"};
+    constexpr std::array<const char*,5> controls{"map-measure", "map-clear", "map-center", "map-from-me", "map-delete-mark"};
     for (const auto& event : events) {
         switch (event.action) {
         case HudPointerAction::Move: normalizedPointer_ = {event.x,event.y}; view_.move(pointer()); break;
         case HudPointerAction::Press:
             pressedControl_.clear();
             for (const auto* id : controls) if (hit(*document_.GetElementById(id),pointer())) { pressedControl_ = id; break; }
-            if (pressedControl_.empty()) view_.press();
+            if (pressedControl_.empty()) {
+                if (!view_.measuring()) for (const auto& mark : marks_) {
+                    const auto marker = view_.marker({mark.position.x,mark.position.z}, -90);
+                    if (marker && glm::length(marker->position-pointer()) <= 14*density) {
+                        selectedMark_ = mark.id; pressedControl_ = "mark"; break;
+                    }
+                }
+                if (pressedControl_.empty()) view_.press();
+            }
             break;
         case HudPointerAction::Release:
             if (pressedControl_.empty()) view_.release();
-            else if (hit(*document_.GetElementById(pressedControl_),pointer())) {
-                if (pressedControl_ == "map-measure") view_.beginMeasurement();
+            else if (pressedControl_ != "mark" && hit(*document_.GetElementById(pressedControl_),pointer())) {
+                if (pressedControl_ == "map-delete-mark" && selectedMark_) removal_ = selectedMark_;
+                else if (pressedControl_ == "map-measure") view_.beginMeasurement();
                 else if (pressedControl_ == "map-clear") view_.clearMeasurement();
                 else if (state.showLocalMapPlayer) {
                     const glm::dvec2 position{state.position.x,state.position.z};
@@ -162,6 +173,8 @@ void MapViewUi::process(const std::vector<HudPointerEvent>& events, int width, i
         case HudPointerAction::Wheel: view_.zoomAt(pointer(),event.x); break;
         }
     }
+    document_.GetElementById("map-delete-mark")->SetPseudoClass("disabled", !selectedMark_);
+    text(*document_.GetElementById("map-mark-selection"), selectedMark_ ? "MARK SELECTED" : "Click an X to select a mark");
     text(*document_.GetElementById("map-measure"), view_.points().empty() ? "MEASURE" : "NEW MEASUREMENT");
     document_.GetElementById("map-measure")->SetClass("active", view_.measuring());
     text(*total_, view_.points().empty() ? "HORIZONTAL DISTANCE" : "TOTAL: " + distanceLabel(view_.distance()));

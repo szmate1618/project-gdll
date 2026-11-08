@@ -31,12 +31,20 @@ void wire() {
     auto bytes = encode(Commands{{command}});
     require(std::get<Commands>(decode(bytes.data(), bytes.size())).commands[0].signal == SignalKind::Danger,
             "Signal lost in command round trip");
-    command.signal = static_cast<SignalKind>(4); rejects([&] { encode(Commands{{command}}); });
+    command.signal = static_cast<SignalKind>(5); rejects([&] { encode(Commands{{command}}); });
     bytes.back() = 255; rejects([&] { decode(bytes.data(), bytes.size()); });
+    command.signal = SignalKind::Mark; command.removeMapMark = 42;
+    bytes = encode(Commands{{command}});
+    const auto markCommand = std::get<Commands>(decode(bytes.data(), bytes.size())).commands.front();
+    require(markCommand.signal == SignalKind::Mark && markCommand.removeMapMark == 42, "Map mark command lost in transit");
     Snapshot snapshot; snapshot.tick = 10;
+    snapshot.players.push_back({}); snapshot.players.back().id = 1; snapshot.players.back().damageEvents = 12;
+    snapshot.mapMarks = {{42,1,{3,0,4}}};
     snapshot.signals = {{1, SignalKind::Move, {3, 2, 1}, 370}, {1, SignalKind::Danger, {9, 2, 1}, 365}};
     bytes = encode(snapshot);
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+    require(copy.players.front().damageEvents == 12 && copy.mapMarks.size() == 1 && copy.mapMarks.front().id == 42,
+            "Snapshot lost direct hit events or shared mark identity");
     require(copy.signals.size() == 2 && copy.signals[0].position == glm::vec3(3, 2, 1) &&
             copy.signals[0].expires == 370 && copy.signals[1].id == 1 && copy.signals[1].expires == 365 &&
             copy.signals[1].kind == SignalKind::Danger, "Multiple signals from one player lost in snapshot round trip");
@@ -67,7 +75,8 @@ void geometry() {
     require(signalWheelSelection({0, 0}) == SignalKind::None && signalWheelSelection({23, 0}) == SignalKind::None,
             "Wheel center must cancel");
     require(signalWheelSelection({0, -80}) == SignalKind::Danger && signalWheelSelection({80, 45}) == SignalKind::Move &&
-            signalWheelSelection({-80, 45}) == SignalKind::Backup, "Wheel selected wrong sector");
+            signalWheelSelection({-80, 45}) == SignalKind::Backup &&
+            signalWheelSelection({0, 80}) == SignalKind::Mark, "Wheel selected wrong sector");
     require(!viewer::commandWheelPageSelection({0, -159}) &&
             viewer::commandWheelPageSelection({0, -160}) == viewer::HudScreen::Inventory &&
             signalWheelSelection({0, -160}) == SignalKind::None,
@@ -171,17 +180,31 @@ void server(const char* map) {
     require(world.snapshot(second).signals.size() == 1 && world.snapshot(second).signals[0].id == second,
             "Expiring one player's ping removed another player's ping");
     world.step(); require(world.snapshot(second).signals.empty(), "Last ping did not expire");
-    c.sequence = 5; c.signal = SignalKind::Move; c.pitch = -45;
+    c.sequence = 5; c.signal = SignalKind::Mark; c.pitch = -45;
+    world.submit(first, Commands{{c}}); world.submit(first, Commands{{c}}); world.step();
+    const auto marks = world.snapshot(second).mapMarks;
+    require(marks.size() == 1 && marks.front().player == first && marks.front().position.x > 1,
+            "Mark location must resolve the command aim once and share the location");
+    for (int i = 0; i < 400; ++i) world.step();
+    require(world.snapshot(second).mapMarks.size() == 1, "Persistent map marks must outlive temporary signals");
+    const auto markBytes = encode(world.snapshot(third));
+    const auto markCopy = std::get<Snapshot>(decode(markBytes.data(), markBytes.size()));
+    require(markCopy.mapMarks.size() == 1 && markCopy.mapMarks.front().id == marks.front().id &&
+        markCopy.mapMarks.front().position == marks.front().position, "Late join lost shared mark identity or location");
+    other.sequence = 2; other.signal = SignalKind::None; other.removeMapMark = marks.front().id;
+    world.submit(second, Commands{{other}}); world.submit(second, Commands{{other}}); world.step();
+    require(world.snapshot(first).mapMarks.empty(), "Another player must be able to delete a shared mark idempotently");
+    c.sequence = 6; c.signal = SignalKind::Move; c.pitch = -45;
     world.submit(first, Commands{{c}}); world.step();
     require(world.snapshot(second).signals[0].kind == SignalKind::Move, "Move signal not shared");
     for (int i = 0; i < 60; ++i) world.step();
-    c.sequence = 6; c.signal = SignalKind::Backup;
+    c.sequence = 7; c.signal = SignalKind::Backup;
     world.submit(first, Commands{{c}}); world.step();
     require(world.snapshot(second).signals.size() == 2, "New backup replaced a move ping");
     world.leave(first); require(world.snapshot(second).signals.empty(), "Disconnect left sender's pings behind");
     for (std::uint64_t ping = 0; ping < 8; ++ping) {
         if (ping) for (int i = 0; i < 59; ++i) world.step();
-        other.sequence = ping + 2; world.submit(second, Commands{{other}}); world.step();
+        other.sequence = ping + 3; other.signal = SignalKind::Backup; other.removeMapMark = 0; world.submit(second, Commands{{other}}); world.step();
         s = world.snapshot(third);
         require(s.signals.size() == std::min<std::size_t>(ping + 1, 6), "Steady pings exceeded or missed the active budget");
         require(world.players().at(second).signals.size() == s.signals.size(), "Expired pings accumulated on server");

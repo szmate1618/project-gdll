@@ -94,7 +94,7 @@ HouseNavigationGraph::HouseNavigationGraph(const HouseFloorplan& plan, const Doo
     }
     // Apartment common-space polygons meet without physical doors. Represent
     // each walkable shared opening as a door node with no panel ID.
-    if (plan.kind == HouseFloorplan::Kind::PrefabApartmentBlock || plan.kind == HouseFloorplan::Kind::AuthoredPalace ||
+    if (plan.kind == HouseFloorplan::Kind::BasicBuilding || plan.kind == HouseFloorplan::Kind::PrefabApartmentBlock || plan.kind == HouseFloorplan::Kind::AuthoredPalace ||
         plan.kind == HouseFloorplan::Kind::AuthoredBuilding) {
         for (std::size_t first = 0; first < rooms_.size(); ++first) for (std::size_t second = first + 1; second < rooms_.size(); ++second) {
             if (!common(plan.rooms[first].kind) || !common(plan.rooms[second].kind) ||

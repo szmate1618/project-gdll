@@ -146,4 +146,21 @@ double MapView::distance() const {
     for (std::size_t i = 1; i < points_.size(); ++i) result += glm::length(points_[i] - points_[i-1]);
     return result;
 }
+int mapBearingDegrees(double yaw) {
+    if (!std::isfinite(yaw)) return 0;
+    return (static_cast<int>(std::lround(std::remainder(yaw, 360.0) + 90)) % 360 + 360) % 360;
+}
+std::optional<MapView::Marker> minimapMarker(glm::dvec2 world, double yaw, glm::dvec2 center,
+        glm::dvec2 offset, glm::dvec2 size, double density) {
+    if (!std::isfinite(world.x) || !std::isfinite(world.y) || !std::isfinite(yaw) ||
+        !std::isfinite(center.x) || !std::isfinite(center.y) || size.x <= 0 || size.y <= 0) return {};
+    const auto margin = glm::min(glm::dvec2(7 * density), size * .25);
+    const auto half = size * .5 - margin;
+    const auto delta = (world - center) / minimapSpanMeters * size;
+    const double ratio = std::max(std::abs(delta.x) / half.x, std::abs(delta.y) / half.y);
+    const double angle = glm::radians(yaw);
+    auto direction = glm::dvec2(std::cos(angle), std::sin(angle)) * size;
+    direction = glm::normalize(direction);
+    return MapView::Marker{offset + size * .5 + delta / std::max(1.0, ratio), direction, ratio > 1};
+}
 } // namespace viewer

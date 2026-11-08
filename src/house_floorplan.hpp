@@ -42,7 +42,7 @@ struct HouseStaircase {
 };
 struct HouseFloorplan {
     static constexpr std::size_t basementStorey = std::numeric_limits<std::size_t>::max();
-    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace, AuthoredBuilding };
+    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace, AuthoredBuilding, BasicBuilding };
     Kind kind = Kind::FamilyHouse;
     std::string name;
     glm::vec3 minimum{0}, maximum{0};

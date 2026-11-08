@@ -8,6 +8,7 @@
 #include "minimap.hpp"
 #include "minimap_fixture.hpp"
 #include "opengl.hpp"
+#include "camera.hpp"
 #include "presentation_viewport.hpp"
 #include <GLFW/glfw3.h>
 #include <RmlUi/Core.h>
@@ -204,7 +205,7 @@ int main(int argc, char** argv) {
                     isColor(colorAt(bright, 1280, 720, 644, 490), {214,214,214}) &&
                     isColor(colorAt(bright, 1280, 720, 640, 148), {214,214,214}),
                     "Command sectors must have their own adaptive charcoal backdrops through their straight edges");
-            for (const auto& point : std::array<std::array<int, 2>, 4>{{{420,215}, {675,360}, {641,420}, {641,490}}})
+            for (const auto& point : std::array<std::array<int, 2>, 4>{{{420,215}, {675,360}, {685,405}, {735,455}}})
                 require(isColor(colorAt(bright, 1280, 720, point[0], point[1]), {255,255,255}),
                         "The command dial must leave its center, gaps and outer corners unobscured");
             require(isColor(colorAt(bright, 1280, 720, 400, 600), {255,255,255}) &&
@@ -330,11 +331,11 @@ int main(int argc, char** argv) {
             require(colorAt(centeredWheel, 1280, 720, 420, 220) == colorAt(beforeWheel, 1280, 720, 420, 220) &&
                     colorAt(centeredWheel, 1280, 720, 675, 360) == colorAt(beforeWheel, 1280, 720, 675, 360),
                     "Sector corners and gap around the cancel ring must leave the scene visible");
-            require(colorAt(centeredWheel, 1280, 720, 641, 420) == colorAt(beforeWheel, 1280, 720, 641, 420) &&
-                    colorAt(centeredWheel, 1280, 720, 641, 490) == colorAt(beforeWheel, 1280, 720, 641, 490),
+            require(colorAt(centeredWheel, 1280, 720, 685, 405) == colorAt(beforeWheel, 1280, 720, 685, 405) &&
+                    colorAt(centeredWheel, 1280, 720, 735, 455) == colorAt(beforeWheel, 1280, 720, 735, 455),
                     "Outward sector separation must leave a parallel gap near and far from the center");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-center.ppm").c_str(), centeredWheel, 1280, 720);
-            for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60)}) {
+            for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60), glm::vec2(0, 100)}) {
                 state.commandWheelOffset = offset;
                 clear(); hud.draw(state, 1280, 720); checkState();
                 require(pixels(1280, 720) != centeredWheel, "Command sector and cursor did not respond to aim");
@@ -440,6 +441,17 @@ int main(int argc, char** argv) {
             require(mapPixels(small) > 2850 && mapPixels(small) < 3000, "HUD did not scale its map on resize");
             hud.draw(state, 0, 0); checkState();
             hud.draw(state, 1280, 720); checkState();
+            auto* gameplay = Rml::GetContext("game-hud")->GetDocument(0);
+            for (const auto& heading : {std::pair{-90.f,"0°"}, {0.f,"90°"}, {90.f,"180°"}, {180.f,"270°"}}) {
+                viewer::Camera camera; camera.setOrientation(heading.first,0);
+                state.yawDegrees = camera.yawDegrees();
+                clear(); hud.draw(state,1280,720); checkState();
+                if (argc > 1 && heading.first == -90)
+                    capture((std::string(argv[1])+"-compass-north.ppm").c_str(),pixels(1280,720),1280,720);
+                require(gameplay->GetElementById("heading")->GetInnerRML() == heading.second,
+                    "Top HUD compass must display the correct rendered cardinal bearing");
+            }
+            state.yawDegrees = 225;
             hud.setMinimap(*mapSource, mapTexture); checkState();
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto map = pixels(1280, 720);
@@ -463,7 +475,7 @@ int main(int argc, char** argv) {
                     isColor(colorAt(moved, 1280, 720, 1202, 50), {4,222,15}) &&
                     isColor(colorAt(moved, 1280, 720, 1215, 50), {18,26,20}),
                     "Minimap did not follow the player with a fixed 300 m window at the map edge");
-            require(isColor(colorAt(moved, 1280, 720, 1200, 84), {245,246,242}), "Player marker moved away from the center");
+            require(isColor(colorAt(moved, 1280, 720, 1200, 84), {89,196,156}), "Player marker moved away from the center");
             state.position.x = 0;
             clear(); hud.draw(state, 640, 360); checkState();
             const auto resizedMap = pixels(640, 360);
@@ -482,7 +494,7 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto centeredRoad = pixels(1280, 720);
             require(isColor(colorAt(centeredRoad, 1280, 720, 1200, 60), {230,219,184}) &&
-                    isColor(colorAt(centeredRoad, 1280, 720, 1200, 84), {245,246,242}),
+                    isColor(colorAt(centeredRoad, 1280, 720, 1200, 84), {89,196,156}),
                     "Roads must follow the minimap center and remain below the player marker");
             state.position.x = 1000;
             clear(); hud.draw(state, 1280, 720); checkState();
@@ -518,6 +530,26 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 640, 360); checkState();
             require(isColor(colorAt(pixels(640, 360), 640, 360, 616, 25), {230,219,184}),
                     "Road MSAA target did not follow HUD resize");
+            state.mapPlayers = {{{70,-60},0,"PLAYER 2",false}, {{10000,0},0,"PLAYER 3",false}};
+            state.mapMarks = {{7,2,{-60,0,70}}, {8,2,{0,0,-10000}}};
+            clear(); hud.draw(state,1280,720); checkState();
+            const auto teamMap = pixels(1280,720);
+            auto* miniElement = Rml::GetContext("game-hud")->GetDocument(0)->GetElementById("minimap");
+            const auto miniOffset = miniElement->GetAbsoluteOffset(Rml::BoxArea::Content), miniSize = miniElement->GetBox().GetSize(Rml::BoxArea::Content);
+            const auto markerColor = [&](glm::dvec2 world, std::array<int,3> expected) {
+                const auto marker = viewer::minimapMarker(world,0,{0,0},{miniOffset.x,miniOffset.y},{miniSize.x,miniSize.y});
+                bool found = false;
+                for (int y=-2; y<=2; ++y) for (int x=-2; x<=2; ++x)
+                    found |= isColor(colorAt(teamMap,1280,720,int(std::round(marker->position.x))+x,
+                        int(std::round(marker->position.y))+y),expected);
+                return found;
+            };
+            require(markerColor({70,-60},{245,246,242}) && markerColor({10000,0},{245,246,242}),
+                "Minimap must draw remote player triangles and offscreen border dots");
+            require(markerColor({-60,70},{231,205,101}) && markerColor({0,-10000},{231,205,101}),
+                "Minimap must draw shared X marks in view and at its border");
+            if (argc > 1) capture((std::string(argv[1])+"-minimap-team.ppm").c_str(),teamMap,1280,720);
+            state.mapPlayers.clear(); state.mapMarks.clear();
         }
         require(glIsTexture(mapTexture), "HUD deleted the borrowed terrain texture");
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, mapTexture);
@@ -536,6 +568,23 @@ int main(int argc, char** argv) {
             const auto click = [&](float x,float y) { move(x,y); hud.pointerButton(0,true); hud.pointerButton(0,false); draw(); };
             draw();
             const auto emptyMap = pixels(1280,720);
+            mapState.mapMarks = {{42,2,{0,0,0}}}; draw();
+            if (argc > 1) capture((std::string(argv[1])+"-map-mark.ppm").c_str(),pixels(1280,720),1280,720);
+            auto* mapContext = Rml::GetContext("game-hud");
+            Rml::ElementDocument* mapPage = nullptr;
+            for (int i=0; i<mapContext->GetNumDocuments(); ++i)
+                if (auto* page = mapContext->GetDocument(i); page->GetElementById("satellite-overview")) mapPage = page;
+            require(mapPage, "Map page missing for mark deletion");
+            auto* mapElement = mapPage->GetElementById("satellite-overview");
+            const auto mapOffset = mapElement->GetAbsoluteOffset(Rml::BoxArea::Content), mapSize = mapElement->GetBox().GetSize(Rml::BoxArea::Content);
+            click(mapOffset.x+mapSize.x*.5f, mapOffset.y+mapSize.y*.5f);
+            require(!hud.takeMapMarkRemoval(), "Selecting a mark must not delete it");
+            auto* deleteMark = mapPage->GetElementById("map-delete-mark");
+            const auto deleteOffset = deleteMark->GetAbsoluteOffset(Rml::BoxArea::Border), deleteSize = deleteMark->GetBox().GetSize(Rml::BoxArea::Border);
+            click(deleteOffset.x+deleteSize.x*.5f, deleteOffset.y+deleteSize.y*.5f);
+            require(hud.takeMapMarkRemoval() == 42 && !hud.takeMapMarkRemoval(), "Delete selected mark must emit its stable identity once");
+            mapState.mapMarks.clear(); click(1000,300);
+
             move(100,169); draw();
             require(colorAt(pixels(1280,720),1280,720,55,160)[0] > colorAt(emptyMap,1280,720,55,160)[0] + 20,
                     "Hovering a map tool must brighten its outline");
@@ -1476,6 +1525,37 @@ int main(int argc, char** argv) {
             require(rejectionPixels() == 0, "Repeated snapshots must not restart an expired rejection highlight");
             ++drawer.handStoreRejections; draw();
             require(rejectionPixels() > 500, "A later rejected return must trigger a fresh highlight");
+        }
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            viewer::HudState menuState; menuState.screen = viewer::HudScreen::MissionMenu;
+            const auto draw = [&] { clear(); hud.draw(menuState, 1280,720); checkState(); };
+            draw();
+            auto* context = Rml::GetContext("game-hud");
+            Rml::ElementDocument* page = nullptr;
+            for (int i=0; i<context->GetNumDocuments(); ++i)
+                if (auto* doc = context->GetDocument(i); doc->GetElementById("mission-panel")) page = doc;
+            require(page, "Escape mission menu document is missing");
+            const auto click = [&](const char* id) {
+                auto* element = page->GetElementById(id);
+                const auto low = element->GetAbsoluteOffset(Rml::BoxArea::Border), size = element->GetBox().GetSize(Rml::BoxArea::Border);
+                hud.pointerMove((low.x+size.x*.5f)/1280, (low.y+size.y*.5f)/720);
+                hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
+            };
+            require(!hud.takeMissionMenuAction(), "Opening the mission menu must not leave the session");
+            click("mission-abandon");
+            require(!hud.takeMissionMenuAction() && page->GetElementById("mission-confirm")->IsVisible(true),
+                "Abandon must display a confirmation before leaving");
+            if (argc > 1) capture((std::string(argv[1])+"-mission-confirm.ppm").c_str(),pixels(1280,720),1280,720);
+            require(hud.cancelMissionConfirmation(), "Escape must cancel abandon confirmation"); draw();
+            require(!hud.cancelMissionConfirmation() && !hud.takeMissionMenuAction(), "Cancelling confirmation must keep the session active");
+            click("mission-resume"); require(hud.takeMissionMenuAction() == viewer::MissionMenuAction::Resume, "Resume must return to gameplay");
+            click("mission-abandon"); click("mission-cancel");
+            require(!hud.takeMissionMenuAction(), "Keep playing must cancel abandonment");
+            click("mission-abandon"); click("mission-confirm");
+            require(hud.takeMissionMenuAction() == viewer::MissionMenuAction::Abandon && !hud.takeMissionMenuAction(),
+                "Confirmed abandonment must be emitted once");
         }
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
         glDeleteTextures(1, &mapTexture);

@@ -15,6 +15,7 @@
 #include "zombie_hit.hpp"
 #include "dog_state.hpp"
 #include "sleep_plan.hpp"
+#include "map_mark.hpp"
 
 #include "vehicle_config.hpp"
 #include "boid/simulation.hpp"
@@ -38,12 +39,13 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 61; // Axe skill and authoritative stopped swing poses.
+constexpr std::uint32_t protocolVersion = 62; // Direct damage events and shared persistent map marks.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
 constexpr std::size_t maxSignals = maxPlayers * maxSignalsPerPlayer;
+constexpr std::size_t maxMapMarks = 256;
 using SignalKind = viewer::SignalKind;
 struct SignalState {
     std::uint32_t id = 0; // Sender; multiple signals may share this player ID.
@@ -105,6 +107,7 @@ struct Command {
     // Reports share this command's sequence and are retried/deduplicated with it.
     std::optional<FirearmShot> firearmShot;
     bool flashlight = true; // Held state; repeated commands must not toggle it again.
+    std::uint64_t removeMapMark = 0; // One-shot shared deletion; zero means none.
     std::optional<viewer::SleepAction> sleepAction{};
 };
 struct ReplicationView {
@@ -163,6 +166,7 @@ struct PlayerState {
     viewer::SwordPose sword{}; // Shared directional pose for sword and axe, selected by slot.
     float swordSampleSeconds = 0;
     std::optional<viewer::PlayerHealth> medical{}; // Observer medical records only.
+    std::uint64_t damageEvents = 0; // Monotonic successful direct hits, independent of blood loss.
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;
@@ -255,6 +259,7 @@ struct Snapshot {
 
     std::vector<VehicleState> vehicles;
     std::vector<SignalState> signals;
+    std::vector<viewer::MapMark> mapMarks;
     std::vector<SoundEvent> sounds;
     std::vector<GroundItemState> groundItems;
     viewer::SleepPlanState sleepPlan;

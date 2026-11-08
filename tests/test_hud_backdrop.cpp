@@ -202,8 +202,9 @@ void checkBackdrop(const char* capturePrefix) {
     // Separated sectors share a central hole, but each samples its own wedge.
     bounds = {};
     bounds[15] = {230,87,180,180};
-    bounds[16] = {232.59808f,91.5f,180,180};
-    bounds[17] = {227.40192f,91.5f,180,180};
+    bounds[16] = {233,90,180,180};
+    bounds[17] = {230,93,180,180};
+    bounds[18] = {227,90,180,180};
     resized.clear(0);
     glEnable(GL_SCISSOR_TEST); glScissor(0,0,320,360);
     constexpr GLfloat white[]{1,1,1,1}; glClearBufferfv(GL_COLOR, 0, white);
@@ -213,12 +214,12 @@ void checkBackdrop(const char* capturePrefix) {
         "The bright Backup sector and dark Move sector must adapt independently");
     require(resized.pixel(320, 120) > 0 && resized.pixel(320, 120) < 10,
         "The Danger sector crossing bright and dark scenery must use its own region average");
-    require(resized.pixel(305, 180) == 255 && resized.pixel(319, 245) == 255 && resized.pixel(240, 100) == 255,
+    require(resized.pixel(305, 180) == 255 && resized.pixel(365, 225) == 0 && resized.pixel(240, 100) == 255,
         "Sector backdrops must leave the central hole, separation gaps and outer corners clear");
     if (capturePrefix) resized.capture(std::string(capturePrefix) + "-sectors.ppm");
 
     bounds = {};
-    for (std::size_t i = 18; i < bounds.size(); ++i) bounds[i] = {210,70,220,220};
+    for (std::size_t i = 19; i < bounds.size(); ++i) bounds[i] = {210,70,220,220};
     resized.clear(0);
     glEnable(GL_SCISSOR_TEST); glScissor(0,0,320,360);
     glClearBufferfv(GL_COLOR, 0, white);

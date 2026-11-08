@@ -2,10 +2,12 @@
 
 #include "inventory/inventory_action.hpp"
 #include "command_wheel.hpp"
+#include "mission_menu.hpp"
 #include "graphics_settings.hpp"
 #include "sleep_plan.hpp"
 #include "player_health.hpp"
 #include "../map_view.hpp"
+#include "map_mark.hpp"
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -40,7 +42,7 @@ struct HudState {
     std::optional<float> stamina, strain; // Normalized stamina; unbounded strain index.
     std::optional<float> weariness; // Normalized long-term fatigue; separate from strain.
     std::optional<PlayerHealth> medical; // Owned presentation copy; absent if records are unavailable.
-    double lastDamageSeconds = -1; // Successful health loss, in the same clock as seconds.
+    double lastDamageSeconds = -1; // Successful direct hit, in the same clock as seconds.
     int slot = -1; // Equipment ID from weapons.hpp; -1 means unconfirmed.
     bool mouseCaptured = true;
     bool objectHandling = false, handInventoryActive = false;
@@ -53,6 +55,7 @@ struct HudState {
     glm::vec2 commandWheelOffset{0}; // Design dp, positive Y down.
     std::vector<HudSignal> signals;
     std::vector<MapPlayer> mapPlayers; // Existing client snapshots only; no map replication.
+    std::vector<MapMark> mapMarks;
     bool showLocalMapPlayer = true;
 };
 
@@ -79,6 +82,10 @@ public:
     // Consume a clicked page tab after draw(); apply it to the caller's screen
     // state so input routing and the next rendered page stay in agreement.
     std::optional<HudScreen> takeScreenRequest();
+    std::optional<MissionMenuAction> takeMissionMenuAction();
+    bool cancelMissionConfirmation();
+    void missionMenuKey(MissionMenuKey key);
+    std::optional<std::uint64_t> takeMapMarkRemoval();
     void setGraphicsSettings(const GraphicsSettings& settings);
     std::optional<GraphicsSettings> takeGraphicsSettingsRequest();
     std::vector<InventoryDragAction> takeInventoryActions();
