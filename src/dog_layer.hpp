@@ -72,6 +72,9 @@ public:
     void makeNoise(const NoiseEvent& noise);
     const std::vector<DogAttackHit>& attackHits() const { return hits_; }
     void releaseAnimationVertices();
+    // Conservative world-bounds candidates from the living dog grid. Includes
+    // heads/tails whose feet lie outside the radius. Runtime frames are feet/yaw.
+    void queryMeleeNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) const;
     std::optional<DogShotTrace> traceShot(glm::vec3 origin, glm::vec3 direction,
         const CollisionWorld& world, double seconds, const std::vector<DogInstance>* displayed = nullptr) const;
     bool damage(std::size_t dog, float amount);

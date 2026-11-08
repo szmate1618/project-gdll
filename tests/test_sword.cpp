@@ -4,6 +4,7 @@
 #include "zombie_layer.hpp"
 #include "collision_world.hpp"
 #include "sword_fixture.hpp"
+#include "dog_hit_query.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -126,6 +127,78 @@ void contacts() {
     run(false, false, false); run(true, false, false); run(false, true, false); run(false, false, true);
 }
 
+viewer::DogLayer dogTargets() {
+    viewer::DogLayer dogs;
+    auto& asset = dogs.assets.emplace_back();
+    auto& primitive = asset.model.primitives.emplace_back();
+    for (const glm::vec3 point : {glm::vec3(-.5f, 0, 0), {.5f, 0, 0}, {.5f, 2, 0}, {-.5f, 2, 0}}) {
+        viewer::Vertex vertex; vertex.position = point; primitive.vertices.push_back(vertex);
+    }
+    primitive.indices = {0, 1, 2, 0, 2, 3};
+    asset.animation.resize(1);
+    dogs.assetBounds.push_back({{-.5f, 0, -.01f}, {.5f, 2, .01f}});
+    dogs.instances.resize(2);
+    dogs.instances[0].root = dogs.instances[0].transform = glm::translate(glm::mat4(1), {0, 0, -1});
+    dogs.instances[1].root = dogs.instances[1].transform = glm::translate(glm::mat4(1), {100, 0, 100});
+    dogs.rebuildSpatialIndex();
+    return dogs;
+}
+
+void dogQueries() {
+    auto dogs = dogTargets();
+    const viewer::CollisionWorld world(viewer::Model{});
+    viewer::DogMeleeQuery query(&dogs, {0, 1.5f, 0}, 2.5f, 0);
+    const glm::vec3 start(0, 1, 0);
+    require(!query.trace(start, {0, 1, -.5f}, world), "A dog beyond a finite blade must not be hit");
+    const auto hit = query.trace(start, {0, 1, -1}, world);
+    require(hit && hit->dog == 0 && std::abs(hit->distance - 1) < 1e-6f,
+            "The finite blade endpoint must hit a nearby dog");
+    const auto shot = dogs.traceShot(start, {0, 0, -1}, world, 0);
+    require(shot && shot->dog == hit->dog && std::abs(shot->distance - hit->distance) < 1e-6f,
+            "Sword and firearm dog contact geometry must agree");
+    dogs.damage(0, 1);
+    require(!query.trace(start, {0, 1, -2}, world), "A cached dog surface must stop receiving hits after death");
+
+    // Query across a grid boundary, retaining geometry rooted beyond the range.
+    dogs = dogTargets();
+    dogs.instances[0].root = dogs.instances[0].transform = glm::translate(glm::mat4(1), {20.1f, 0, -4});
+    for (auto& vertex : dogs.assets[0].model.primitives[0].vertices) vertex.position.z += 3;
+    dogs.assetBounds[0] = {{-.5f, 0, 2.99f}, {.5f, 2, 3.01f}};
+    dogs.rebuildSpatialIndex();
+    std::vector<std::size_t> ids;
+    dogs.queryMeleeNear({19.9f, 1, 0}, 2.5f, ids);
+    require(ids == std::vector<std::size_t>{0}, "Dog selection must include overlapping geometry across cell/range boundaries");
+    viewer::DogMeleeQuery boundary(&dogs, {19.9f, 1, 0}, 2.5f, 0);
+    require(boundary.trace({20.1f, 1, 0}, {20.1f, 1, -2}, world).has_value(),
+            "An in-range head/tail must be hittable when its feet lie outside the radius");
+    dogs.instances[0].removed = true;
+    require(!boundary.trace({20.1f, 1, 0}, {20.1f, 1, -2}, world), "Removed dogs must be excluded from cached queries");
+}
+
+void swordDogs() {
+    for (const bool blocked : {false, true}) {
+        auto dogs = dogTargets();
+        viewer::Model scene;
+        if (blocked) {
+            scene = dogs.assets[0].model;
+            for (auto& vertex : scene.primitives[0].vertices) {
+                vertex.position.x *= 8; vertex.position.y *= 2; vertex.position.z = -.5f;
+            }
+            scene.draws.emplace_back();
+        }
+        const viewer::CollisionWorld world(scene);
+        viewer::Camera camera; camera.setPosition({0, 1.5f, 0}); camera.setOrientation(-90, 0);
+        viewer::SwordMelee sword; viewer::SwordCombat combat;
+        sword.trigger(true); sword.drag({-40, 0}); sword.update(1);
+        combat.update(sword, camera, 1.25, 1.25, world, nullptr, &dogs);
+        combat.update(sword, camera, 1.4, 1.4, world, nullptr, &dogs);
+        combat.update(sword, camera, 2, 2, world, nullptr, &dogs);
+        require(std::abs(dogs.instances[0].health - (blocked ? 1.f : .8f)) < 1e-6f,
+                "A sword must damage each nearby dog once per swing and respect wall occlusion");
+        require(dogs.instances[1].health == 1, "A sword must not damage a distant dog");
+    }
+}
+
 void bodyThenJoint() {
     const viewer::CollisionWorld world(viewer::Model{});
     for (const bool back : {false, true}) for (const bool fatal : {false, true}) {
@@ -236,7 +309,7 @@ void corpseMovementAndLifetime() {
 }
 int main() {
     try { gestures(); heldSwings(); geometryAndItem(); contacts(); bodyThenJoint(); cancelAfterBody();
-        finiteBladeQueries(); wallAfterBody(); corpseMovementAndLifetime();
+        finiteBladeQueries(); wallAfterBody(); corpseMovementAndLifetime(); dogQueries(); swordDogs();
         std::cout << "Sword gesture, geometry and contact checks passed\n"; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

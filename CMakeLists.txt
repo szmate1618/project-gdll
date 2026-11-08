@@ -371,7 +371,7 @@ target_link_libraries(prepare_pigeon_flock PRIVATE viewer_zombies viewer_bird_as
 target_include_directories(prepare_pigeon_flock SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(prepare_pigeon_flock)
 
-add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_steering.cpp src/dog_wandering.cpp src/dog_fetch.cpp src/scent_grid.cpp src/dog_hunting.cpp src/dog_scenario.cpp)
+add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_hit_query.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_steering.cpp src/dog_wandering.cpp src/dog_fetch.cpp src/scent_grid.cpp src/dog_hunting.cpp src/dog_scenario.cpp)
 target_link_libraries(viewer_dogs PUBLIC viewer_zombies)
 target_include_directories(viewer_dogs SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_dogs)

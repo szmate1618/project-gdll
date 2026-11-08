@@ -1,4 +1,5 @@
 #include "dog_layer.hpp"
+#include "dog_hit_query.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -123,6 +124,19 @@ void assets(const std::filesystem::path& path) {
     dogs.releaseAnimationVertices();
     const auto after=dogs.traceShot({3,hitHeight,0},{-1,0,0},empty,0);
     require(after && std::abs(after->distance-hitDistance)<.0001f,"Releasing baked vertices changed dog hit geometry");
+    for (const bool attacking : {false, true}) {
+        dogs.instances[0].attacking = attacking;
+        dogs.instances[0].attackSeconds = .35;
+        dogs.instances[0].displayedAnimationFrame = 3.5f;
+        viewer::DogMeleeQuery blade(&dogs, {0, .5f, 0}, 4, 0);
+        for (float y = .1f; y < 1.2f; y += .1f) {
+            const auto bullet = dogs.traceShot({3, y, 0}, {-1, 0, 0}, empty, 0);
+            const auto contact = blade.trace({3, y, 0}, {-3, y, 0}, empty);
+            require(bool(bullet) == bool(contact) && (!bullet ||
+                    (bullet->dog == contact->dog && std::abs(bullet->distance - contact->distance) < .0001f)),
+                    "Cached sword contacts must match actual displayed dog poses after baked vertices are released");
+        }
+    }
     auto replica = viewer::loadDogLayer(path,placements,true);
     require(std::all_of(replica.instances.begin(),replica.instances.end(),[](const auto& dog){return dog.removed;}),"Replica slots must start hidden");
 }

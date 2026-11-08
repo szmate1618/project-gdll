@@ -11,25 +11,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace viewer {
-namespace {
-std::vector<glm::mat4> shotPose(const AnimatedModel& model, const DogInstance& dog, double seconds) {
-    const auto* clip = dogAnimationClip(model,dog);
-    if (dog.displayedAnimationFrame < 0)
-        return sampleAnimatedPose(model,dog.attacking ? dog.attackSeconds : dog.walking ? dog.walkSeconds : seconds,
-                                  dog.attacking ? 0 : dog.phase,clip);
-    const auto& frames = clip ? clip->boneFrames : model.boneFrames;
-    const auto count = clip ? clip->frameCount : model.frameCount;
-    const float frame = dog.displayedAnimationFrame;
-    if (frames.empty()) return sampleAnimatedPose(model,0,0,clip);
-    const auto first = std::min(static_cast<std::size_t>(frame),count-1);
-    const auto second = clip && !clip->loop ? std::min(first+1,count-1) : (first+1)%count;
-    const float fraction = frame-std::floor(frame);
-    std::vector<glm::mat4> pose;
-    for (std::size_t bone = 0; bone < model.skeleton.size(); ++bone)
-        pose.push_back(frames[first*model.skeleton.size()+bone]*(1-fraction)+frames[second*model.skeleton.size()+bone]*fraction);
-    return pose;
-}
-}
 DogDetail dogCameraDetail(float distance) {
     return distance < 20 ? DogDetail{} : distance < 45 ? DogDetail{1, 20} :
         distance < 90 ? DogDetail{2, 10} : DogDetail{3, 5};
@@ -126,63 +107,5 @@ bool DogLayer::damage(std::size_t id, float amount) {
         behaviors[id] = {};
     }
     return true;
-}
-std::optional<DogShotTrace> DogLayer::traceShot(glm::vec3 origin, glm::vec3 direction,
-        const CollisionWorld& world, double seconds, const std::vector<DogInstance>* displayed) const {
-    if (!std::isfinite(glm::length(direction)) || glm::length(direction) < 1e-6f) return {};
-    direction = glm::normalize(direction);
-    const auto& population = displayed ? *displayed : instances;
-    std::optional<DogShotTrace> nearest;
-    for (std::size_t id = 0; id < population.size(); ++id) {
-        const auto& dog = population[id];
-        if (dog.dead || dog.removed || dog.asset >= assets.size()) continue;
-        const auto bounds = dogWorldBounds(assetBounds[dog.asset], dog.transform);
-        float entry = 0, exit = nearest ? nearest->distance : 1000;
-        bool overlap = true;
-        for (int axis = 0; axis < 3; ++axis) {
-            if (std::abs(direction[axis]) < 1e-8f) {
-                if (origin[axis] < bounds.minimum[axis] || origin[axis] > bounds.maximum[axis]) overlap = false;
-            } else {
-                const float a = (bounds.minimum[axis] - origin[axis]) / direction[axis];
-                const float b = (bounds.maximum[axis] - origin[axis]) / direction[axis];
-                entry = std::max(entry, std::min(a, b)); exit = std::min(exit, std::max(a, b));
-            }
-        }
-        if (!overlap || exit < entry) continue;
-        const auto& model = assets[dog.asset];
-        const auto pose = shotPose(model,dog,seconds);
-        for (std::size_t p = 0; p < model.model.primitives.size(); ++p) {
-            const auto& primitive = model.model.primitives[p];
-            const auto& skin = model.animation[p].skinning;
-            std::vector<glm::vec3> vertices;
-            vertices.reserve(primitive.vertices.size());
-            for (std::size_t v = 0; v < primitive.vertices.size(); ++v) {
-                glm::vec4 position(primitive.vertices[v].position, 1);
-                if (!skin.empty()) {
-                    glm::mat4 palette(0);
-                    for (std::size_t influence = 0; influence < 8; ++influence)
-                        if (skin[v].weights[influence] > 0) {
-                            const auto joint = skin[v].joints[influence];
-                            palette += (pose[joint] * model.skeleton[joint].inverseBind) * skin[v].weights[influence];
-                        }
-                    position = palette * position;
-                }
-                vertices.push_back(glm::vec3(dog.transform * position));
-            }
-            for (std::size_t t = 0; t < primitive.indices.size(); t += 3) {
-                const auto a = vertices[primitive.indices[t]], b = vertices[primitive.indices[t+1]], c = vertices[primitive.indices[t+2]];
-                const auto edge1 = b-a, edge2 = c-a, h = glm::cross(direction, edge2);
-                const float det = glm::dot(edge1, h);
-                if (std::abs(det) < 1e-8f) continue;
-                const auto s = origin-a;
-                const float u = glm::dot(s, h)/det;
-                const auto q = glm::cross(s, edge1);
-                const float v = glm::dot(direction, q)/det, distance = glm::dot(edge2, q)/det;
-                if (u < 0 || v < 0 || u+v > 1 || distance < 0 || (nearest && distance >= nearest->distance)) continue;
-                if (world.lineOfSight(origin, origin + direction * std::max(0.f, distance-.01f))) nearest = DogShotTrace{id, distance};
-            }
-        }
-    }
-    return nearest;
 }
 } // namespace viewer

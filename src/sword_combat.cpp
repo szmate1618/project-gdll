@@ -2,6 +2,7 @@
 #include "collision_world.hpp"
 #include "zombie_layer.hpp"
 #include "dog_layer.hpp"
+#include "dog_hit_query.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -22,6 +23,7 @@ void SwordCombat::update(const SwordMelee& sword, const Camera& camera, double s
     if (zombies) for (const auto& [id, handle] : createdCorpses_)
         if (id < zombies->instances.size() && zombies->instances[id].ragdoll && zombies->instances[id].ragdollHandle == handle)
             candidates.push_back(id);
+    DogMeleeQuery dogContacts(dogs, camera.position(), 2.5f, animationSeconds);
     const auto eyeToWorld = glm::inverse(camera.view());
     const auto segment = [&](glm::vec3 a, glm::vec3 b) {
         const float length = glm::distance(a, b);
@@ -54,7 +56,7 @@ void SwordCombat::update(const SwordMelee& sword, const Camera& camera, double s
             if (!jointFirst) sever();
         }
         if (dogs) {
-            const auto hit = dogs->traceShot(a, direction, world, animationSeconds);
+            const auto hit = dogContacts.trace(a, b, world);
             if (hit && hit->distance <= length && !hitDogs_.count(hit->dog) &&
                 world.lineOfSight(camera.position(), a + direction * hit->distance)) {
                 dogs->damage(hit->dog, .2f); hitDogs_.insert(hit->dog);
