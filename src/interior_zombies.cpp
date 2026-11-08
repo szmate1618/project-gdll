@@ -74,28 +74,26 @@ void InteriorZombies::update(const FloorplanLayer& floors, ZombieLayer& zombies,
         auto& encounter = state.encounters.emplace(name,
             Impl::Encounter{plan.footprint, plan.courtyards, plan.basementFloor.value_or(plan.floor), plan.ceiling, {}}).first->second;
         if (state.used == state.reserved) continue;
-        auto placements = placeInteriorZombies(plan, floors.doors(), collision);
-        if (placements.empty()) continue;
-        const bool group = placements.front().position == InteriorZombiePosition::CenterGroup;
-        const auto available = [&](const InteriorZombiePlacement& placement) {
-            const auto feet = glm::vec3(placement.transform[3]);
+        const auto available = [&](glm::vec3 feet) {
             for (const auto observer : observers)
                 if (glm::distance(observer, feet) < 1.2f) return false;
             zombies.queryLivingNear(feet, .75f, nearby);
             return nearby.empty();
         };
+        auto placements = placeInteriorZombies(plan, floors.doors(), collision, available);
+        if (placements.empty()) continue;
+        const bool group = placements.front().position == InteriorZombiePosition::CenterGroup;
         // A center encounter is a complete group even when capacity or other
         // living actors/player positions prevent some of its planned placements.
-        if (group && (placements.size() > state.reserved - state.used ||
-            !std::all_of(placements.begin(), placements.end(), available))) continue;
+        if (group && placements.size() > state.reserved - state.used) continue;
         for (const auto& placement : placements) {
             if (state.used == state.reserved) break;
-            if (!group && !available(placement)) continue;
             const auto id = state.first + state.used++;
             // Upstairs takes precedence over the doorway/corner placement kind.
             const auto initial = plan.rooms.at(placement.room).storey > 0 &&
                 plan.rooms.at(placement.room).storey != HouseFloorplan::basementStorey ? ZombieState::midnight :
-                placement.position == InteriorZombiePosition::CenterGroup ? ZombieState::idle : ZombieState::hiding;
+                (placement.position == InteriorZombiePosition::CenterGroup ||
+                 placement.position == InteriorZombiePosition::RoomPopulation) ? ZombieState::idle : ZombieState::hiding;
             const auto wake = initial == ZombieState::midnight ?
                 dayNight.nextMidnightAtOrAfter(SimulationClock::instance().seconds()) : 0.;
             zombies.activateInteriorZombie(id, placement.transform, initial, wake);

@@ -962,6 +962,12 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_dependencies(test_authored_floorplan palace_fixture)
     viewer_warnings(test_authored_floorplan)
     add_test(NAME viewer_authored_floorplan COMMAND test_authored_floorplan)
+    add_executable(test_palace_zombies tests/test_palace_zombies.cpp)
+    target_link_libraries(test_palace_zombies PRIVATE viewer_zombies)
+    target_compile_definitions(test_palace_zombies PRIVATE PALACE_FIXTURE="${PALACE_FIXTURE}")
+    add_dependencies(test_palace_zombies palace_fixture)
+    viewer_warnings(test_palace_zombies)
+    add_test(NAME viewer_palace_zombies COMMAND test_palace_zombies)
     set(STATION_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/police-station-fixture.glb")
     add_custom_command(OUTPUT "${STATION_FIXTURE}"
         COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"

@@ -360,6 +360,16 @@ zombies also block placements; a center group is accepted or rejected as a whole
 Thus 20% is the encounter-selection chance, not a guarantee of occupied houses
 when valid positions or capacity are unavailable.
 
+The Gödöllő palace (`building_way_107918884_0`) always attempts **200 zombies**
+when its authored interior first becomes resident. A deterministic room-by-room
+distribution spreads them across both floors, away from stairs and courtyard
+voids, with capsule clearance from walls and closed doors. Blocked positions near
+players or living zombies are replaced with other valid positions. This uses the
+same shared reserve and session lifecycle as other encounters: available space
+and remaining reserve limit the population, and later visits never spawn a fresh
+200. Ground-floor palace actors start idle; upper-floor actors follow the midnight
+policy below. Standalone and multiplayer authority use the same placement code.
+
 Every activated interior actor immediately receives a behavior entry. On the
 ground floor, doorway, beside-door and corner placements start **hiding**:
 they turn in place toward audible noises, but never investigate noise or partial

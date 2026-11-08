@@ -27,6 +27,15 @@ The generated town GLB and navigation/placement companions remain in the ignored
 `output/` directory. The preparation command below reproduces the castle override
 from the committed source against an existing compatible town and terrain.
 
+When zombies are enabled, the first runtime interior load populates the palace
+with 200 zombies from the shared session reserve. Placement spans both floors
+and replaces candidates blocked by players or existing actors. Survivors and
+kills persist across interior streaming; re-entry does not create another 200.
+Ground-floor actors start idle and upstairs actors retain the standard midnight
+wake policy. See [interior encounters](../../../docs/FLOORPLANS.md#interior-zombie-encounters).
+`test_palace_zombies` checks the saved geometry, blocked placement alternatives
+and streaming lifecycle; it also accepts a town GLB path for checking the live map.
+
 Validation at this checkpoint: palace Python checks, exact-town walking and room
 navigation, stable streamed door IDs, staircase support/head clearance, reflected
 node transforms, closed building solids, and GPU captures passed. All seven active

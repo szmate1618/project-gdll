@@ -8,12 +8,14 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 
 namespace viewer {
 namespace {
 using house_layout::rules::Random;
 constexpr float inset = .42f, spacing = .75f;
+const std::string palaceBuilding = "building_way_107918884_0";
 struct Candidate { glm::vec2 feet, facing; std::size_t room; InteriorZombiePosition kind; };
 bool inside(const HouseRoom& room, glm::vec2 p) {
     return house_polygon::contains(room.polygon, p);
@@ -56,15 +58,70 @@ std::vector<DoorPanel> roomDoors(const HouseFloorplan& plan, const HouseRoom& ro
     for (const auto id : room.entrances) if (doors.present(id)) add(doors.panel(id));
     return result;
 }
+std::vector<InteriorZombiePlacement> palacePopulation(const HouseFloorplan& plan, const CollisionWorld& collision,
+    Random& random, const std::function<bool(glm::vec3)>& available) {
+    // A shuffled grid per room gives fallback positions around blocked doorways
+    // and observers. Taking one actor per room per pass spreads the population
+    // over both floors instead of filling the first large hall.
+    const auto u = glm::normalize(plan.envelope[3] - plan.envelope[0]);
+    const auto v = glm::normalize(plan.envelope[1] - plan.envelope[0]);
+    std::vector<std::vector<Candidate>> rooms;
+    constexpr float gridSpacing = 1.5f;
+    for (std::size_t id = 0; id < plan.rooms.size(); ++id) {
+        const auto& room = plan.rooms[id];
+        if (room.staircase || room.polygon.empty()) continue;
+        glm::vec2 low(std::numeric_limits<float>::max()), high(std::numeric_limits<float>::lowest());
+        glm::vec2 center(0);
+        for (const auto p : room.polygon) {
+            const glm::vec2 projected(glm::dot(p - plan.envelope[0], u), glm::dot(p - plan.envelope[0], v));
+            low = glm::min(low, projected); high = glm::max(high, projected);
+            center += p / float(room.polygon.size());
+        }
+        std::vector<Candidate> candidates;
+        const int columns = std::max(1, int((high.x - low.x) / gridSpacing));
+        const int rows = std::max(1, int((high.y - low.y) / gridSpacing));
+        const auto middle = (low + high) * .5f;
+        for (int row = 0; row < rows; ++row) for (int column = 0; column < columns; ++column) {
+            const auto p = plan.envelope[0] + u * (middle.x + (column - (columns - 1) * .5f) * gridSpacing) +
+                v * (middle.y + (row - (rows - 1) * .5f) * gridSpacing);
+            candidates.push_back({p, center + v, id, InteriorZombiePosition::RoomPopulation});
+        }
+        shuffle(candidates, random);
+        rooms.push_back(std::move(candidates));
+    }
+    shuffle(rooms, random);
+    std::vector<InteriorZombiePlacement> result;
+    bool progressed = true;
+    while (progressed && result.size() < palaceInteriorZombies) {
+        progressed = false;
+        for (auto& candidates : rooms) {
+            while (!candidates.empty()) {
+                const auto candidate = candidates.back(); candidates.pop_back();
+                const auto feet = safeFeet(plan, candidate, collision);
+                if (!feet || (available && !available(*feet))) continue;
+                if (std::any_of(result.begin(), result.end(), [&](const auto& other) {
+                    return glm::distance(glm::vec3(other.transform[3]), *feet) < spacing;
+                })) continue;
+                result.push_back(placement(candidate, *feet));
+                progressed = true;
+                break;
+            }
+            if (result.size() == palaceInteriorZombies) break;
+        }
+    }
+    return result;
+}
 } // namespace
 bool hasInteriorZombieEncounter(const std::string& building) {
+    if (building == palaceBuilding) return true;
     Random random(building, 0x696e746572696f72ull);
     return random.pick(100) < 20;
 }
 std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& plan,
-    const DoorLayer& doors, const CollisionWorld& collision) {
+    const DoorLayer& doors, const CollisionWorld& collision, const std::function<bool(glm::vec3)>& available) {
     if (!hasInteriorZombieEncounter(plan.name)) return {};
     Random random(plan.name, 0x7a6f6d6269657370ull);
+    if (plan.name == palaceBuilding) return palacePopulation(plan, collision, random, available);
     std::vector<std::size_t> rooms;
     for (std::size_t i = 0; i < plan.rooms.size(); ++i) {
         // Adjacent common polygons have open boundaries; their corners are not
@@ -92,7 +149,12 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
                 if (!feet) break;
                 group.push_back(placement(c, *feet));
             }
-            if (group.size() == count) return group;
+            if (group.size() == count) {
+                if (available && !std::all_of(group.begin(), group.end(), [&](const auto& p) {
+                    return available(glm::vec3(p.transform[3]));
+                })) return {};
+                return group;
+            }
         }
     }
     std::vector<Candidate> hidden, beside, corners;
@@ -152,6 +214,9 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
         }
         if (!placed) break;
     }
+    if (available) result.erase(std::remove_if(result.begin(), result.end(), [&](const auto& p) {
+        return !available(glm::vec3(p.transform[3]));
+    }), result.end());
     return result;
 }
 } // namespace viewer
