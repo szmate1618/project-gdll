@@ -282,9 +282,15 @@ Shrubs use two perpendicular upright cards and one horizontal card at 25% of
 their height. One shared [side/top atlas](../assets/forests/shrub.png) supplies
 unlit, double-sided alpha masks with normal opaque-texel depth writes. Shrubs
 share the forest's instancing, culling, detail selection and shading. They have
-no blocking collision in either single-player or multiplayer. All placements are made
-once during loading, independent of camera movement and patch order; no map or
-placement-file regeneration is required.
+no blocking movement collision in either single-player or multiplayer. Their
+opaque card texels provide cover from zombie sight, including attack
+eligibility; transparent gaps do not. Sight uses the material alpha cutoff
+and native-resolution nearest texels, independent of camera mip levels,
+render culling, LoD, graphics settings and temporary blast bending. Card
+geometry and alpha masks are shared by asset, with a separate instance BVH
+for sight queries. Bushes do not stop bullets, melee contacts or blasts.
+All placements are made once during loading, independent of camera movement
+and patch order; no map or placement-file regeneration is required.
 
 Shrubs also carry gameplay-only contact metadata. A stable 25% subset is dry;
 tagging does not alter placement or rendering. Moving through their indexed

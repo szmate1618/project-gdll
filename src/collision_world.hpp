@@ -14,6 +14,7 @@ namespace viewer {
 class DoorLayer;
 class BoxLayer;
 class VehicleLayer;
+struct TreeLayer;
 struct CollisionBox;
 struct StaticCollisionFace {
     std::size_t index;
@@ -159,6 +160,12 @@ public:
     // capsules. Double-sided geometry blocks sight; foliage does not. Ignore
     // the first/last millimeter so a target's supporting ground is not a wall.
     bool lineOfSight(glm::vec3 origin, glm::vec3 target) const;
+    // Zombie vision also respects alpha-masked bush cover. Solid queries above
+    // remain suitable for weapons, blasts and interaction through vegetation.
+    bool perceptionLineOfSight(glm::vec3 origin, glm::vec3 target) const;
+    // Owns an immutable cover index prepared from shared shrub cards/textures.
+    // Does not borrow trees or add movement/physics collision.
+    void setShrubCover(const TreeLayer& trees);
     // Returns valid feet, preferring terrain below/near the requested eye.
     std::optional<glm::vec3> findSpawn(glm::vec3 preferredEye, float eyeHeight,
                                       float radius, float height,

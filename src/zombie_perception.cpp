@@ -54,7 +54,7 @@ ZombieSight sampleZombieSight(const ZombieInstance& instance, const ZombiePlayer
     int clear = 0, blocked = 0;
     for (const float height : {player.eyeHeight, player.height * 0.5f, 0.0f}) {
         ++rayCount;
-        if (world.lineOfSight(eyes, player.feet + glm::vec3(0, height, 0))) ++clear;
+        if (world.perceptionLineOfSight(eyes, player.feet + glm::vec3(0, height, 0))) ++clear;
         else ++blocked;
         if ((anyClearEnough && clear) || (clear && blocked)) return ZombieSight::partial;
     }

@@ -1588,11 +1588,12 @@ int run(const Options& options) {
         }
     }
     // Town geometry, trunks and live props participate in walking collision.
-    // Shared impostor cards stay exclusively in the rendering layer.
+    // Shrub cards provide vision cover separately from solid collision.
     viewer::BoxLayer boxes(physics);
     viewer::Grenades grenades(physics);
     viewer::FireEffects fireEffects;
     viewer::CollisionWorld collision(model, trunks, &doors);
+    if (trees) collision.setShrubCover(*trees);
     const auto undergrowth = trees ? viewer::UndergrowthIndex(*trees) : viewer::UndergrowthIndex{};
     viewer::UndergrowthEmitter undergrowthEmitter;
     collision.setBoxes(&boxes);

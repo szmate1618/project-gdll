@@ -1263,11 +1263,21 @@ Only members of this pool perform perception. A **100-degree horizontal FOV**
 uses the character's forward direction (+Z), ignoring height for the cone test.
 Inside the cone, three finite rays run from zombie eye height (1.65 m) to player
 head, torso, and feet. The scene and trunk collision BVHs test occlusion by
-double-sided triangle surfaces and trunk capsules; canopy cards and other
+double-sided triangle surfaces and trunk capsules. Runtime forest bushes also
+provide cover where a sight ray intersects an opaque texel on one of their
+cards; transparent gaps remain clear. The bush's material alpha cutoff applies
+to native-resolution texels, matching default nearest filtering without tying
+AI to camera mip levels or graphics settings. Tree canopy cards and other
 zombies do not block sight. Scene geometry and trunks are checked before live
 door panels: already-blocked long rays skip the door query over the endpoints'
 bounding rectangle. This preserves occlusion while avoiding large door-candidate
 lists when free-fly takes the perceived player far from activated zombies.
+Bush cover is checked after solid occluders through a separate immutable BVH
+over shared card geometry and alpha masks. It uses the original placement,
+independent of render culling, LoD and temporary blast bending. Both standalone
+and authoritative multiplayer zombies use it, including attack eligibility.
+Bushes remain passable and do not stop bullets, melee contacts or blasts;
+these retain the solid-only collision queries.
 One or two clear rays store the current player feet
 and change idle or looking to **investigating**. Three clear rays store the same target and
 change idle, looking, or investigating to **chasing**. Partial sight refreshes a chasing

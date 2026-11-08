@@ -262,7 +262,8 @@ target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(viewer_camera PUBLIC glm::glm)
 viewer_warnings(viewer_camera)
 
-add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp src/character_step.cpp src/doorway_guidance.cpp)
+add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp src/character_step.cpp src/doorway_guidance.cpp
+    src/shrub_cover.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
@@ -715,6 +716,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_undergrowth PRIVATE viewer_undergrowth)
     viewer_warnings(test_undergrowth)
     add_test(NAME viewer_undergrowth COMMAND test_undergrowth)
+
+    add_executable(test_shrub_cover tests/test_shrub_cover.cpp)
+    target_link_libraries(test_shrub_cover PRIVATE viewer_zombies)
+    viewer_warnings(test_shrub_cover)
+    add_test(NAME viewer_shrub_cover COMMAND test_shrub_cover)
 
     add_executable(benchmark_undergrowth EXCLUDE_FROM_ALL tests/benchmark_undergrowth.cpp)
     target_link_libraries(benchmark_undergrowth PRIVATE viewer_undergrowth viewer_forests)

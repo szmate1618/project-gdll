@@ -1,5 +1,6 @@
 #include "zombie_update_profile.hpp"
 #include "collision_world.hpp"
+#include "shrub_cover.hpp"
 #include "collision_box.hpp"
 #include "door_collision.hpp"
 #include "box_layer.hpp"
@@ -338,6 +339,7 @@ struct CollisionWorld::Impl {
     const DoorLayer* doors = nullptr;
     BoxLayer* boxes = nullptr;
     const VehicleLayer* vehicles = nullptr;
+    std::unique_ptr<ShrubCover> shrubs;
     std::unique_ptr<CollisionWorld> runtime;
     std::uint64_t runtimeRevision = 0;
 
@@ -630,6 +632,14 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
     // and trunk tests reject blocked sight before paying that broad-phase cost.
     return (!impl_->doors || !doorsBlockSight(*impl_->doors, origin, target)) &&
            (!impl_->boxes || !impl_->boxes->blocksSight(origin, target));
+}
+
+bool CollisionWorld::perceptionLineOfSight(glm::vec3 origin, glm::vec3 target) const {
+    return lineOfSight(origin, target) && (!impl_->shrubs || !impl_->shrubs->blocksSight(origin, target));
+}
+
+void CollisionWorld::setShrubCover(const TreeLayer& trees) {
+    impl_->shrubs = std::make_unique<ShrubCover>(trees);
 }
 
 std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height,
