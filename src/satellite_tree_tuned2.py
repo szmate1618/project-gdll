@@ -101,6 +101,13 @@ def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", m
         raise ValueError("Candidate intersects excluded forest geometry")
     asset = load_impostor(asset_path)
     offset = raster_info["window"]["column"],raster_info["window"]["row"]
+    unsupported_ground = 0
+    if candidates:
+        supported = np.isfinite(terrain([c['east_m'] for c in candidates], [c['north_m'] for c in candidates]))
+        unsupported_ground = int(np.count_nonzero(~supported))
+        baseline_retained = sum(bool(keep) for c, keep in zip(candidates, supported)
+                                if c.get('method') != 'missed_reference_colour_and_nearby_greenness')
+        candidates = [c for c, keep in zip(candidates, supported) if keep]
     instances = [make_instance(c,rgb,asset,terrain,offset) for c in candidates]
     source = {"method":"astra_recall_with_negative_colour_context_filter","forest_source":"sentinel-astra-tuned2",
               "training_forest_source":"sentinel-astra","exclusion_forest_source":"configured",
@@ -122,6 +129,7 @@ def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", m
               "training_forest_centre_pixels":int(forest_centres.sum()),"forest_excluded_pixels":int((excluded&valid).sum()),
               "training_pixels":int(training.sum()),"matching_pixels":int(all_matches.sum()),
               "nonforest_matching_pixels":int(matches.sum()),"instances":len(instances),
+              "unsupported_ground_candidates":unsupported_ground,
               "baseline_instances_before_precision_filter":baseline_count,"baseline_instances_retained":baseline_retained,
               "tuned_instances_before_precision_filter":before_precision_count,
               "suppressed_instances":before_precision_count-len(instances),"additional_instances":len(instances)-baseline_retained}

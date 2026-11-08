@@ -236,6 +236,11 @@ Building roofs and road geometry are not used as the planting surface. The
 script does not rely on `data/processed/terrain.npz` or a potentially newer
 raster cache left by a failed town generation run.
 
+Basement cutouts retain the original grid vertices and append clipped boundary
+triangles. Preparation validates those triangle planes and samples only active
+exported faces through a spatial index. Cutout interiors have no planting
+surface; OSM tree/row samples and tuned2 candidates there are omitted.
+
 The map's CRS, geographic bounds, and origin must agree with the configuration.
 Changing the bounding box or CRS requires regenerating the town map first.
 The exported map fingerprint binds the placements to the specific GLB used;

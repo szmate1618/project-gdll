@@ -11,8 +11,11 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image
 import trimesh
+from shapely.geometry import box
 
+from src.building_basement_terrain import carve_basement_terrain
 from src.config import coordinate_frame, load_config
+from src.glb import pack_glb, read_glb
 from src.terrain import Terrain
 from src.tree_map import load_tree_map
 
@@ -33,7 +36,7 @@ class TreeMapTests(unittest.TestCase):
         self.rotation = np.array([[1., 0., 0., 0.], [0., 0., 1., 0.],
                                   [0., -1., 0., 0.], [0., 0., 0., 1.]])
 
-    def write_map(self, *, heights=None, transform=None, modify_mesh=None, modify_metadata=None):
+    def write_map(self, *, heights=None, transform=None, modify_mesh=None, modify_metadata=None, cutouts=()):
         heights = self.heights if heights is None else heights
         terrain = Terrain(heights, self.frame["bounds"], datum=211.125)
         mesh = terrain.mesh(Image.new("RGB", (2, 2), (30, 60, 90)))
@@ -41,6 +44,7 @@ class TreeMapTests(unittest.TestCase):
             modify_mesh(mesh)
         scene = trimesh.Scene(base_frame="local_meters")
         scene.add_geometry(mesh, geom_name="terrain", node_name="terrain")
+        carve_basement_terrain(scene, cutouts)
         scene.graph.update(frame_from="world", frame_to="local_meters",
                            matrix=self.rotation if transform is None else transform)
         scene.graph.base_frame = "world"
@@ -55,6 +59,48 @@ class TreeMapTests(unittest.TestCase):
             modify_metadata(scene.metadata)
         self.path.write_bytes(scene.export(file_type="glb"))
         return mesh
+
+    def test_samples_clipped_exported_triangles_and_preserves_basement_voids(self):
+        self.write_map(cutouts=[box(-8, -9, 8, 9)])
+        with patch('trimesh.load_scene', side_effect=AssertionError('Full scene loading is unnecessary')):
+            terrain, _, metadata = load_tree_map(self.path, self.config)
+        restored = trimesh.load_scene(self.path, process=False).geometry['terrain']
+        triangles = restored.triangles
+        samples = np.einsum('v,fvc->fc', [.2, .3, .5], triangles)
+        np.testing.assert_allclose(terrain(samples[:, 0], samples[:, 1]), samples[:, 2], atol=1e-10)
+        self.assertTrue(np.isnan(terrain(0, 0)))
+        self.assertTrue(np.isfinite(terrain(20, 20)))
+        matrix = terrain(np.array([[0., 20.], [20., 0.]]), np.array([[0., 20.], [0., 20.]]))
+        self.assertEqual(matrix.shape, (2, 2))
+        self.assertTrue(np.isnan(matrix[0, 0]))
+        self.assertTrue(np.isfinite(matrix[0, 1]))
+        np.testing.assert_array_equal(terrain.heights, self.heights.astype(np.float32))
+        self.assertEqual(metadata['terrain_grid_vertices'], [4, 3])
+
+    def test_supports_complete_grid_triangle_removal_without_new_vertices(self):
+        def remove_triangle(mesh):
+            mesh.faces = mesh.faces[1:]
+        mesh = self.write_map(modify_mesh=remove_triangle)
+        terrain, _, _ = load_tree_map(self.path, self.config)
+        removed_center = mesh.vertices[[0, 4, 5]].mean(axis=0)
+        self.assertTrue(np.isnan(terrain(removed_center[0], removed_center[1])))
+        point = mesh.triangles[-1].mean(axis=0)
+        self.assertAlmostEqual(terrain(point[0], point[1]), point[2], places=5)
+
+    def test_rejects_clipped_vertices_lifted_off_the_original_triangle_surface(self):
+        self.write_map(cutouts=[box(-8, -9, 8, 9)])
+        document, binary = read_glb(self.path.read_bytes())
+        primitive = document['meshes'][0]['primitives'][0]
+        accessor = document['accessors'][primitive['attributes']['POSITION']]
+        view = document['bufferViews'][accessor['bufferView']]
+        offset = view.get('byteOffset', 0) + accessor.get('byteOffset', 0)
+        offset += self.heights.size * view.get('byteStride', 12) + 8
+        binary = bytearray(binary)
+        height = struct.unpack_from('<f', binary, offset)[0]
+        struct.pack_into('<f', binary, offset, height + 5.)
+        self.path.write_bytes(pack_glb(document, bytes(binary)))
+        with self.assertRaisesRegex(ValueError, 'clipped terrain vertices'):
+            load_tree_map(self.path, self.config)
 
     def test_reads_published_float32_vertices_axes_and_triangle_planes(self):
         mesh = self.write_map()

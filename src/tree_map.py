@@ -12,6 +12,7 @@ from pyproj import CRS
 
 from .config import coordinate_frame
 from .terrain import Terrain
+from .clipped_terrain import ClippedTerrain
 
 
 _GLTF_FROM_LOCAL = np.array([[1., 0., 0., 0.], [0., 0., 1., 0.],
@@ -149,7 +150,7 @@ def _terrain_primitive(document, scene):
             raise ValueError("Map terrain must be static.")
         primitives = mesh["primitives"]
         if len(primitives) != 1:
-            raise ValueError("Map terrain must contain one regular height-grid primitive.")
+            raise ValueError("Map terrain must contain one height-grid primitive, optionally clipped for basements.")
         primitive = primitives[0]
         if primitive.get("mode", 4) != 4 or primitive.get("targets") or primitive.get("extensions"):
             raise ValueError("Map terrain must use unmodified triangle geometry.")
@@ -196,9 +197,11 @@ def load_tree_map(map_path: Path, config: dict) -> tuple[Terrain, dict, dict]:
             primitive = _terrain_primitive(document, scene)
             positions = _accessor(stream, document, binary, primitive["attributes"]["POSITION"], positions=True)
             indices = _accessor(stream, document, binary, primitive["indices"]).ravel()
-            if len(positions) != rows * cols or not np.isfinite(positions).all():
+            if len(positions) < rows * cols or not np.isfinite(positions).all():
                 raise ValueError("Map terrain positions do not match a finite height grid.")
-            grid = positions.reshape(rows, cols, 3)
+            # Basement clipping retains the original grid prefix and appends
+            # interpolated boundary vertices; only the active faces are ground.
+            grid = positions[:rows * cols].reshape(rows, cols, 3)
             xmin, ymin, xmax, ymax = frame["bounds"]
             x_axis = np.linspace(xmin, xmax, cols).astype(np.float32)
             y_axis = np.linspace(ymax, ymin, rows).astype(np.float32)
@@ -210,9 +213,11 @@ def load_tree_map(map_path: Path, config: dict) -> tuple[Terrain, dict, dict]:
             nw, ne, sw, se = (g.ravel() for g in (vertices[:-1, :-1], vertices[:-1, 1:],
                                                  vertices[1:, :-1], vertices[1:, 1:]))
             expected = np.vstack((np.column_stack((nw, sw, se)), np.column_stack((nw, se, ne)))).ravel()
-            if not np.array_equal(indices, expected):
-                raise ValueError("Map terrain topology must use the generator's NW-to-SE grid triangles.")
             terrain = _RenderedTerrain(grid[:, :, 2].astype(float), x_axis.astype(float), y_axis.astype(float), datum)
+            if len(positions) > rows * cols or len(indices) < len(expected):
+                terrain = ClippedTerrain(terrain, positions, indices)
+            elif not np.array_equal(indices, expected):
+                raise ValueError("Map terrain topology must use the generator's NW-to-SE grid triangles.")
             stream.seek(0)
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         except (KeyError, IndexError, TypeError, struct.error) as error:

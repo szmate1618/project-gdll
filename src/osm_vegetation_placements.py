@@ -116,7 +116,10 @@ def tree_instances(trees, rows, terrain, assets):
                              "osm_id": row["id"].split(":")[0],
                              "placement": "approximate position along mapped tree row; <=9 m spacing"})
             remember(point)
-    return [_instance(feature, terrain, assets) for feature in features]
+    # Mapped nodes and approximate row samples can fall inside basement cuts.
+    coordinates = np.array([f['geometry'].coords[0] for f in features])
+    supported = np.isfinite(terrain(*coordinates.T)) if features else []
+    return [_instance(feature, terrain, assets) for feature, keep in zip(features, supported) if keep]
 
 
 def prepare_osm_vegetation(*, config_path=ROOT / "config.json", map_path=ROOT / "output/godollo.glb",

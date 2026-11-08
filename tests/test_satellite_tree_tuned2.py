@@ -88,6 +88,27 @@ class Tuned2PreparationTests(SatelliteTreeFixture,unittest.TestCase):
             prepare_tuned2_trees(path,**self.arguments)
         self.assertEqual(previous,{p.name:p.read_bytes() for p in self.output.iterdir()})
 
+    def test_rebuilt_basement_cut_omits_an_unsupported_satellite_candidate(self):
+        import trimesh
+        from src.building_basement_terrain import carve_basement_terrain
+
+        prepare_tuned2_trees(self.forest_path, **self.arguments)
+        before = json.loads((self.output/'trees.instances.json').read_text())
+        removed = before['instances'][0]
+        east, _, south = removed['position']
+        scene = trimesh.load_scene(self.map_path, process=False)
+        carve_basement_terrain(scene, [box(east-1, -south-1, east+1, -south+1)])
+        self.map_path.write_bytes(scene.export(file_type='glb'))
+        exclusions = json.loads(self.forest_path.read_text())
+        exclusions['source']['map_sha256'] = hashlib.sha256(self.map_path.read_bytes()).hexdigest()
+        path = self.root/'clipped-map-exclusions.json'
+        path.write_text(json.dumps(exclusions))
+        prepare_tuned2_trees(path, reuse_calibration=True, **self.arguments)
+        after = json.loads((self.output/'trees.instances.json').read_text())
+        self.assertEqual(after['counts']['unsupported_ground_candidates'], 1)
+        self.assertEqual({item['id'] for item in after['instances']},
+                         {item['id'] for item in before['instances']} - {removed['id']})
+
     def test_publication_failure_restores_the_last_good_dataset(self):
         prepare_tuned2_trees(self.forest_path,**self.arguments)
         previous={p.name:p.read_bytes() for p in self.output.iterdir()}

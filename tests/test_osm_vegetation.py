@@ -159,6 +159,13 @@ class VegetationPublicationTests(unittest.TestCase):
         for path, value in defaults.items():
             self.assertEqual(path.read_bytes(), value)
 
+    def test_mapped_tree_inside_basement_cut_has_no_ground_placement(self):
+        self.map.write_map(cutouts=[box(5, 15, 15, 25)])
+        self.prepare()
+        document = json.loads((self.output / 'trees.instances.json').read_text())
+        self.assertEqual(document['counts']['mapped_nodes'], 1)
+        self.assertEqual(document['instances'], [])
+
     def test_rows_avoid_duplicate_nodes_and_default_unknown_dimensions(self):
         assets = {kind: load_impostor(self.root / f"assets/{kind}_impostor.glb") for kind in self.assets}
         from shapely.geometry import LineString
