@@ -1279,7 +1279,6 @@ if(BUILD_TESTING AND GD_VIEWER)
         COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
             "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/building_entrance_fixture.py" "${STEP_FIXTURE}" .29
         DEPENDS tests/building_entrance_fixture.py src/building_entrances.py src/building_details.py
-            src/building_basement_terrain.py
             src/buildings.py src/wall_openings.py src/building_caps.py src/facade_surface.py
             src/terrain.py src/terrain_profile.py
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

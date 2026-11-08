@@ -90,7 +90,7 @@ class Tuned2PreparationTests(SatelliteTreeFixture,unittest.TestCase):
 
     def test_rebuilt_basement_cut_omits_an_unsupported_satellite_candidate(self):
         import trimesh
-        from src.building_basement_terrain import carve_basement_terrain
+        from clipped_terrain_fixture import carve_basement_terrain
 
         prepare_tuned2_trees(self.forest_path, **self.arguments)
         before = json.loads((self.output/'trees.instances.json').read_text())

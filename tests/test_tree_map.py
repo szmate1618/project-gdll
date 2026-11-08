@@ -13,7 +13,7 @@ from PIL import Image
 import trimesh
 from shapely.geometry import box
 
-from src.building_basement_terrain import carve_basement_terrain
+from clipped_terrain_fixture import carve_basement_terrain
 from src.config import coordinate_frame, load_config
 from src.glb import pack_glb, read_glb
 from src.terrain import Terrain

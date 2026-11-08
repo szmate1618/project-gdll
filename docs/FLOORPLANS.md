@@ -220,9 +220,9 @@ directly beneath it, ending at the ground-floor walking plane. Its cutout remove
 both rendered and collision floor geometry. Single-storey buildings receive no
 invented upward or downward flight. This applies to both family houses and
 prefab apartment blocks. The basement uses the lowest lower door's base as its
-floor datum. During generation, basement shells extend down to this level and
-terrain triangles are clipped only inside their footprints. Exterior terrain
-heights and texture mapping remain unchanged. The wall mesh records a local
+floor datum. During generation, basement shells extend down to this level.
+The terrain remains intact, including beneath buildings; sloping ground may
+obstruct basement access or stairs for now. The wall mesh records a local
 `building_floor` point to preserve the main-floor datum for shell inspection;
 the loader transforms that point once with its mesh.
 

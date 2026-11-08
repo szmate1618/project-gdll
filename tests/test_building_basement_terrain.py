@@ -1,46 +1,35 @@
-"""Basement terrain cuts retain exterior support, courtyard ground and UVs."""
+"""Basement entrances must leave the published terrain intact."""
 
 import io
 import unittest
 
 import numpy as np
 from PIL import Image
-from shapely import union_all
-from shapely.affinity import rotate
-from shapely.geometry import Polygon, box
+from shapely.geometry import box
 import trimesh
 
-from src.building_basement_terrain import carve_basement_terrain
+from src.buildings import add_buildings
 from src.terrain import Terrain
 
 
 class BasementTerrainTests(unittest.TestCase):
-    def test_cuts_overlapping_footprints_and_preserves_the_exterior_surface(self):
-        terrain = Terrain(np.array([[0., 2.], [3., 6.]]), (-10, -10, 10, 10))
+    def test_balconies_and_basements_preserve_the_complete_terrain(self):
+        heights = np.repeat(np.linspace(2.6, 0, 3)[:, None], 3, axis=1)
+        terrain = Terrain(heights, (0, 0, 12, 9))
+        mesh = terrain.mesh(Image.new('RGB', (4, 4), 'green'))
         scene = trimesh.Scene()
-        scene.add_geometry(terrain.mesh(Image.new('RGB', (4, 4), 'green')), geom_name='terrain', node_name='terrain')
-        courtyard = Polygon([(-6, -6), (-6, 6), (6, 6), (6, -6)],
-                            holes=[[(-2, -2), (-2, 2), (2, 2), (2, -2)]])
-        footprints = [courtyard, rotate(box(4, -2, 8, 2), 27)]
-        removed = union_all(footprints)
-        carve_basement_terrain(scene, footprints)
-        # Exercise float32 export and the embedded image/UV path as well.
+        scene.add_geometry(mesh, geom_name='terrain', node_name='terrain')
+        before = (mesh.vertices.copy(), mesh.faces.copy(), mesh.visual.uv.copy())
+        stats = add_buildings(scene, [{'id': 'way/1', 'geometry': box(0, 0, 12, 9),
+                                      'tags': {'height': '6', 'roof:shape': 'flat'}}], terrain, {})
+        self.assertEqual(stats['doors'], 3)
+        self.assertIn('building_way_1_0_balcony_railings', scene.geometry)
+        self.assertIs(scene.geometry['terrain'], mesh)
+        for original, after in zip(before, (mesh.vertices, mesh.faces, mesh.visual.uv)):
+            np.testing.assert_array_equal(original, after)
         restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
-        mesh = restored.geometry['terrain']
-        projected = [Polygon(triangle[:, :2]) for triangle in mesh.triangles]
-        self.assertAlmostEqual(sum(p.area for p in projected), 400 - removed.area, places=4)
-        self.assertLess(sum(p.intersection(removed).area for p in projected), 1e-4)
-        np.testing.assert_allclose(mesh.vertices[:, 2], terrain(*mesh.vertices[:, :2].T), atol=1e-6)
-        np.testing.assert_allclose(mesh.visual.uv, (mesh.vertices[:, :2] + 10) / 20, atol=1e-6)
-        self.assertTrue(np.all(mesh.face_normals[:, 2] > 0))
-        self.assertTrue(any(p.covers(box(-.1, -.1, .1, .1).centroid) for p in projected))
-
-    def test_without_basements_keeps_the_original_mesh(self):
-        scene = trimesh.Scene()
-        scene.add_geometry(Terrain(np.zeros((2, 2)), (-1, -1, 1, 1)).mesh(Image.new('RGB', (2, 2))), geom_name='terrain')
-        original = scene.geometry['terrain']
-        carve_basement_terrain(scene, [])
-        self.assertIs(scene.geometry['terrain'], original)
+        np.testing.assert_array_equal(restored.geometry['terrain'].faces, before[1])
+        np.testing.assert_allclose(restored.geometry['terrain'].vertices, before[0], atol=1e-6)
 
 
 if __name__ == '__main__':

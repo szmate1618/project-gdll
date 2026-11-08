@@ -1,4 +1,4 @@
-"""Remove terrain inside basement shells, preserving the exterior triangle surface."""
+"""Construct legacy basement-cut terrain for reader compatibility tests."""
 
 import numpy as np
 from shapely import constrained_delaunay_triangles, polygons, union_all

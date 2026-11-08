@@ -15,7 +15,6 @@ import trimesh
 from trimesh.visual.material import PBRMaterial
 
 from .building_details import CRAWL_OPENING_MATERIAL, DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
-from .building_basement_terrain import carve_basement_terrain
 from .palace_floorplan import palace_frame, palace_tags, palace_facade_details
 from .palace_roof import roof_surface as palace_roof_surface, roof_details as palace_roof_details
 from .police_station_floorplan import (definition as station_definition, station_frame, station_tags,
@@ -206,7 +205,6 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
     stats.update(building_detail_meshes=0, building_entrance_meshes=0, doors=0, windows=0)
     road_index = RoadIndex(roads)
     roof_shapes = Counter()
-    basements = []
     station_data = station_definition()
     has_station = any(feature['id'] == station_data['osm_id'] for feature in features)
     for feature in features:
@@ -242,7 +240,6 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                     wall, roof, shape = _mesh_for_polygon(polygon, feature.get("tags", {}), elevation, options, basement_floor)
                     detailed_wall, doors, windows, entrances, crawl_openings, railings, _, detail_counts = facade_details(
                         polygon, wall, roof, elevation, options, road_index.nearest(polygon), basement_floor)
-                    basements.append(polygon)
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 raise ValueError(f"Building {feature['id']} component {index}: {error}") from error
             name = f"building_{feature['id'].replace('/', '_')}_{index}"
@@ -289,6 +286,5 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
             added = True
         stats["buildings" if added else "skipped_buildings"] += 1
     stats["roof_shapes"] = dict(roof_shapes)
-    carve_basement_terrain(scene, basements)
     LOG.info("Generated %d buildings (%s)", stats["buildings"], stats["roof_shapes"])
     return stats

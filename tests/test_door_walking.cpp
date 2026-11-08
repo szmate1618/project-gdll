@@ -307,13 +307,15 @@ void balconyPassage(const char* path) {
         const auto start = upward ? stair.bottom - direction * .4f : stair.top + direction * .4f;
         player.teleport(start + glm::vec3(0, .015f, 0));
         viewer::FPSInput input; input.crouch = true;
-        settleStance(player, world, input);
+        // Terrain is intentionally retained inside basements. Verify the
+        // flight and slab opening independently of terrain obstruction.
+        settleStance(player, structure, input);
         input.forward = 1;
         const auto heading = upward ? direction : -direction;
         input.yawDegrees = glm::degrees(std::atan2(heading.z, heading.x));
         bool arrived = false;
         for (int frame = 0; frame < 1200; ++frame) {
-            player.update(1.f / 120, input, world);
+            player.update(1.f / 120, input, structure);
             const auto goal = upward ? stair.top : stair.bottom;
             if (glm::dot(player.feet() - goal, heading) > .2f && std::abs(player.feet().y - goal.y) < .1f) {
                 arrived = true; break;
