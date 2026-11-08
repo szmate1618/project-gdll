@@ -15,11 +15,14 @@ struct InteriorZombies::Impl {
     struct Actor { std::size_t id; bool sleeping = false; };
     struct Encounter {
         std::vector<glm::vec2> footprint;
+        std::vector<std::vector<glm::vec2>> courtyards;
         float floor, ceiling;
         std::vector<Actor> actors;
         bool contains(glm::vec3 p) const {
             if (p.y < floor - .1f || p.y > ceiling) return false;
-            return house_polygon::contains(footprint, {p.x, p.z});
+            if (!house_polygon::contains(footprint, {p.x, p.z})) return false;
+            for (const auto& court : courtyards) if (house_polygon::contains(court, {p.x, p.z})) return false;
+            return true;
         }
     };
     std::size_t first, reserved, used = 0;
@@ -69,7 +72,7 @@ void InteriorZombies::update(const FloorplanLayer& floors, ZombieLayer& zombies,
         }
         // Record even an empty/blocked/exhausted encounter: no fresh roll on reentry.
         auto& encounter = state.encounters.emplace(name,
-            Impl::Encounter{plan.footprint, plan.basementFloor.value_or(plan.floor), plan.ceiling, {}}).first->second;
+            Impl::Encounter{plan.footprint, plan.courtyards, plan.basementFloor.value_or(plan.floor), plan.ceiling, {}}).first->second;
         if (state.used == state.reserved) continue;
         auto placements = placeInteriorZombies(plan, floors.doors(), collision);
         if (placements.empty()) continue;

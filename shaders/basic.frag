@@ -46,7 +46,8 @@ uniform vec4 uInteriorShellU;
 uniform vec4 uInteriorShellV;
 uniform vec2 uInteriorShellHeights; // Floor, final ceiling, in world metres.
 uniform int uInteriorShellVertexCount; // Zero keeps the rectangular fast path.
-uniform vec2 uInteriorShellVertices[24]; // Actual simple boundary; no courtyard holes.
+uniform vec2 uInteriorShellVertices[128]; // Outer boundary and courtyard rings.
+uniform int uInteriorShellNext[128]; // Next vertex within the same closed ring.
 uniform vec3 uHazeColor;
 uniform float uHazeDensity;
 uniform float uHazeStart;
@@ -118,7 +119,7 @@ float sunlightVisibility(float sunFacing, float distanceFromEye) {
         {
             bool inside = uInteriorShellVertexCount == 0;
             for (int i = 0; i < uInteriorShellVertexCount; ++i) {
-                vec2 a = uInteriorShellVertices[i], b = uInteriorShellVertices[(i + 1) % uInteriorShellVertexCount];
+                vec2 a = uInteriorShellVertices[i], b = uInteriorShellVertices[uInteriorShellNext[i]];
                 vec2 edge = b - a, delta = vWorldPosition.xz - a;
                 vec2 nearest = delta - edge * clamp(dot(delta, edge) / dot(edge, edge), 0.0, 1.0);
                 if (dot(nearest, nearest) <= shellTolerance * shellTolerance) return 0.0;

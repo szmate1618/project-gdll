@@ -952,7 +952,7 @@ if(BUILD_TESTING AND GD_VIEWER)
             "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/palace_fixture.py" "${PALACE_FIXTURE}"
         DEPENDS tests/palace_fixture.py assets/buildings/godollo-palace/layout.json
             assets/buildings/godollo-palace/roof.json src/palace_roof.py
-            src/palace_floorplan.py src/buildings.py src/building_details.py src/wall_openings.py
+            src/palace_floorplan.py src/authored_building_layout.py src/buildings.py src/building_details.py src/wall_openings.py
             src/building_caps.py src/facade_surface.py src/building_entrances.py
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     add_custom_target(palace_fixture DEPENDS "${PALACE_FIXTURE}")
@@ -962,6 +962,21 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_dependencies(test_authored_floorplan palace_fixture)
     viewer_warnings(test_authored_floorplan)
     add_test(NAME viewer_authored_floorplan COMMAND test_authored_floorplan)
+    set(STATION_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/police-station-fixture.glb")
+    add_custom_command(OUTPUT "${STATION_FIXTURE}"
+        COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
+            "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/police_station_fixture.py" "${STATION_FIXTURE}"
+        DEPENDS tests/police_station_fixture.py assets/buildings/godollo-police-station/layout.json
+            src/police_station_floorplan.py src/authored_building_layout.py src/buildings.py
+            src/building_details.py src/wall_openings.py src/building_caps.py src/facade_surface.py
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_custom_target(police_station_fixture DEPENDS "${STATION_FIXTURE}")
+    add_executable(test_police_station_floorplan tests/test_police_station_floorplan.cpp)
+    target_link_libraries(test_police_station_floorplan PRIVATE viewer_objects viewer_fps)
+    target_compile_definitions(test_police_station_floorplan PRIVATE STATION_FIXTURE="${STATION_FIXTURE}")
+    add_dependencies(test_police_station_floorplan police_station_fixture)
+    viewer_warnings(test_police_station_floorplan)
+    add_test(NAME viewer_police_station_floorplan COMMAND test_police_station_floorplan)
     add_executable(test_interior_objects tests/test_interior_objects.cpp)
     target_link_libraries(test_interior_objects PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_interior_objects)

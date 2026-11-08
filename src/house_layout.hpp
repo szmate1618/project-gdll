@@ -39,6 +39,9 @@ struct Layout {
     std::vector<Partition> partitions;
     std::vector<Stair> stairs;
     bool wholeGroundFloor = false; // Apartment regions can have nonrectangular bounds.
+    // Optional disjoint simple polygons tiling an authored shell with courtyards.
+    // Slabs use these regions instead of triangulating the outer boundary alone.
+    std::vector<std::vector<glm::vec2>> floorRegions;
 };
 struct Window { Rectangle bounds; float bottom, top; };
 inline constexpr std::size_t maxUpperRoomsPerSide = 4;

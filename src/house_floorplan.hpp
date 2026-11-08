@@ -42,7 +42,7 @@ struct HouseStaircase {
 };
 struct HouseFloorplan {
     static constexpr std::size_t basementStorey = std::numeric_limits<std::size_t>::max();
-    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace };
+    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace, AuthoredBuilding };
     Kind kind = Kind::FamilyHouse;
     std::string name;
     glm::vec3 minimum{0}, maximum{0};
@@ -57,7 +57,9 @@ struct HouseFloorplan {
         if (storey == basementStorey) return floor + .01f;
         return storey < upperFloors.size() ? upperFloors[storey] : ceiling;
     }
-    std::vector<glm::vec2> footprint; // Actual simple shell boundary, X/Z metres; no holes.
+    std::vector<glm::vec2> footprint; // Actual outer shell boundary, X/Z metres.
+    std::vector<std::vector<glm::vec2>> courtyards; // Open voids within authored shells.
+    bool contains(glm::vec2 p) const; // Horizontal shell membership, excluding courtyards.
     std::array<glm::vec2, 4> envelope{}; // Oriented rectangle: low, low/high, high, high/low.
     std::vector<HouseRoom> rooms;
     Model structure; // Floors/ceilings and the simplest partition wall quads.

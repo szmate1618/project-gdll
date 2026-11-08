@@ -32,7 +32,14 @@ float distanceSquared(const HouseFloorplan& plan, glm::vec3 position) {
         nearest = std::min(nearest, glm::dot(d, d));
     }
     const float dy = std::max({plan.basementFloor.value_or(plan.floor) - position.y, position.y - plan.ceiling, 0.f});
-    return (house_polygon::contains(plan.footprint, p) ? 0.f : nearest) + dy * dy;
+    for (const auto& court : plan.courtyards) for (std::size_t i = 0; i < court.size(); ++i) {
+        const auto a = court[i], b = court[(i + 1) % court.size()];
+        const auto edge = b - a;
+        const float t = glm::clamp(glm::dot(p - a, edge) / glm::dot(edge, edge), 0.f, 1.f);
+        const auto d = p - (a + edge * t);
+        nearest = std::min(nearest, glm::dot(d, d));
+    }
+    return (plan.contains(p) ? 0.f : nearest) + dy * dy;
 }
 int cell(float p) { return static_cast<int>(std::floor(p / cellSize)); }
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z) && glm::all(glm::lessThan(glm::abs(p), glm::vec3(1e8f))); }

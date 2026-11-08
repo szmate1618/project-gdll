@@ -7,7 +7,7 @@ namespace viewer {
 namespace {
 void finishes(HouseFloorplan& plan, const AuthoredFloorplan& prepared) {
     Material plaster; plaster.baseColor = {.94f, .91f, .84f, 1}; plaster.doubleSided = true;
-    Material trim; trim.baseColor = {.65f, .53f, .32f, 1}; trim.doubleSided = true;
+    Material trim; trim.baseColor = prepared.institutional ? glm::vec4(.38f, .43f, .45f, 1) : glm::vec4(.65f, .53f, .32f, 1); trim.doubleSided = true;
     const auto ceilingMaterial = static_cast<int>(plan.structure.materials.size());
     plan.structure.materials.push_back(plaster); plan.structure.materials.push_back(trim);
     Primitive ceilings, mouldings; ceilings.material = ceilingMaterial; mouldings.material = ceilingMaterial + 1;
@@ -71,16 +71,26 @@ std::optional<HouseFloorplan> generateAuthoredFloorplan(const AuthoredFloorplan&
     if (prepared.layout.rooms.empty() || !house_polygon::simple(prepared.footprint)) return std::nullopt;
     for (const auto& room : prepared.layout.rooms) if (!house_polygon::simple(room.polygon)) return std::nullopt;
     HouseFloorplan result;
-    result.kind = HouseFloorplan::Kind::AuthoredPalace;
+    result.kind = prepared.version == 1 ? HouseFloorplan::Kind::AuthoredPalace : HouseFloorplan::Kind::AuthoredBuilding;
     result.name = source.name; result.floor = prepared.floor; result.ceiling = prepared.ceiling;
     result.upperFloors = prepared.upperFloors;
     glm::vec2 low(std::numeric_limits<float>::max()), high(-low);
     for (const auto p : prepared.footprint) { low = glm::min(low, p); high = glm::max(high, p); }
     house_layout::buildGeometry(result, source, prepared.layout, prepared.origin, prepared.u, prepared.v,
         {low, high}, prepared.footprint);
+    for (const auto& court : prepared.courtyards) {
+        std::vector<glm::vec2> points;
+        for (const auto p : court) points.push_back(prepared.origin + prepared.u * p.x + prepared.v * p.y);
+        result.courtyards.push_back(std::move(points));
+    }
     result.structure.materials[0].baseColor = {.88f, .83f, .73f, 1};
     result.structure.materials[1].baseColor = {.40f, .28f, .16f, 1};
     result.structure.materials[2].baseColor = {.78f, .72f, .55f, 1};
+    if (prepared.institutional) {
+        result.structure.materials[0].baseColor = {.84f, .87f, .85f, 1};
+        result.structure.materials[1].baseColor = {.46f, .51f, .52f, 1};
+        result.structure.materials[2].baseColor = {.35f, .43f, .48f, 1};
+    }
     finishes(result, prepared);
     for (std::size_t i = 0; i < result.rooms.size(); ++i) result.rooms[i].label = prepared.labels.at(i);
     for (const auto id : source.doors) {

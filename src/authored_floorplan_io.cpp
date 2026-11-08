@@ -8,7 +8,7 @@
 namespace viewer {
 namespace {
 using Value = tinygltf::Value;
-[[noreturn]] void invalid() { throw std::runtime_error("Invalid authored_floorplan v1 mesh metadata"); }
+[[noreturn]] void invalid() { throw std::runtime_error("Invalid authored_floorplan mesh metadata"); }
 const Value& field(const Value& object, const char* key) {
     if (!object.IsObject() || !object.Has(key))
         throw std::runtime_error(std::string("Missing authored_floorplan field: ") + key);
@@ -85,8 +85,10 @@ HouseRoom::Kind kind(const Value& value) {
 }
 }
 std::shared_ptr<const AuthoredFloorplan> readAuthoredFloorplan(const Value& value, const glm::mat4& transform) {
-    if (number(field(value, "version")) != 1) invalid();
+    const auto version = number(field(value, "version"));
+    if (version != 1 && version != 2) invalid();
     auto result = std::make_shared<AuthoredFloorplan>();
+    result->version = static_cast<int>(version);
     const auto local = vector(field(value, "origin"));
     const auto origin = glm::vec3(transform * glm::vec4(local, 1));
     const auto u = glm::vec3(transform * glm::vec4(vector(field(value, "u")), 0));
@@ -107,6 +109,16 @@ std::shared_ptr<const AuthoredFloorplan> readAuthoredFloorplan(const Value& valu
     }
     if (result->ceiling - previous < 2.4f) invalid();
     result->footprint = polygon(field(value, "footprint"));
+    float doorHeight = 2.7f;
+    if (version == 2) {
+        doorHeight = number(field(value, "door_height"));
+        if (doorHeight < 1.9f || doorHeight > 3.5f || string(field(value, "finish")) != "institutional") invalid();
+        result->institutional = true;
+        for (const auto& court : array(field(value, "courtyards"), 64)) result->courtyards.push_back(polygon(court));
+        for (const auto& region : array(field(value, "floor_regions"), 2048))
+            result->layout.floorRegions.push_back(polygon(region));
+        if (result->layout.floorRegions.empty()) invalid();
+    }
     for (const auto& room : array(field(value, "rooms"), 2048)) {
         auto p = polygon(field(room, "polygon"));
         result->layout.rooms.push_back({kind(field(room, "kind")), bounds(p), {},
@@ -128,7 +140,7 @@ std::shared_ptr<const AuthoredFloorplan> readAuthoredFloorplan(const Value& valu
             const float low = number(opening.Get(0)), high = number(opening.Get(1));
             if (low < end || high <= low || high > p.high) invalid();
             glm::vec2 outward(0); outward[axis] = 1;
-            p.openings.push_back({low, high, outward, std::nullopt, true, 2.7f}); end = high;
+            p.openings.push_back({low, high, outward, std::nullopt, true, doorHeight}); end = high;
         }
         result->layout.partitions.push_back(std::move(p));
     }

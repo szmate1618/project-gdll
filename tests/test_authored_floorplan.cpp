@@ -15,8 +15,9 @@ namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 void check(const std::filesystem::path& path) {
     auto model = viewer::loadModel(path);
-    require(model.authoredFloorplans.size() == 1, "Load exactly one authored palace interior from wall metadata");
-    const auto& prepared = *model.authoredFloorplans.begin()->second;
+    const std::string palace = "building_way_107918884_0";
+    require(model.authoredFloorplans.count(palace) == 1, "Load the authored palace interior from wall metadata");
+    const auto& prepared = *model.authoredFloorplans.at(palace);
     require(viewer::house_polygon::simple(prepared.footprint), "Authored footprint must survive float conversion");
     for (std::size_t i = 0; i < prepared.layout.rooms.size(); ++i)
         if (!viewer::house_polygon::simple(prepared.layout.rooms[i].polygon))
@@ -29,7 +30,7 @@ void check(const std::filesystem::path& path) {
     float nearest = std::numeric_limits<float>::max();
     bool courtyardExit = false;
     for (std::size_t i = 0; i < exteriorCount; ++i) {
-        if (model.draws.at(doors.panel(i).draw).name.rfind(model.authoredFloorplans.begin()->first + "_doors", 0)) continue;
+        if (model.draws.at(doors.panel(i).draw).name.rfind(palace + "_doors", 0)) continue;
         const auto p = doors.panel(i).center;
         const auto local = glm::vec2(p.x, p.z) - prepared.origin;
         courtyardExit |= std::abs(glm::dot(local, prepared.u) - 27.8f) < 3 &&

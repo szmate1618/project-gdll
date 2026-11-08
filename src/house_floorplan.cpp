@@ -2,11 +2,17 @@
 #include "house_layout.hpp"
 #include "building_shell.hpp"
 #include "house_basement.hpp"
+#include "house_polygon.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 namespace viewer {
+bool HouseFloorplan::contains(glm::vec2 p) const {
+    if (!house_polygon::contains(footprint, p)) return false;
+    for (const auto& court : courtyards) if (house_polygon::contains(court, p)) return false;
+    return true;
+}
 using building_shell::faces;
 using building_shell::windowHeads;
 std::size_t houseUpperStoreyCount(const Model& model, const HouseSource& source) {

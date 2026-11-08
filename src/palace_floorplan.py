@@ -17,28 +17,18 @@ from shapely.ops import nearest_points
 import trimesh
 
 from .building_details import _facades, _rectangle
-from .building_entrances import ENTRANCE_MATERIAL
+from .authored_building_layout import _rooms, _partitions, _approaches
 from .config import coordinate_frame
 from .wall_openings import cut_wall_openings
 from .palace_roof import roof_definition
 
 LAYOUT_PATH = Path(__file__).resolve().parents[1] / "assets/buildings/godollo-palace/layout.json"
-COMMON = {"corridor", "lobby", "stair_area"}
 
 
 @lru_cache(maxsize=1)
 def definition():
     with LAYOUT_PATH.open(encoding="utf-8") as stream:
         return json.load(stream)
-
-
-def _polygons(geometry):
-    if isinstance(geometry, Polygon):
-        if geometry.area > .05:
-            yield geometry
-    else:
-        for part in getattr(geometry, "geoms", ()):
-            yield from _polygons(part)
 
 
 def palace_frame(feature, polygon, config):
@@ -69,29 +59,6 @@ def palace_tags(tags):
             "roof:height": str(roof_height), "roof:shape": "hipped"}
 
 
-def _rooms(outline, requested):
-    remaining = outline
-    rooms = []
-    for label, kind, *bounds in requested:
-        region = box(*bounds).intersection(remaining)
-        for part in _polygons(region):
-            if part.interiors:
-                raise ValueError(f"Palace room {label} contains an unexpected hole")
-            rooms.append({"label": label, "kind": kind, "polygon": np.array(part.exterior.coords)[:-1].tolist()})
-        remaining = remaining.difference(region)
-    # Unpartitioned circulation follows the actual shell, including skewed OSM
-    # edges. Never fill a courtyard or bridge disconnected polygon components.
-    for part in _polygons(remaining):
-        if part.interiors:
-            raise ValueError("Palace circulation contains an unexpected hole")
-        rooms.append({"label": "Connecting gallery", "kind": "corridor",
-                      "polygon": np.array(part.exterior.coords)[:-1].tolist()})
-    # The slightly skewed OSM walls leave thin strips outside the rectangular
-    # trace. They still receive the full shell floor, but cannot contain a
-    # standing player and must not become isolated navigation rooms.
-    return [room for room in rooms if not Polygon(room["polygon"]).buffer(-.4).is_empty]
-
-
 def _wing_rooms(data):
     requested = []
     for label, x0, y0, x1, y1, axis, corridor, bay in data["rear_wings"]:
@@ -108,38 +75,6 @@ def _wing_rooms(data):
                 requested.append([f"{label} room {i + 1}", "living", corridor, float(start),
                                   x1, float(min(start + bay, y1))])
     return requested
-
-
-def _partitions(rooms, storey, outline):
-    result = []
-    polygons = [Polygon(r["polygon"]) for r in rooms]
-    for i, first in enumerate(rooms):
-        for j in range(i + 1, len(rooms)):
-            second = rooms[j]
-            if first["kind"] in COMMON and second["kind"] in COMMON:
-                continue
-            shared = polygons[i].boundary.intersection(polygons[j].boundary)
-            lines = [shared] if shared.geom_type == "LineString" else getattr(shared, "geoms", ())
-            for line in lines:
-                if line.geom_type != "LineString" or line.length < .02:
-                    continue
-                a, b = np.array(line.coords)[[0, -1]]
-                axis = int(abs(b[0] - a[0]) > abs(b[1] - a[1]))
-                if abs(a[axis] - b[axis]) > .005:
-                    # Boolean clipping can leave submillimetre circulation
-                    # slivers on a skewed facade; the exterior shell owns it.
-                    if outline.boundary.buffer(.005).covers(line):
-                        continue
-                    raise ValueError("Authored partitions must follow the palace axes")
-                low, high = sorted([float(a[1 - axis]), float(b[1 - axis])])
-                width = min(1.25, high - low - .65)
-                openings = []
-                if width >= .85:
-                    center = (low + high) / 2
-                    openings.append([center - width / 2, center + width / 2])
-                result.append({"axis": axis, "position": float(a[axis]), "low": low,
-                               "high": high, "openings": openings, "storey": storey})
-    return result
 
 
 def prepare_layout(frame, floor):
@@ -168,27 +103,6 @@ def prepare_layout(frame, floor):
             "upper_floors": data["floor_heights_m"][1:],
             "footprint": np.array(outline.exterior.coords)[:-1].tolist(),
             "rooms": rooms, "partitions": partitions, "stairs": stairs}
-
-
-def _approaches(entrances, elevation):
-    vertices, faces = [], []
-    for center, direction, outward, floor, width in entrances:
-        top = floor + .01
-        ground = float(elevation(*center))
-        run = max(2., (top - ground) * 2.0 + 1.)
-        end = center + outward * run
-        bottom = min(top, float(elevation(*end)) - .02)
-        half = width / 2 + .4
-        start = len(vertices)
-        for xy, z in [(center - direction * half, top), (end - direction * half, bottom),
-                      (end + direction * half, bottom), (center + direction * half, top)]:
-            vertices.append([*xy, z])
-        faces.extend([[start, start + 1, start + 2], [start, start + 2, start + 3]])
-    if not vertices:
-        return None
-    mesh = trimesh.Trimesh(vertices=np.array(vertices, dtype=np.float32), faces=faces, process=False)
-    mesh.visual = trimesh.visual.TextureVisuals(material=ENTRANCE_MATERIAL)
-    return mesh
 
 
 def palace_facade_details(polygon, wall, roof, elevation, frame):

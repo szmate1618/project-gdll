@@ -1,0 +1,530 @@
+{
+  "version": 1,
+  "osm_id": "relation/3897212",
+  "name": "Gödöllő police station — fictional gameplay interior",
+  "sources": [
+    {
+      "url": "https://www.openstreetmap.org/relation/3897212",
+      "use": "Exact exterior and five courtyard rings; mapped four storeys",
+      "license": "ODbL 1.0",
+      "timestamp": "2026-10-11T13:40:18Z"
+    },
+    {
+      "url": "https://commons.wikimedia.org/wiki/File:Police_Station._-_Pet%C5%91fi_Street,_G%C3%B6d%C3%B6ll%C5%91.JPG",
+      "use": "Recessed street entrance and narrow repeated facade windows; not interior evidence",
+      "author": "Globetrotter19",
+      "date": "2015",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0/"
+    },
+    {
+      "url": "https://www.police.hu/sites/default/files/G%C3%B6d%C3%B6ll%C5%91%20Rk.%20p%C3%A1ly%C3%A1zat%202023..pdf",
+      "use": "Catering premises exist; room positions here are invented"
+    }
+  ],
+  "front_reference_lonlat": [
+    [
+      19.3500313,
+      47.60005110000001
+    ],
+    [
+      19.3504986,
+      47.59970390000001
+    ]
+  ],
+  "reference_footprint_lonlat": [
+    [
+      19.3505458,
+      47.60036600000001
+    ],
+    [
+      19.350683400000005,
+      47.600263799999986
+    ],
+    [
+      19.3507551,
+      47.6002105
+    ],
+    [
+      19.3506658,
+      47.600155799999996
+    ],
+    [
+      19.3507136,
+      47.6001203
+    ],
+    [
+      19.350803,
+      47.600175
+    ],
+    [
+      19.3508734,
+      47.60012269999999
+    ],
+    [
+      19.3510132,
+      47.600018799999994
+    ],
+    [
+      19.3508886,
+      47.59994249999999
+    ],
+    [
+      19.35083,
+      47.59990669999999
+    ],
+    [
+      19.3504986,
+      47.59970390000001
+    ],
+    [
+      19.3503588,
+      47.599807799999994
+    ],
+    [
+      19.3502921,
+      47.59985739999999
+    ],
+    [
+      19.3502885,
+      47.5998601
+    ],
+    [
+      19.3503215,
+      47.5998803
+    ],
+    [
+      19.3502976,
+      47.599897999999996
+    ],
+    [
+      19.350273700000002,
+      47.59991579999999
+    ],
+    [
+      19.3502407,
+      47.59989559999999
+    ],
+    [
+      19.3501689,
+      47.5999489
+    ],
+    [
+      19.3500313,
+      47.60005110000001
+    ],
+    [
+      19.350164300000003,
+      47.600132499999994
+    ],
+    [
+      19.3505458,
+      47.60036600000001
+    ]
+  ],
+  "reference_courtyards_lonlat": [
+    [
+      [
+        19.350478,
+        47.5998139
+      ],
+      [
+        19.3505268,
+        47.5998437
+      ],
+      [
+        19.3504775,
+        47.599880399999996
+      ],
+      [
+        19.3504287,
+        47.5998506
+      ],
+      [
+        19.350478,
+        47.5998139
+      ]
+    ],
+    [
+      [
+        19.3505684,
+        47.59986920000001
+      ],
+      [
+        19.3507939,
+        47.60000719999999
+      ],
+      [
+        19.3507446,
+        47.6000439
+      ],
+      [
+        19.3505191,
+        47.599905899999996
+      ],
+      [
+        19.3505684,
+        47.59986920000001
+      ]
+    ],
+    [
+      [
+        19.3501952,
+        47.600028800000004
+      ],
+      [
+        19.3502423,
+        47.5999938
+      ],
+      [
+        19.3502875,
+        47.60002149999999
+      ],
+      [
+        19.3502404,
+        47.6000565
+      ],
+      [
+        19.3501952,
+        47.600028800000004
+      ]
+    ],
+    [
+      [
+        19.3506133,
+        47.60005889999999
+      ],
+      [
+        19.3505655,
+        47.60009440000001
+      ],
+      [
+        19.3504674,
+        47.6000344
+      ],
+      [
+        19.3505152,
+        47.599998899999996
+      ],
+      [
+        19.3506133,
+        47.60005889999999
+      ]
+    ],
+    [
+      [
+        19.3505546,
+        47.600185
+      ],
+      [
+        19.3505075,
+        47.600219999999986
+      ],
+      [
+        19.350282,
+        47.6000819
+      ],
+      [
+        19.3503291,
+        47.60004699999999
+      ],
+      [
+        19.3505546,
+        47.600185
+      ]
+    ]
+  ],
+  "floor_heights_m": [
+    0,
+    3.2,
+    6.4,
+    9.6
+  ],
+  "ceiling_m": 12.8,
+  "door_height_m": 2.15,
+  "ground_exterior_doors": [
+    [
+      "Public entrance",
+      25.0,
+      3.35,
+      1.65
+    ],
+    [
+      "Rear staff entrance",
+      26.1,
+      43.11,
+      1.2
+    ],
+    [
+      "West service entrance",
+      0,
+      14.3,
+      1.2
+    ],
+    [
+      "East service entrance",
+      52.3,
+      41.5,
+      1.2
+    ]
+  ],
+  "lobby": [
+    "Entrance lobby",
+    "lobby",
+    23.4,
+    3.3,
+    28.8,
+    13.1
+  ],
+  "corridors": [
+    [
+      "Front cross corridor",
+      "corridor",
+      -1,
+      4,
+      54,
+      6.4
+    ],
+    [
+      "South cross corridor",
+      "corridor",
+      -1,
+      13.1,
+      54,
+      15.5
+    ],
+    [
+      "North cross corridor",
+      "corridor",
+      -1,
+      40.3,
+      54,
+      42.7
+    ],
+    [
+      "West gallery",
+      "corridor",
+      7,
+      4,
+      9.4,
+      42.7
+    ],
+    [
+      "East gallery",
+      "corridor",
+      43,
+      4,
+      45.4,
+      42.7
+    ],
+    [
+      "West inner corridor",
+      "corridor",
+      19,
+      4,
+      21.4,
+      54
+    ],
+    [
+      "East inner corridor",
+      "corridor",
+      30,
+      4,
+      32.4,
+      54
+    ]
+  ],
+  "stair_areas": [
+    [
+      "West stair",
+      "stair_area",
+      15.7,
+      16,
+      21.4,
+      25.3
+    ],
+    [
+      "East stair",
+      "stair_area",
+      30,
+      26,
+      36.1,
+      35.3
+    ]
+  ],
+  "stairs": [
+    {
+      "label": "West stair",
+      "bays": [
+        [
+          15.9,
+          17,
+          17.1,
+          24
+        ],
+        [
+          17.4,
+          17,
+          18.6,
+          24
+        ]
+      ]
+    },
+    {
+      "label": "East stair",
+      "bays": [
+        [
+          33.1,
+          27,
+          34.3,
+          34
+        ],
+        [
+          34.6,
+          27,
+          35.8,
+          34
+        ]
+      ]
+    }
+  ],
+  "ground_rooms": [
+    [
+      "Reception office",
+      "living",
+      21.4,
+      6.4,
+      23.4,
+      13.1
+    ],
+    [
+      "Public waiting room",
+      "living",
+      28.8,
+      6.4,
+      32.4,
+      13.1
+    ],
+    [
+      "Dining room",
+      "living",
+      0,
+      42.7,
+      19,
+      54
+    ],
+    [
+      "Kitchen",
+      "living",
+      0,
+      31,
+      7,
+      40.3
+    ],
+    [
+      "Catering stores",
+      "small_rooms",
+      15.5,
+      31,
+      19,
+      40.3
+    ],
+    [
+      "Duty office",
+      "living",
+      32.4,
+      0,
+      43,
+      4
+    ]
+  ],
+  "room_grid_x": [
+    -1,
+    9.4,
+    21.4,
+    32.4,
+    43,
+    54
+  ],
+  "room_grid_y": [
+    -1,
+    13.1,
+    22,
+    31,
+    40.3,
+    54
+  ],
+  "departments": [
+    [
+      "Public interview room",
+      "Reporting office",
+      "Staff changing room",
+      "Washroom",
+      "Records room",
+      "Patrol office",
+      "Staff break room"
+    ],
+    [
+      "Investigation office",
+      "Interview room",
+      "Casework office",
+      "Meeting room",
+      "Records office",
+      "Washroom"
+    ],
+    [
+      "Administration office",
+      "Personnel office",
+      "Training room",
+      "Meeting room",
+      "Staff kitchen",
+      "Washroom"
+    ],
+    [
+      "Management office",
+      "Planning office",
+      "Conference room",
+      "Archive room",
+      "Staff lounge",
+      "Washroom"
+    ]
+  ],
+  "windows": {
+    "spacing_m": 3.2,
+    "width_m": 1.1,
+    "sill_m": 0.95,
+    "height_m": 1.65
+  },
+  "entrance_canopy": {
+    "osm_id": "way/1564681267",
+    "reference_footprint_lonlat": [
+      [
+        19.3502407,
+        47.5998956
+      ],
+      [
+        19.3502885,
+        47.5998601
+      ],
+      [
+        19.3503215,
+        47.5998803
+      ],
+      [
+        19.3502976,
+        47.599898
+      ],
+      [
+        19.3502737,
+        47.5999158
+      ],
+      [
+        19.3502407,
+        47.5998956
+      ]
+    ],
+    "clearance_m": 2.8,
+    "thickness_m": 0.15,
+    "post_width_m": 0.12
+  }
+}

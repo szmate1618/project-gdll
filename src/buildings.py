@@ -18,6 +18,8 @@ from .building_details import CRAWL_OPENING_MATERIAL, DOOR_MATERIAL, WINDOW_MATE
 from .building_basement_terrain import carve_basement_terrain
 from .palace_floorplan import palace_frame, palace_tags, palace_facade_details
 from .palace_roof import roof_surface as palace_roof_surface, roof_details as palace_roof_details
+from .police_station_floorplan import (definition as station_definition, station_frame, station_tags,
+                                      station_facade_details, station_canopy)
 
 LOG = logging.getLogger(__name__)
 
@@ -205,7 +207,13 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
     road_index = RoadIndex(roads)
     roof_shapes = Counter()
     basements = []
+    station_data = station_definition()
+    has_station = any(feature['id'] == station_data['osm_id'] for feature in features)
     for feature in features:
+        if has_station and feature['id'] == station_data['entrance_canopy']['osm_id']:
+            # This roof belongs to the station's entrance. Its open canopy is
+            # prepared with the station; generic extrusion would block entry.
+            continue
         geometry = feature["geometry"]
         polygons = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
         added = False
@@ -214,15 +222,21 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 continue
             try:
                 palace = palace_frame(feature, polygon, config)
-                tags = palace_tags(feature.get("tags", {})) if palace else feature.get("tags", {})
+                station = station_frame(feature, polygon, config)
+                tags = feature.get("tags", {})
+                tags = palace_tags(tags) if palace else station_tags(tags) if station else tags
                 builder = (lambda outline, eaves: palace_roof_surface(outline, eaves, palace)) if palace else None
                 wall, roof, shape = _mesh_for_polygon(polygon, tags, elevation, options, roof_builder=builder)
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
             try:
-                details = palace_facade_details(polygon, wall, roof, elevation, palace) if palace else facade_details(
-                    polygon, wall, roof, elevation, options, road_index.nearest(polygon))
+                if palace:
+                    details = palace_facade_details(polygon, wall, roof, elevation, palace)
+                elif station:
+                    details = station_facade_details(polygon, wall, roof, elevation, station)
+                else:
+                    details = facade_details(polygon, wall, roof, elevation, options, road_index.nearest(polygon))
                 detailed_wall, doors, windows, entrances, crawl_openings, railings, basement_floor, detail_counts = details
                 if basement_floor is not None:
                     wall, roof, shape = _mesh_for_polygon(polygon, feature.get("tags", {}), elevation, options, basement_floor)
@@ -246,6 +260,11 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                                                              "group": name, "level": "near"}
             scene.add_geometry(wall, node_name=f"{name}_walls", geom_name=f"{name}_walls")
             scene.add_geometry(roof, node_name=f"{name}_roof", geom_name=f"{name}_roof")
+            if station:
+                floor = wall.metadata['authored_floorplan']['origin'][2]
+                for suffix, mesh in station_canopy(config, floor, elevation, station).items():
+                    scene.add_geometry(mesh, node_name=f"{name}_{suffix}", geom_name=f"{name}_{suffix}")
+                    stats['building_detail_meshes'] += 1
             if palace:
                 for suffix, mesh in palace_roof_details(float(roof.vertices[:, 2].min()), palace).items():
                     scene.add_geometry(mesh, node_name=f"{name}_roof_{suffix}", geom_name=f"{name}_roof_{suffix}")

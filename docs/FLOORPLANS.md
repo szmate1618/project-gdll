@@ -3,8 +3,12 @@
 The standalone viewer, multiplayer client and server generate these interiors
 from the map geometry they already load. Procedural houses need no town
 regeneration, sidecar, serialized floorplan, network geometry payload or random
-seed. The Gödöllő palace instead carries an authored layout inside its map GLB;
-see [the palace source and approximations](../assets/buildings/godollo-palace/README.md).
+seed. The Gödöllő palace and police station instead carry authored layouts inside
+their map GLB; see [the palace source and approximations](../assets/buildings/godollo-palace/README.md)
+and [the fictional station interior](../assets/buildings/godollo-police-station/README.md).
+Each override replaces generic rules only for its recorded OSM building identity.
+Authored metadata version 2 adds courtyard rings and a floor tiling that preserves
+those voids, while version 1 palace maps remain supported.
 `building_shell` reads the shared wall axes, footprint and roof heights.
 `house_floorplan` handles family houses; `prefab_floorplan` classifies apartment
 blocks and fits their storeys, and `apartment_layout` builds their common areas

@@ -41,14 +41,19 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
     result.structure.materials[2].baseColor = {.38f, .22f, .10f, 1};
     for (auto& material : result.structure.materials) material.doubleSided = true;
     Primitive walls, floors, ramps; walls.material = 0; floors.material = 1; ramps.material = 1;
-    const auto shellTriangles = house_polygon::triangles(outline);
+    std::vector<glm::vec2> shellVertices;
+    const auto appendTriangles = [&](const std::vector<glm::vec2>& region) {
+        for (const auto index : house_polygon::triangles(region)) shellVertices.push_back(region[index]);
+    };
+    if (layout.floorRegions.empty()) appendTriangles(outline);
+    else for (const auto& region : layout.floorRegions) appendTriangles(region);
     const auto plane = [&](Rectangle r, float y) {
         if (r.high.x <= r.low.x || r.high.y <= r.low.y) return;
         if (!outline.empty()) {
             // A slab around a stair opening can intersect a concave house in
             // several pieces. Clip each shell triangle, never bridge the void.
-            for (std::size_t i = 0; i < shellTriangles.size(); i += 3) {
-                const auto clipped = house_polygon::clip({outline[shellTriangles[i]], outline[shellTriangles[i + 1]], outline[shellTriangles[i + 2]]}, r.low, r.high);
+            for (std::size_t i = 0; i < shellVertices.size(); i += 3) {
+                const auto clipped = house_polygon::clip({shellVertices[i], shellVertices[i + 1], shellVertices[i + 2]}, r.low, r.high);
                 const auto base = static_cast<std::uint32_t>(floors.vertices.size());
                 for (const auto p : clipped) { Vertex vertex; vertex.position = world(p, y); vertex.normal = {0, 1, 0}; floors.vertices.push_back(vertex); }
                 for (std::uint32_t j = 1; j + 1 < clipped.size(); ++j)

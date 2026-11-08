@@ -47,6 +47,7 @@ BasicShaderUniforms::BasicShaderUniforms(GLuint program) {
     interiorShellHeightsLocation_ = glGetUniformLocation(program, "uInteriorShellHeights");
     interiorShellVertexCountLocation_ = glGetUniformLocation(program, "uInteriorShellVertexCount");
     interiorShellVerticesLocation_ = glGetUniformLocation(program, "uInteriorShellVertices");
+    interiorShellNextLocation_ = glGetUniformLocation(program, "uInteriorShellNext");
     shadowFadeLocation_ = glGetUniformLocation(program, "uShadowFadeStart");
     hazeColorLocation_ = glGetUniformLocation(program, "uHazeColor");
     hazeDensityLocation_ = glGetUniformLocation(program, "uHazeDensity");
