@@ -264,6 +264,15 @@ in multiplayer asset packages.
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/gray-scott-corridors/scenario.toml
 ```
 
+The [`gray-scott-corridors-2` variant](../scenarios/gray-scott-corridors-2/scenario.toml)
+keeps the same seed, zombie groups, dogs and density images. It starts east of
+the MOL station at Pattantyús Ábrahám körút 4 in the southwest industrial area,
+facing southwest toward the station's shop (OSM way/272536099).
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/gray-scott-corridors-2/scenario.toml
+```
+
 ### Player starting position
 
 An optional `[player]` table supplies a ground-level starting location and
