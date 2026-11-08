@@ -40,6 +40,12 @@ void eyeMount() {
     const auto swordWindup = playback.sample(player, 10), swordCut = playback.sample(player, 10.22);
     require(swordWindup && swordCut && swordWindup->motion.localTransform != swordCut->motion.localTransform,
         "Remote sword must continue its directional animation between snapshots");
+    player.slot = static_cast<std::uint8_t>(viewer::axeSlot);
+    player.sword = {{-1, 0}, .20f, .18f};
+    const auto axeHit = playback.sample(player, 10), axeHeld = playback.sample(player, 10.1), axeRecover = playback.sample(player, 10.3);
+    require(axeHit && axeHeld && axeRecover && axeHit->motion.localTransform == axeHeld->motion.localTransform &&
+            axeRecover->motion.localTransform != axeHeld->motion.localTransform,
+            "Remote axe must hold its authoritative contact angle until recovery");
     player.slot = 0;
     player.vehicle = 0;
     require(!playback.sample(player, 0), "Seated player retained an on-foot weapon");

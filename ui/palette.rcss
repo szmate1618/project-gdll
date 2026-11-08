@@ -112,3 +112,5 @@ body.loadout { background-color: #2b2d2fed; }
 .loadout .molotov { background-color: #e3a36b; }
 
 .loadout .sword { background-color: #b9c8d5; }
+
+.loadout .axe { background-color: #b9c8d5; }

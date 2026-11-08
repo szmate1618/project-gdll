@@ -24,16 +24,23 @@ bool SwordMelee::update(double seconds) {
     direction_ = glm::normalize(drag_);
     drag_ = {}; // Another cut needs fresh movement, even while the button stays held.
     startedAt_ = seconds;
+    stoppedElapsed_ = -1;
     return true;
 }
 void SwordMelee::cancel() {
     armed_ = false; drag_ = {}; startedAt_ = -std::numeric_limits<double>::infinity();
+    stoppedElapsed_ = -1;
     // Keep the physical hold latched until a real release.
+}
+void SwordMelee::stopAt(float elapsed) {
+    if (std::isfinite(elapsed) && elapsed >= swordWindupSeconds &&
+        elapsed <= swordWindupSeconds + swordCutSeconds &&
+        (stoppedElapsed_ < 0 || elapsed < stoppedElapsed_)) stoppedElapsed_ = elapsed;
 }
 SwordPose SwordMelee::pose(double seconds) const {
     const double elapsed = seconds - startedAt_;
     return {direction_, std::isfinite(elapsed) && elapsed >= 0 && elapsed < swordDurationSeconds ?
-        static_cast<float>(elapsed) : -1.f};
+        static_cast<float>(elapsed) : -1.f, stoppedElapsed_};
 }
 glm::mat4 swordRestPose() {
     return glm::translate(glm::mat4(1), {.30f, -.20f, -.95f}) *
@@ -42,7 +49,8 @@ glm::mat4 swordRestPose() {
 WeaponMotionPose swordMotion(const SwordPose& pose) {
     WeaponMotionPose motion;
     if (pose.elapsed < 0) return motion;
-    const float cut = std::clamp((pose.elapsed - swordWindupSeconds) / swordCutSeconds, 0.f, 1.f);
+    const float swingElapsed = pose.stoppedElapsed < 0 ? pose.elapsed : std::min(pose.elapsed, pose.stoppedElapsed);
+    const float cut = std::clamp((swingElapsed - swordWindupSeconds) / swordCutSeconds, 0.f, 1.f);
     const float angle = glm::radians(65.f - 130.f * cut);
     const auto axis = glm::vec3(-pose.direction.y, pose.direction.x, 0);
     const auto swing = glm::translate(glm::mat4(1), {0.f, -.06f, -.72f}) *
@@ -62,5 +70,11 @@ WeaponMotionPose swordMotion(const SwordPose& pose) {
 }
 glm::mat4 swordTransform(const SwordPose& pose) {
     return animatedWeaponPose(swordRestPose(), swordMotion(pose));
+}
+SwordPose advanceMeleePose(SwordPose pose, double secondsSinceSample) {
+    if (pose.elapsed >= 0 && std::isfinite(secondsSinceSample))
+        pose.elapsed += static_cast<float>(std::max(0.0, secondsSinceSample));
+    if (pose.elapsed >= swordDurationSeconds) pose.elapsed = -1;
+    return pose;
 }
 } // namespace viewer

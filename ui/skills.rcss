@@ -4,16 +4,16 @@
 #combo-builder { left: 366dp; width: 470dp; }
 #skill-details { left: 856dp; width: 354dp; }
 .skills-group { position: absolute; left: 20dp; right: 20dp; border-width: 1dp; border-color: #f5f6f226; background-color: #2b2d2f33; }
-#melee-skills { top: 54dp; height: 244dp; }
-#saved-combos { top: 314dp; bottom: 20dp; }
+#melee-skills { top: 54dp; height: 262dp; }
+#saved-combos { top: 332dp; bottom: 20dp; }
 .skills-group-heading { height: 32dp; padding-left: 12dp; line-height: 32dp; font-size: 10dp; letter-spacing: 1dp; border-bottom-width: 1dp; border-color: #f5f6f226; color: #f5f6f299; }
-#melee-skill-entries { position: absolute; left: 0dp; right: 0dp; top: 33dp; bottom: 0dp; overflow-y: auto; }
-.skill-entry { position: relative; height: 56dp; border-bottom-width: 1dp; border-color: #f5f6f226; }
+#melee-skill-entries { position: absolute; left: 0dp; width: 100%; top: 33dp; bottom: 0dp; overflow-y: auto; }
+.skill-entry { position: relative; width: 100%; height: 56dp; border-bottom-width: 1dp; border-color: #f5f6f226; }
 .skill-entry:hover { background-color: #f5f6f214; }
 .skill-square { position: absolute; left: 12dp; top: 12dp; width: 30dp; height: 30dp; box-sizing: border-box; border-width: 1dp; border-color: #b29a8580; background-color: #b29a854d; }
 .skill-symbol { position: absolute; left: 4dp; top: 4dp; width: 22dp; height: 22dp; image-color: #f5f6f2; }
 .skill-symbol.fists { decorator: image(../data/assets/game-icons/hud/fists.png contain); }
-.skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
+.skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; height: 20dp; line-height: 20dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
 .skills-empty { padding: 18dp 12dp; font-size: 11dp; color: #f5f6f280; }
 #combo-name-label { position: absolute; left: 20dp; top: 44dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f299; }
 #combo-name { position: absolute; left: 20dp; top: 61dp; width: 430dp; height: 30dp; box-sizing: border-box; padding: 5dp 10dp; border-width: 1dp; border-color: #f5f6f24d; background-color: #2b2d2f; font-family: hud-system; font-size: 14dp; line-height: 18dp; color: #f5f6f280; }
@@ -33,3 +33,5 @@
 .skill-symbol.handling { decorator: image(../data/assets/game-icons/hud/interact.png contain); }
 
 .skill-symbol.sword { decorator: image(../data/assets/game-icons/hud/sword.png contain); }
+
+.skill-symbol.axe { decorator: image(../data/assets/game-icons/hud/axe.png contain); }

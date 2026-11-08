@@ -2258,7 +2258,7 @@ the selector opens and requires a fresh press after cancellation. Right-click
 continues to operate the equipped action, including scope zoom and grenade charging,
 while the selector stays open. Selecting the equipped action does nothing;
 Escape cancels the preview. The initial slots are 0 Object handling, 1 Punch, 2 pistol, 3 SMG,
-4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov cocktail, and 8 Sword. `inventory.toml` accepts owned item IDs and
+4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov cocktail, 8 Sword, and 9 Axe. `inventory.toml` accepts owned item IDs and
 `skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
 is not implemented. Punch equips the existing fists, which use no ammunition.
 
@@ -2280,6 +2280,17 @@ same cut remain eligible. The skill uses no ammunition or storage. Switching
 away removes the sword; switching or cancelling stops further joint checks.
 Multiplayer uses server-owned damage and publishes the sword pose to other players.
 
+
+**9**, then **left click** to confirm, equips the Axe melee skill. It uses the
+same hold-and-drag directions, threshold, timing and recovery as Sword. Its
+short cutting edge sits **5 cm ahead** of the solid axe head in the swing
+direction and alone checks for dismemberment. The solid head and handle stop
+the swing at their first zombie contact, preventing further hits through the
+body; the weapon holds there until recovery returns it to guard. Body contact
+applies ordinary damage once, and cannot sever a joint by itself. Switching or
+cancelling clears the swing; a fresh drag after recovery starts another chop.
+Multiplayer resolves contacts on the server and publishes the stopped pose for
+both the wielder and other players.
 
 Switching shows a progress bar without a draw/put-away animation. Its duration is
 old weapon `draw_time_seconds` + combined storage access + new weapon

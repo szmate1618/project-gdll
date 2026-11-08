@@ -33,7 +33,7 @@ void RemoteWeaponPlayback::receiveShots(const std::vector<SoundEvent>& shots,
 }
 
 std::optional<RemoteWeaponSample> RemoteWeaponPlayback::sample(const PlayerState& player, double seconds) const {
-    if (player.vehicle != noVehicle || (player.slot >= 4 && player.slot != viewer::swordSlot) || player.weaponSwitchRemaining > 0) return {};
+    if (player.vehicle != noVehicle || (player.slot >= 4 && !viewer::directionalMeleeSlot(player.slot)) || player.weaponSwitchRemaining > 0) return {};
     viewer::FPSController body;
     body.restoreMovement(player.movement);
     viewer::Camera eye;
@@ -42,10 +42,8 @@ std::optional<RemoteWeaponSample> RemoteWeaponPlayback::sample(const PlayerState
     RemoteWeaponSample result;
     result.slot = player.slot;
     result.eyeToWorld = glm::inverse(eye.view());
-    if (player.slot == viewer::swordSlot) {
-        auto pose = player.sword;
-        if (pose.elapsed >= 0) pose.elapsed += static_cast<float>(std::max(0.0, seconds - player.swordSampleSeconds));
-        if (pose.elapsed >= viewer::swordDurationSeconds) pose.elapsed = -1;
+    if (viewer::directionalMeleeSlot(player.slot)) {
+        const auto pose = viewer::advanceMeleePose(player.sword, seconds - player.swordSampleSeconds);
         result.motion = viewer::swordMotion(pose);
         return result;
     }

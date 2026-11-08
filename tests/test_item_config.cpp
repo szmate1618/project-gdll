@@ -65,8 +65,7 @@ void starterInventory() {
     require(inventory.hotbar[0] == "skill:object_handling" && inventory.skills.at("object_handling") == "Object handling",
             "Slot 0 must contain the Object handling skill");
     require(inventory.hotbar[8] == "skill:sword", "Slot 8 must create the sword melee weapon");
-    for (std::size_t slot = 9; slot < inventory.hotbar.size(); ++slot)
-        require(inventory.hotbar[slot].empty(), "Slots 8–9 must start unassigned");
+    require(inventory.hotbar[9] == "skill:axe", "Slot 9 must create the axe melee weapon");
     const auto& pistol = inventory.owned.at("pistol");
     require(pistol.inventory().width == 2 && pistol.inventory().height == 1, "Pistol must have a 2x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");

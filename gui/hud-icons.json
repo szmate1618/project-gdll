@@ -108,6 +108,11 @@
       "author": "Delapouite",
       "page": "https://game-icons.net/1x1/delapouite/plain-arrow.html"
     },
+    "axe": {
+      "source": "lorc/wood-axe.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/wood-axe.html"
+    },
     "sword": {
       "source": "lorc/broadsword.png",
       "author": "Lorc",

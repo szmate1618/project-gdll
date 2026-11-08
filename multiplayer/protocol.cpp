@@ -522,9 +522,16 @@ void payload(Wire& w, Snapshot& s) {
         movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
         w.flag(p.weaponCoolingDown); w.flag(p.flashlight);
-        if (p.slot == viewer::swordSlot) {
+        if (viewer::directionalMeleeSlot(p.slot)) {
             w.number(p.sword.direction.x); w.number(p.sword.direction.y);
             w.number(p.sword.elapsed); w.number(p.swordSampleSeconds);
+            if (p.slot == viewer::axeSlot) {
+                w.number(p.sword.stoppedElapsed);
+                if (p.sword.stoppedElapsed != -1 &&
+                    (p.sword.stoppedElapsed < viewer::swordWindupSeconds ||
+                     p.sword.stoppedElapsed > viewer::swordWindupSeconds + viewer::swordCutSeconds))
+                    throw std::runtime_error("Invalid axe stop time");
+            } else if (w.reading) p.sword.stoppedElapsed = -1;
             if (std::abs(glm::length(p.sword.direction) - 1) > .001f ||
                 (p.sword.elapsed != -1 && (p.sword.elapsed < 0 || p.sword.elapsed >= viewer::swordDurationSeconds)) ||
                 p.swordSampleSeconds < 0)

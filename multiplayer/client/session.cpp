@@ -179,7 +179,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     }
     if (code == GLFW_KEY_L) in.flashlight = !in.flashlight;
     if (code == GLFW_KEY_0 || code == GLFW_KEY_GRAVE_ACCENT || (code >= GLFW_KEY_1 && code <= GLFW_KEY_9)) {
-        in.cancelInteraction |= in.handling() || in.equippedSlot == viewer::swordSlot;
+        in.cancelInteraction |= in.handling() || viewer::directionalMeleeSlot(in.equippedSlot);
         in.actionSelection.highlight((code == GLFW_KEY_0 || code == GLFW_KEY_GRAVE_ACCENT) ? 0 : code - GLFW_KEY_1 + 1);
         in.suppressLeftUntilRelease |= in.leftHeld;
         in.leftPressed = false;
@@ -222,9 +222,9 @@ void mouse(GLFWwindow* window, double x, double y) {
         if (length > viewer::commandPageOuterRadius) in.wheelOffset *= viewer::commandPageOuterRadius / length;
         return;
     }
-    const bool swordDrag = in.equippedSlot == viewer::swordSlot && in.leftHeld && !in.suppressLeftUntilRelease &&
+    const bool meleeDrag = viewer::directionalMeleeSlot(in.equippedSlot) && in.leftHeld && !in.suppressLeftUntilRelease &&
         !in.handling() && !in.driver.occupied() && !in.weaponSwitching && !in.actionSelection.open();
-    if (!swordDrag) in.camera.look(dx, dy);
+    if (!meleeDrag) in.camera.look(dx, dy);
     in.drag = glm::clamp(in.drag + glm::vec2(dx, dy), glm::vec2(-2000), glm::vec2(2000));
 }
 void button(GLFWwindow* window, int buttonCode, int action, int) {
@@ -282,7 +282,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
     }
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) {
         in.leftPressed = true;
-        if (in.equippedSlot == viewer::swordSlot) in.drag = {};
+        if (viewer::directionalMeleeSlot(in.equippedSlot)) in.drag = {};
     }
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && (in.handling() || in.canThrowGrenade)) in.rightPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.canScope && !in.handling()) in.camera.cycleViewMode();
@@ -296,7 +296,7 @@ void scroll(GLFWwindow* window, double, double y) {
         in.hud->mouseWheel(static_cast<float>(y));
     }
     if (in.hudScreen == viewer::HudScreen::Gameplay && in.capture && !in.driver.occupied() && std::isfinite(y) && y != 0) {
-        in.cancelInteraction |= in.handling() || in.equippedSlot == viewer::swordSlot;
+        in.cancelInteraction |= in.handling() || viewer::directionalMeleeSlot(in.equippedSlot);
         in.actionSelection.cycle(y > 0 ? 1 : -1, in.actions, in.equippedSlot);
         in.suppressLeftUntilRelease |= in.leftHeld;
         in.leftPressed = false;
@@ -529,6 +529,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
     glm::vec3 visualOffset(0);
     multiplayer::PlayerState ownState;
 #ifdef MP_GRAPHICS
+    double ownStateReceivedAt = 0;
     double lastDamageSeconds = -1;
     auto titleTime = start;
     std::size_t intervalFrames = 0;
@@ -652,6 +653,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                         in.suppressRightUntilRelease = true;
 #ifdef MP_GRAPHICS
                     graphics.weaponFeedback.reconcile(p);
+                    ownStateReceivedAt = now;
 #endif
                     prediction.reconcile(p,*scene.collision);
                     const bool walking=p.vehicle==multiplayer::noVehicle && ownState.vehicle==multiplayer::noVehicle;
@@ -918,6 +920,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                     !in.weaponSwitching && viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
                     graphics.weapon->draw(ownState.slot, renderWidth, renderHeight, flash,
+                                          ownState.slot == viewer::axeSlot && !in.temporaryHandling() ?
+                                              viewer::swordMotion(viewer::advanceMeleePose(ownState.sword, now - ownStateReceivedAt)) :
                                           ownState.slot == viewer::swordSlot && !in.temporaryHandling() ? viewer::swordMotion(in.sword.pose(now)) :
                                           in.weaponMotion.pose(ownState.slot, now, in.temporaryHandling()));
                 const auto overlayViewport = renderer.beginOverlay(width, height);
@@ -1029,7 +1033,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                             }) : std::optional<viewer::VehicleSeatRef>{};
                     const auto title = "Godollo | Player " + std::to_string(self) + " | " +
                         (in.driver.occupied() ? (in.driver.driving() ? "Driving | WASD, Space brake, Enter exit, Alt camera" : "Passenger | Mouse look, Enter exit, Alt camera") :
-                         in.handling() ? "Object handling" : "Combat") + (ownState.slot==viewer::punchSlot ? " | Fists: left click punch" : ownState.slot==viewer::swordSlot ? " | Sword: left click + drag" :
+                         in.handling() ? "Object handling" : "Combat") + (ownState.slot==viewer::punchSlot ? " | Fists: left click punch" : ownState.slot==viewer::swordSlot ? " | Sword: left click + drag" : ownState.slot==viewer::axeSlot ? " | Axe: left click + drag" :
                             " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve))
                         + (entry ? " | " + viewer::vehicleEntryLabel(*scene.vehicles, *entry) : "")
                         + " | " + std::to_string(fps) + " FPS | GPU " + gpuTime

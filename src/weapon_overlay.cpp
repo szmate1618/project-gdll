@@ -2,6 +2,7 @@
 #include "weapon_overlay.hpp"
 #include "model.hpp"
 #include "sword_geometry.hpp"
+#include "axe_geometry.hpp"
 #include "shader_program.hpp"
 #include <array>
 #include <cmath>
@@ -80,6 +81,10 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     poses_[swordSlot] = swordRestPose();
     appendModel(makeSwordModel(), false, vertices);
     ranges_[swordSlot].count = static_cast<GLsizei>(vertices.size()) - ranges_[swordSlot].first;
+    ranges_[axeSlot].first = static_cast<GLint>(vertices.size());
+    poses_[axeSlot] = swordRestPose();
+    appendModel(makeAxeModel(), false, vertices);
+    ranges_[axeSlot].count = static_cast<GLsizei>(vertices.size()) - ranges_[axeSlot].first;
     program_ = createShaderProgram(shaders / "weapon.vert", shaders / "weapon.frag");
     transform_ = glGetUniformLocation(program_, "uTransform");
     pose_ = glGetUniformLocation(program_, "uPose");

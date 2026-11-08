@@ -18,7 +18,9 @@ inline constexpr std::array<const char*, 6> weaponIds{"pistol", "submachine_gun"
 constexpr std::size_t handlingSlot = weaponIds.size() + 1;
 constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
 constexpr std::size_t swordSlot = weaponIds.size() + 2;
-constexpr std::size_t equipmentSlotCount = swordSlot + 1;
+constexpr std::size_t axeSlot = swordSlot + 1;
+constexpr std::size_t equipmentSlotCount = axeSlot + 1;
+inline bool directionalMeleeSlot(std::size_t slot) { return slot == swordSlot || slot == axeSlot; }
 // Slots 0..5 are fixed weapon IDs. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponState {
@@ -46,6 +48,10 @@ public:
     void trigger(bool held);
     SwordMelee& sword() { return sword_; }
     const SwordMelee& sword() const { return sword_; }
+    // Both tools use the same directional drag and recovery; combat owns contact policy.
+    SwordMelee& axe() { return axe_; }
+    const SwordMelee& axe() const { return axe_; }
+    SwordMelee& directionalMelee() { return slot_ == axeSlot ? axe_ : sword_; }
     // Grenades: tap (<= 0.2 s) drops; hold charges linearly to an automatic
     // full-power throw at 2 s. Uses the same simulation clock as fireAttempt.
     void secondaryTrigger(bool held, double seconds);
@@ -72,7 +78,7 @@ public:
 private:
     friend class WeaponReload;
     std::array<WeaponState, equipmentSlotCount> weapons_;
-    SwordMelee sword_;
+    SwordMelee sword_, axe_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;

@@ -28,3 +28,5 @@
 .molotov #weapon-icon, .selection-icon.molotov { decorator: image(../data/assets/game-icons/hud/grenade.png contain); image-color: #e3a36b; }
 
 .sword #weapon-icon, .selection-icon.sword { decorator: image(../data/assets/game-icons/hud/sword.png contain); image-color: #b9c8d5; }
+
+.axe #weapon-icon, .selection-icon.axe { decorator: image(../data/assets/game-icons/hud/axe.png contain); image-color: #b9c8d5; }

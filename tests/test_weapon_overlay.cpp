@@ -104,6 +104,12 @@ int main(int argc, char** argv) {
         if (swordRest.second != 56 || swordRest.second != swordWindup.second ||
             swordRest.first == swordWindup.first || swordWindup.first == swordCut.first)
             throw std::runtime_error("Sword must render a closed hexagonal blade and animate its directional cut");
+        const auto axeRest = render(viewer::axeSlot, {}, "rest");
+        const auto axeCut = render(viewer::axeSlot, viewer::swordMotion({{-1, 0}, .22f}), "cut");
+        const auto axeStop = render(viewer::axeSlot, viewer::swordMotion({{-1, 0}, .30f, .22f}), "stopped");
+        if (axeRest.second != 32 || axeRest.second != axeCut.second || axeRest.first == axeCut.first ||
+            axeRest.first == swordRest.first || axeCut.first != axeStop.first)
+            throw std::runtime_error("Axe must render its own head and handle and hold the blocked cut pose");
         for (std::size_t slot=0;slot<4;++slot) {
             const auto rest = render(slot, {}, "rest");
             motion.fire(slot,10);

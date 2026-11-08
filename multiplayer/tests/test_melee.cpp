@@ -326,6 +326,37 @@ void swordAuthority(const Options& options) {
     world.submit(id, Commands{{command}}); world.step();
     require(world.players().at(id).shots == 3, "A physical release did not rearm sword input after cancellation");
 }
+void axeAuthority(const Options& options) {
+    Scene scene(options); openScene(scene); World world(scene);
+    const auto id = world.join();
+    auto command = fists(1); command.slot = static_cast<std::uint8_t>(viewer::axeSlot);
+    world.submit(id, Commands{{command}});
+    for (int tick = 0; tick < 600 && world.players().at(id).weapons.slot() != viewer::axeSlot; ++tick) world.step();
+    require(world.players().at(id).weapons.slot() == viewer::axeSlot, "Axe skill failed to equip on server");
+    command.sequence = 2; command.left = true; command.drag = {-40, 0};
+    world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}}); world.step();
+    auto state = wire(world.snapshot(id)).players[0];
+    require(state.slot == viewer::axeSlot && state.sword.direction == glm::vec2(-1, 0) && state.sword.elapsed >= 0,
+            "Axe direction and animation did not survive snapshot round trip");
+    bool stopped = false;
+    for (std::uint64_t sequence = 3; sequence < 35; ++sequence) {
+        command.sequence = sequence; command.drag = {};
+        world.submit(id, Commands{{command}}); world.step();
+        state = wire(world.snapshot(id)).players[0];
+        stopped |= state.sword.elapsed >= 0 && state.sword.stoppedElapsed >= viewer::swordWindupSeconds;
+    }
+    require(stopped && world.players().at(id).shots == 1, "Authoritative axe contact must stop exactly one held chop");
+    require(scene.zombies.damage().injury(0) != nullptr, "Authoritative axe chop missed the nearby zombie");
+    auto invalid = world.snapshot(id); invalid.players[0].sword.stoppedElapsed = .5f;
+    rejects([&] { encode(invalid); }, "Invalid axe stop time was accepted");
+    command.sequence = 35; command.drag = {30, 30};
+    world.submit(id, Commands{{command}}); world.step();
+    state = wire(world.snapshot(id)).players[0];
+    require(state.shots == 2 && state.sword.stoppedElapsed == -1, "A fresh held chop must clear the old axe stop");
+    command.sequence = 36; command.cancelInteraction = true;
+    world.submit(id, Commands{{command}}); world.step();
+    require(wire(world.snapshot(id)).players[0].sword.elapsed == -1, "Cancellation must clear authoritative axe motion");
+}
 void swordCorpseUpgrade(const Options& options) {
     Scene scene(options); openScene(scene);
     // The shoulder starts above the blade and falls through its plane after the fatal torso hit.
@@ -398,7 +429,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==2,"Expected test map");
         Options options; options.map=argv[1]; options.zombieCount=0; options.trees=options.forests=false;
-        poseProtocol(); swordAuthority(options); swordCorpseUpgrade(options); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
+        poseProtocol(); swordAuthority(options); axeAuthority(options); swordCorpseUpgrade(options); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
         runningPunchStartsAtSolvedEye(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
         std::cout<<"Multiplayer melee authority, shared contacts, replication and cleanup passed\n";
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}

@@ -209,8 +209,8 @@ void fixtures(const std::filesystem::path& scratch) {
         std::filesystem::copy_file(std::filesystem::path(VIEWER_WEAPON_CONFIGS) / filename, scratch / "weapons" / filename,
                                   std::filesystem::copy_options::overwrite_existing);
     }
-    for (const auto* suffix : {"inventory.toml", "gameplay.toml", "tags.txt"}) {
-        const auto filename = std::string("sword.") + suffix;
+    for (const auto* id : {"sword", "axe"}) for (const auto* suffix : {"inventory.toml", "gameplay.toml", "tags.txt"}) {
+        const auto filename = std::string(id) + "." + suffix;
         std::filesystem::copy_file(std::filesystem::path(VIEWER_WEAPON_CONFIGS) / filename, scratch / "weapons" / filename,
                                   std::filesystem::copy_options::overwrite_existing);
     }

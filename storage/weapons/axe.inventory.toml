@@ -1,0 +1,7 @@
+schema_version = 2
+id = "axe"
+name = "Axe"
+type = "weapon"
+weapon = "axe"
+width = 2
+height = 5

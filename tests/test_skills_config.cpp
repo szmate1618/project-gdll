@@ -24,9 +24,9 @@ struct Fixture {
 int main() {
     try {
         const auto defaults = viewer::loadMeleeSkills(VIEWER_SKILL_ROOT);
-        require(defaults.size() == 3 && defaults[0].id == "object_handling" &&
-                defaults[1].id == "punch" && defaults[1].name == "Punch" && defaults[2].id == "sword",
-                "Starter melee catalog must contain Punch");
+        require(defaults.size() == 4 && defaults[0].id == "axe" && defaults[1].id == "object_handling" &&
+                defaults[2].id == "punch" && defaults[2].name == "Punch" && defaults[3].id == "sword",
+                "Starter melee catalog must contain Axe, Object handling, Punch and Sword");
         Fixture fixture;
         std::ofstream(fixture.root / "skills/melee/punch.skill.toml");
         std::ofstream(fixture.root / "skills/melee/kick.skill.toml");

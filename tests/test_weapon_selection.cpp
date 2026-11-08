@@ -26,11 +26,11 @@ void selection() {
     selection.highlight(8);
     require(selection.confirm(actions, 0) == viewer::swordSlot, "Slot 8 must select Sword");
     selection.highlight(9);
-    require(!selection.confirm(actions, 0), "An unassigned slot must not equip anything");
+    require(selection.confirm(actions, 0) == viewer::axeSlot, "Slot 9 must select Axe");
     selection.cycle(-1, actions, viewer::handlingSlot);
-    require(selection.selected() == 8, "Wheel must wrap past empty slots to the sword");
+    require(selection.selected() == 9, "Wheel must wrap to the axe");
     selection.cycle(1, actions, 0);
-    require(selection.selected() == 0, "Wheel must wrap from the sword to object handling");
+    require(selection.selected() == 0, "Wheel must wrap from the axe to object handling");
     selection.close(); selection.cycle(1, {}, 0);
     require(!selection.open(), "An empty hotbar must not create a selection");
 }
@@ -68,6 +68,11 @@ void transitions() {
     weapons.trigger(true);
     require(!weapons.fire(204) && !weapons.discard() && weapons.equipped().config.melee,
             "Sword must use gesture melee and must not become a dropped firearm");
+    require(switching.begin(weapons, inventory, viewer::axeSlot, 205) && switching.update(weapons, 206),
+            "Axe must equip as a skill without storage");
+    weapons.trigger(true);
+    require(!weapons.fire(207) && !weapons.discard() && weapons.equipped().config.melee,
+            "Axe must use gesture melee without ammunition or a dropped equippable");
     const auto separate = viewer::weaponSwitchTiming(inventory, weapons.state(0).config, weapons.state(4).config);
     near(separate->storageAccess, 1.0, "Holster and vest pouch must each charge their access time");
 }

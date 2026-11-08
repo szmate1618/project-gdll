@@ -9,7 +9,7 @@ std::optional<WeaponSwitchTiming> weaponSwitchTiming(const PlayerInventory& inve
     if (oldWeapon.id == newWeapon.id) return WeaponSwitchTiming{};
     struct Access { const StorageGrid* grid = nullptr; InventoryAccessScores scores; };
     const auto access = [&](const WeaponConfig& weapon, const std::string& partner) -> std::optional<Access> {
-        if (weapon.id == "punch" || weapon.id == "object_handling" || weapon.id == "sword") return Access{};
+        if (weapon.id == "punch" || weapon.id == "object_handling" || weapon.id == "sword" || weapon.id == "axe") return Access{};
         const auto location = inventory.locationOf(weapon.id);
         if (!location || !location->placement) return {};
         const auto& container = inventory.layout().at(location->placement->storage);

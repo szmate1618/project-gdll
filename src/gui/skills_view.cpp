@@ -13,6 +13,7 @@ void populateMeleeSkills(Rml::ElementDocument& document, const std::vector<Melee
     for (const auto& skill : skills)
         contents += "<div class='skill-entry' data-skill='" + skill.id + "'>"
             "<div class='skill-square'>" + std::string(skill.id == "punch" ? "<div class='skill-symbol fists'></div>" :
+                skill.id == "axe" ? "<div class='skill-symbol axe'></div>" :
                 skill.id == "sword" ? "<div class='skill-symbol sword'></div>" :
                 skill.id == "object_handling" ? "<div class='skill-symbol handling'></div>" : "") + "</div><div class='skill-name'>" +
             Rml::StringUtilities::EncodeRml(skill.name) + "</div></div>";

@@ -43,6 +43,9 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
     auto& sword = weapons_[swordSlot];
     sword.owned = enableMelee;
     sword.config = loadItem(definitions, "sword").gameplay();
+    auto& axe = weapons_[axeSlot];
+    axe.owned = enableMelee;
+    axe.config = loadItem(definitions, "axe").gameplay();
     const auto table = toml::parse_file(inventory.string());
     const auto* guns = table["weapons"].as_table();
     const auto* ammo = table["ammo"].as_table();
@@ -97,6 +100,7 @@ bool Weapons::equip(std::size_t slot) {
 }
 void Weapons::trigger(bool held) {
     sword_.trigger(slot_ == swordSlot && held);
+    axe_.trigger(slot_ == axeSlot && held);
     if (held && !held_) pressed_ = true;
     if (!held) emptyClicked_ = false;
     held_ = held;
@@ -119,6 +123,7 @@ void Weapons::secondaryTrigger(bool held, double seconds) {
 void Weapons::cancelPrimaryTrigger() {
     held_ = pressed_ = emptyClicked_ = false;
     sword_.cancel();
+    axe_.cancel();
 }
 void Weapons::cancelTrigger() {
     cancelPrimaryTrigger();
@@ -140,7 +145,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     pendingGrenadePower_.reset();
     if (primary) grenadeChargeAt_.reset();
     pressed_ = false;
-    if (slot_ == handlingSlot || slot_ == swordSlot || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (slot_ == handlingSlot || directionalMeleeSlot(slot_) || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
         if (emptyClicked_) return WeaponFireResult::none;
         emptyClicked_ = true;
@@ -193,6 +198,7 @@ bool Weapons::pickUp(const WeaponItem& item) {
 }
 std::string Weapons::status() const {
     if (slot_ == swordSlot) return "Sword | left click + drag to cut";
+    if (slot_ == axeSlot) return "Axe | left click + drag to chop";
     if (slot_ == handlingSlot) return "Object handling";
     if (slot_ == punchSlot) return "Fists";
     const auto& weapon = equipped();

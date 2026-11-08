@@ -18,6 +18,7 @@
 #include "player_vitals.hpp"
 #include "melee_combat.hpp"
 #include "sword_combat.hpp"
+#include "axe_combat.hpp"
 #include "vehicle_zombie_collision.hpp"
 #include "sleep_watch.hpp"
 #include <map>
@@ -34,6 +35,7 @@ struct ServerPlayer {
     viewer::Camera camera;
     viewer::Weapons weapons;
     viewer::SwordCombat swordCombat;
+    viewer::AxeCombat axeCombat;
     viewer::PlayerInventory inventory;
     viewer::InventoryDrag inventoryDrag;
     viewer::HandInventory handInventory;

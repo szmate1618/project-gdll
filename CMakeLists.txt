@@ -429,7 +429,7 @@ target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus:
 viewer_warnings(viewer_weapon_config)
 include(cmake/Inventory.cmake)
 
-add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_accuracy.cpp src/weapon_switch.cpp src/action_selection.cpp src/sword_melee.cpp src/sword_geometry.cpp)
+add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_accuracy.cpp src/weapon_switch.cpp src/action_selection.cpp src/sword_melee.cpp src/sword_geometry.cpp src/axe_geometry.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
@@ -484,7 +484,7 @@ target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera viewer_day_night_clock)
 viewer_warnings(viewer_sun_lighting)
 
-add_library(viewer_sword_combat STATIC src/sword_combat.cpp)
+add_library(viewer_sword_combat STATIC src/sword_combat.cpp src/axe_combat.cpp)
 target_link_libraries(viewer_sword_combat PUBLIC viewer_weapons viewer_zombies viewer_dogs)
 viewer_warnings(viewer_sword_combat)
 
@@ -779,6 +779,12 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(test_sword PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
     viewer_warnings(test_sword)
     add_test(NAME viewer_sword COMMAND test_sword)
+
+    add_executable(test_axe tests/test_axe.cpp)
+    target_link_libraries(test_axe PRIVATE viewer_sword_combat)
+    target_compile_definitions(test_axe PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_axe)
+    add_test(NAME viewer_axe COMMAND test_axe)
 
     add_executable(test_weapon_selection tests/test_weapon_selection.cpp)
     target_link_libraries(test_weapon_selection PRIVATE viewer_weapons)
