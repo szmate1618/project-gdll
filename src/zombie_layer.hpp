@@ -297,6 +297,7 @@ private:
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                             double animationSeconds, const std::vector<ZombiePlayer>* players);
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
+    friend class ZombieMeleeQuery; // Reuse prepared anatomical surfaces for axe volume casts.
     struct Physics;
     std::unique_ptr<Physics> physics_;
     std::optional<float> ragdollCleanupY_;

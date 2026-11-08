@@ -123,8 +123,43 @@ DogMeleeQuery::DogMeleeQuery(const DogLayer* dogs, glm::vec3 center, float radiu
     targets_.reserve(ids.size());
     for (const auto id : ids) {
         const auto& dog = dogs->instances[id];
-        targets_.push_back({id, dogWorldBounds(dogs->assetBounds[dog.asset], dog.transform), false, {}});
+        targets_.push_back({id, dogWorldBounds(dogs->assetBounds[dog.asset], dog.transform), false, {}, {}});
     }
+}
+
+void DogMeleeQuery::prepare(Target& target) {
+    if (target.prepared) return;
+    const auto& dog = dogs_->instances[target.id];
+    const auto& model = dogs_->assets[dog.asset];
+    const auto pose = shotPose(model, dog, seconds_);
+    for (std::size_t p = 0; p < model.model.primitives.size(); ++p) {
+        const auto vertices = posedVertices(model, dog, pose, p);
+        const auto& indices = model.model.primitives[p].indices;
+        for (std::size_t t = 0; t < indices.size(); t += 3)
+            target.triangles.push_back({vertices[indices[t]], vertices[indices[t + 1]], vertices[indices[t + 2]]});
+    }
+    target.prepared = true;
+}
+
+std::vector<DogMeleeQuery::Contact> DogMeleeQuery::cast(const MeleeSweep& sweep) {
+    std::vector<Contact> result;
+    for (auto& target : targets_) {
+        const auto& dog = dogs_->instances[target.id];
+        if (dog.dead || dog.removed ||
+            glm::any(glm::greaterThan(sweep.bounds.minimum, target.bounds.maximum)) ||
+            glm::any(glm::lessThan(sweep.bounds.maximum, target.bounds.minimum))) continue;
+        prepare(target);
+        if (target.colliders.empty()) {
+            target.colliders.reserve(target.triangles.size());
+            for (const auto& triangle : target.triangles) {
+                const std::array<glm::vec3, 3> points{triangle.a, triangle.b, triangle.c};
+                target.colliders.push_back(meleeCollider(points.data(), 3, 0, glm::dmat4(1)));
+            }
+        }
+        for (const auto& collider : target.colliders)
+            if (const auto hit = castMeleeShape(sweep, collider)) result.push_back({target.id, *hit});
+    }
+    return result;
 }
 
 std::optional<DogShotTrace> DogMeleeQuery::trace(glm::vec3 start, glm::vec3 end, const CollisionWorld& world) {
@@ -136,17 +171,7 @@ std::optional<DogShotTrace> DogMeleeQuery::trace(glm::vec3 start, glm::vec3 end,
         const auto& dog = dogs_->instances[target.id];
         if (dog.dead || dog.removed) continue;
         if (!rayBounds(start, direction, target.bounds, nearest ? nearest->distance : length)) continue;
-        if (!target.prepared) {
-            const auto& model = dogs_->assets[dog.asset];
-            const auto pose = shotPose(model, dog, seconds_);
-            for (std::size_t p = 0; p < model.model.primitives.size(); ++p) {
-                const auto vertices = posedVertices(model, dog, pose, p);
-                const auto& indices = model.model.primitives[p].indices;
-                for (std::size_t t = 0; t < indices.size(); t += 3)
-                    target.triangles.push_back({vertices[indices[t]], vertices[indices[t + 1]], vertices[indices[t + 2]]});
-            }
-            target.prepared = true;
-        }
+        prepare(target);
         for (const auto& triangle : target.triangles) {
             const auto distance = triangleRay(start, direction, triangle.a, triangle.b, triangle.c);
             if (!distance || *distance > length || (nearest && *distance >= nearest->distance)) continue;

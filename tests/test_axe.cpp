@@ -3,6 +3,8 @@
 #include "collision_world.hpp"
 #include "inventory/item_config.hpp"
 #include "sword_fixture.hpp"
+#include "dog_layer.hpp"
+#include "melee_sweep.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -132,9 +134,64 @@ void occlusionAndCancellation() {
                 "A cancelled chop or occluded target must not damage or stop against a zombie");
     }
 }
+void volumeSweeps() {
+    const std::array<glm::vec3, 8> cube{{{-.1f,-.1f,-.1f},{.1f,-.1f,-.1f},{-.1f,.1f,-.1f},{.1f,.1f,-.1f},
+        {-.1f,-.1f,.1f},{.1f,-.1f,.1f},{-.1f,.1f,.1f},{.1f,.1f,.1f}}};
+    const std::array<glm::vec3, 3> triangle{{{0,-1,-1},{0,1,-1},{0,0,1}}};
+    const auto target = viewer::meleeCollider(triangle.data(), 3, 0, glm::dmat4(1));
+    const auto from = glm::translate(glm::mat4(1), {-1,0,0}), to = glm::translate(glm::mat4(1), {1,0,0});
+    const auto hit = viewer::castMeleeShape(viewer::meleeSweep(cube.data(), 8, from, to), target);
+    require(hit && std::abs(hit->fraction - .45f) < .001f && std::abs(hit->point.x) < .001f,
+            "A volume sweep must hit a thin surface crossed between clear endpoints");
+    const auto overlap = viewer::castMeleeShape(viewer::meleeSweep(cube.data(), 8, glm::mat4(1), to), target);
+    require(overlap && overlap->fraction == 0,
+            "Initial volume overlap must count even though translation-only casts miss it");
+    const glm::vec3 center(0);
+    auto frame = glm::scale(glm::dmat4(1), {-2, .5, 1}); frame[1].x = .3;
+    const auto sphere = viewer::meleeCollider(&center, 1, .2f, frame);
+    const auto affine = viewer::castMeleeShape(viewer::meleeSweep(cube.data(), 8, from, to), sphere);
+    require(affine && affine->fraction > .23f && affine->fraction < .26f,
+            "Volume casts must retain reflected, nonuniform and sheared target transforms");
+    // Both endpoints miss a small joint, but a rotating blade crosses it.
+    const std::array<glm::vec3, 2> blade{{{0,0,0},{0,1,0}}};
+    const glm::vec3 joint(0,.8f,0);
+    const auto jointShape = viewer::meleeCollider(&joint, 1, .01f, glm::dmat4(1));
+    const auto rotating = viewer::castMeleeShape(viewer::meleeSweep(blade.data(), 2,
+        glm::rotate(glm::mat4(1), -.05f, {0,0,1}), glm::rotate(glm::mat4(1), .05f, {0,0,1})), jointShape);
+    require(rotating && rotating->fraction > .3f && rotating->fraction < .5f,
+            "Rotational point motion must not tunnel through a thin joint");
+}
+void dogContacts() {
+    for (const bool blocked : {false, true}) {
+        viewer::DogLayer dogs;
+        auto& asset = dogs.assets.emplace_back();
+        auto& mesh = asset.model.primitives.emplace_back();
+        for (const glm::vec3 p : {glm::vec3(-.5f,0,0),{.5f,0,0},{.5f,2,0},{-.5f,2,0}}) {
+            viewer::Vertex v; v.position = p; mesh.vertices.push_back(v);
+        }
+        mesh.indices = {0,1,2,0,2,3}; asset.animation.resize(1);
+        dogs.assetBounds.push_back({{-.5f,0,-.01f},{.5f,2,.01f}});
+        dogs.instances.resize(2);
+        dogs.instances[0].root = dogs.instances[0].transform = glm::translate(glm::mat4(1), {0,0,-1});
+        dogs.instances[1].root = dogs.instances[1].transform = glm::translate(glm::mat4(1), {100,0,100});
+        dogs.rebuildSpatialIndex();
+        viewer::Model scene;
+        if (blocked) {
+            scene = asset.model; scene.draws.emplace_back();
+            for (auto& v : scene.primitives[0].vertices) { v.position.x *= 8; v.position.y *= 2; v.position.z = -.5f; }
+        }
+        const viewer::CollisionWorld world(scene);
+        viewer::SwordMelee axe; viewer::AxeCombat combat;
+        axe.trigger(true); axe.drag({-40,0}); axe.update(1);
+        combat.update(axe, eye(), 1.25, 1.25, world, nullptr, &dogs);
+        combat.update(axe, eye(), 1.4, 1.4, world, nullptr, &dogs);
+        require(std::abs(dogs.instances[0].health - (blocked ? 1.f : .8f)) < 1e-6f && dogs.instances[1].health == 1,
+                "Axe volumes must hit nearby dogs once per cut, exclude distant dogs and respect walls");
+    }
+}
 }
 int main() {
-    try { geometry(); stoppedCuts(); leadingEdge(); handleCannotSever(); occlusionAndCancellation();
+    try { geometry(); volumeSweeps(); stoppedCuts(); leadingEdge(); handleCannotSever(); occlusionAndCancellation(); dogContacts();
         std::cout << "Axe geometry, leading edge and blocked swing checks passed\n"; return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

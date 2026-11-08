@@ -36,6 +36,10 @@ bool zombieWoundBone(const AnimatedModel& asset, int bone, ZombieWoundRegion reg
 bool zombieWoundRay(const AnimatedModel& asset, const ZombieWoundGeometry& geometry,
                     const ZombieWound* wound, const ZombieInstance& instance,
                     const std::vector<glm::mat4>& pose, glm::vec3 origin, glm::vec3 direction, float& distance);
+// Remaining posed surface in asset space, including intact closures. Used by
+// volume queries that reuse the surface instead of skinning it for every ray.
+std::vector<std::array<glm::vec3, 3>> zombieWoundTriangles(const AnimatedModel& asset,
+    const ZombieWoundGeometry& geometry, const ZombieWound* wound, const std::vector<glm::mat4>& pose);
 
 class ZombieWounds {
 public:

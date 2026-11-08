@@ -1,4 +1,5 @@
 #include "zombie_layer.hpp"
+#include "zombie_melee_query.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
@@ -138,9 +139,15 @@ void displayedWoundMaskStaysIndependent() {
     const glm::vec3 origin(0, 1.65f, 0), direction(0, 0, -1);
     require(layer.traceShot(0, displayed, origin, direction, 0).has_value(),
         "Intact head surface must yield a displayed claim");
+    const glm::vec3 bladePoint(0);
+    const auto blade = viewer::meleeSweep(&bladePoint, 1, translation(origin), translation({0, 1.65f, -4}));
+    viewer::ZombieMeleeQuery intact(&layer, {0}, 0);
+    require(!intact.cast(blade, false).empty(), "Axe volume queries must hit the intact anatomical head surface");
     layer.setWoundMask(0, {255});
     require(!layer.traceShot(0, displayed, origin, direction, 0),
         "Current wound mask must remove the complete head surface");
+    viewer::ZombieMeleeQuery opened(&layer, {0}, 0);
+    require(opened.cast(blade, false).empty(), "Axe volume queries must preserve existing head openings");
     require(layer.traceShot(0, displayed, origin, direction, 0, nullptr).has_value(),
         "A newer source wound must not remove a surface that was displayed intact");
     const auto displayedHole = *layer.wounds().find(0);

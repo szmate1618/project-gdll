@@ -111,6 +111,30 @@ const ZombieWound* ZombieWounds::find(std::size_t id) const {
     const auto found = entries_.find(id);
     return found == entries_.end() ? nullptr : &found->second;
 }
+std::vector<std::array<glm::vec3, 3>> zombieWoundTriangles(const AnimatedModel& asset,
+        const ZombieWoundGeometry& geometry, const ZombieWound* wound, const std::vector<glm::mat4>& pose) {
+    std::vector<std::array<glm::vec3, 3>> result;
+    if (geometry.bone < 0) return result;
+    for (std::size_t p = 0; p < asset.model.primitives.size(); ++p) {
+        const auto& primitive = asset.model.primitives[p];
+        std::vector<glm::vec3> points(primitive.vertices.size());
+        for (std::size_t v = 0; v < points.size(); ++v)
+            if (geometry.regionVertices[p][v]) points[v] = posedVertex(asset, p, v, pose);
+        for (std::size_t t = 0; t < primitive.indices.size(); t += 3) {
+            const auto id = geometry.triangleOffsets[p] + t / 3;
+            if (!geometry.regionTriangles[id] || (wound && wound->removedTriangles[id])) continue;
+            result.push_back({points[primitive.indices[t]], points[primitive.indices[t + 1]], points[primitive.indices[t + 2]]});
+        }
+    }
+    for (const auto& triangle : geometry.closures) {
+        if (wound && zombieWoundClosureRemoved(triangle, *wound)) continue;
+        std::array<glm::vec3, 3> points;
+        for (int i = 0; i < 3; ++i) points[i] = posedVertex(asset, triangle[i].primitive, triangle[i].vertex, pose);
+        result.push_back(points);
+    }
+    return result;
+}
+
 bool zombieWoundRay(const AnimatedModel& asset, const ZombieWoundGeometry& geometry,
                     const ZombieWound* wound, const ZombieInstance& instance,
                     const std::vector<glm::mat4>& pose, glm::vec3 origin, glm::vec3 direction, float& distance) {
