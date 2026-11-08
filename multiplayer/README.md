@@ -576,13 +576,19 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 58; rebuild both client and server together.
+The current wire protocol is version 60; rebuild both client and server together.
 Runtime [family-house floorplans](../docs/FLOORPLANS.md) are generated separately
 by each peer. Geometry is neither saved nor replicated; stable generated door
 IDs use the existing authoritative door-angle snapshots.
-Player health starts at 100 and is authoritative, including fractional damage
-from collision-limited zombie lunges. Clients show health and a brief damage
-pulse without simulating attacks. Stamina and weariness are stored but inactive.
+Player, zombie and dog full health is 1.0 (100%). Authoritative player health
+is one minus total injury damage, clamped at zero. Every attack creates a bleeding
+cut at a random body location. Each untreated wound adds 0.01 systemic blood-loss
+damage per game hour. Base regeneration heals half each injury's original damage
+per game day, twice as fast for sleepers; guards use the ordinary rate. Healed
+injuries disappear. Clients receive their own medical records and can apply one
+of their four starting bandages from the Health page to stop a selected wound's
+bleeding immediately. Clients present health and damage pulses without resolving
+attacks. Movement owns stamina and strain; weariness remains reserved.
 Ammo quantities, reload progress and inventory placements are authoritative.
 Sequenced inventory move operations run through the server's storage rules and
 timers. Clients reconcile completed moves after acknowledgement, so moving an
@@ -678,7 +684,7 @@ membership still counts after arrival or a switch to pursuit. Ordinary/idle
 zombies and dogs do not cause distance-only wake-ups; guard sightings and damage
 remain independent triggers. Distant travellers use coarse path progress with no obstacle checks;
 normal movement and terrain placement resume on waking. Stamina and strain
-recover, but sleep does not heal injuries. Clients and servers must both use
+recover, and sleepers heal injuries at twice the base rate. Clients and servers must both use
 protocol version 58. The handshake includes the selected character's name for
 guard alerts. Each guard checks the nearest 20 living zombies every five simulated
 seconds, within 50 m at night and 100 m by day with a twilight blend. A visible

@@ -41,3 +41,7 @@
 .health-scroll scrollbarvertical slidertrack { background-color: #2b2d2f; }
 .health-scroll scrollbarvertical sliderbar { min-height: 20dp; background-color: #f5f6f280; }
 .health-scroll scrollbarvertical sliderarrowdec, .health-scroll scrollbarvertical sliderarrowinc { height: 0dp; }
+
+.health-bandage { display: block; margin-top: 5dp; padding: 4dp 6dp; font-size: 9dp; color: #59c49c; border-width: 1dp; border-color: #59c49c80; background-color: #2b2d2f; }
+.health-bandage:hover { background-color: #59c49c26; }
+.health-systemic { margin: 8dp; padding: 10dp; font-size: 12dp; color: #e7cd65; background-color: #2b2d2f99; }

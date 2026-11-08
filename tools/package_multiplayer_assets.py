@@ -221,6 +221,8 @@ def collect_assets(root, map_path, zombies, *, dogs=None, trees=True, forests=Tr
         for suffix in ("inventory.toml", "tags.txt"):
             assets.add(ammo_definitions / f"{name}.{suffix}")
     definitions += sorted([*ammo_definitions.glob("*.toml"), *ammo_definitions.glob("*.tags.txt")])
+    medical_definitions = root / "storage/medical"
+    definitions += sorted([*medical_definitions.glob("*.toml"), *medical_definitions.glob("*.tags.txt")])
     definitions = sorted(set(definitions) | set((root / "storage").rglob("*.acoustics.toml")))
     vehicles = sorted((root / "vehicles").glob("*.toml"))
     if not vehicles:

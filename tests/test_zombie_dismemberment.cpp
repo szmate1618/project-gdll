@@ -31,7 +31,7 @@ viewer::ZombieLayer fixture() {
 void jointHitAndCleanup() {
     auto layer = fixture();
     layer.behaviors.create(0, 0, glm::vec3(layer.instances[0].restRoot[3]));
-    require(layer.shoot({0, .9f, 3}, {0, 0, -1}) && layer.damage().injury(0)->health == 9,
+    require(layer.shoot({0, .9f, 3}, {0, 0, -1}) && layer.damage().injury(0)->health == .9f,
             "Ordinary body hits must still use health");
     require(!layer.shoot({2.11f, 1, 3}, {0, 0, -1}) && !layer.instances[0].ragdoll,
             "A ray just outside the joint must miss");

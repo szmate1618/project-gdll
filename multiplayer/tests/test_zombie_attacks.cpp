@@ -89,67 +89,69 @@ void escapedRagdollIsRetiredByServer(const Options& options) {
 
 void stationaryHitsAndIndependentHealth(const Options& options) {
     Scene scene(options);
+    scene.dayNight.dayLengthSeconds = 0; // Isolate attack damage from medical time progression.
     openScene(scene);
     World world(scene);
     const auto target = world.join(), other = world.join();
-    require(world.players().at(target).vitals.health() == 100.f &&
-            world.players().at(other).vitals.health() == 100.f,
-            "Each joined player must start with 100 health");
+    require(world.players().at(target).vitals.health() == 1.f &&
+            world.players().at(other).vitals.health() == 1.f,
+            "Each joined player must start with 1.0 health");
 
     int firstHit = -1;
     for (int tick = 0; tick < 180; ++tick) {
         world.step();
-        if (world.players().at(target).vitals.health() < 100.f) {
+        if (world.players().at(target).vitals.health() < 1.f) {
             firstHit = tick;
             break;
         }
     }
     require(firstHit >= 0, "A nearby stationary player must receive a zombie attack");
-    require(std::abs(world.players().at(target).vitals.health() - 90.f) < .0001f,
+    require(std::abs(world.players().at(target).vitals.health() - .9f) < .0001f,
             "A stationary player must take one base-damage hit, including contact-clipped lunges");
-    require(world.players().at(other).vitals.health() == 100.f,
+    require(world.players().at(other).vitals.health() == 1.f,
             "A hit must affect only the player whose body was contacted");
 
     for (int tick = 0; tick < 10; ++tick) {
         world.step();
-        require(std::abs(world.players().at(target).vitals.health() - 90.f) < .0001f,
+        require(std::abs(world.players().at(target).vitals.health() - .9f) < .0001f,
                 "Contact and recovery must not repeat damage within one attack");
     }
     bool repeated = false;
     for (int tick = 0; tick < 180; ++tick) {
         world.step();
-        if (world.players().at(target).vitals.health() < 90.f - .0001f) {
+        if (world.players().at(target).vitals.health() < .9f - .0001f) {
             repeated = true;
             break;
         }
     }
-    require(repeated && std::abs(world.players().at(target).vitals.health() - 80.f) < .0001f,
+    require(repeated && std::abs(world.players().at(target).vitals.health() - .8f) < .0001f,
             "A recovered zombie must eventually attack again for exactly one further base hit");
-    require(world.players().at(other).vitals.health() == 100.f,
+    require(world.players().at(other).vitals.health() == 1.f,
             "Repeated attacks must preserve the other player's independent health");
 
     const auto snapshot = wire(world.snapshot(other));
     require(playerState(snapshot, target).health == world.players().at(target).vitals.health() &&
-            std::abs(playerState(snapshot, target).health - 80.f) < .0001f &&
-            playerState(snapshot, other).health == 100.f,
+            std::abs(playerState(snapshot, target).health - .8f) < .0001f &&
+            playerState(snapshot, other).health == 1.f,
             "Authoritative snapshots must preserve the real attack outcome and independently owned health");
 }
 
 void disabledPerceptionStopsDamage(const Options& options) {
     Scene scene(options);
+    scene.dayNight.dayLengthSeconds = 0; // Observe attack events without ongoing wound effects.
     openScene(scene, false);
     World world(scene);
     const auto player = world.join();
     for (int tick = 0; tick < 180; ++tick) {
         world.step();
-        require(world.players().at(player).vitals.health() == 100.f && scene.zombies.attackHits().empty(),
+        require(world.players().at(player).vitals.health() == 1.f && scene.zombies.attackHits().empty(),
                 "Disabling perception must suppress attack creation and damage events");
     }
     scene.zombies.setPerceptionEnabled(true);
-    for (int tick = 0; tick < 180 && world.players().at(player).vitals.health() == 100.f; ++tick)
+    for (int tick = 0; tick < 180 && world.players().at(player).vitals.health() == 1.f; ++tick)
         world.step();
     const float health = world.players().at(player).vitals.health();
-    require(health < 100.f, "Reenabling perception must restore attacking");
+    require(health < 1.f, "Reenabling perception must restore attacking");
     scene.zombies.setPerceptionEnabled(false);
     for (int tick = 0; tick < 180; ++tick) {
         world.step();
@@ -219,7 +221,7 @@ void livingPhysicalAttackReplication(const Options& options) {
     }
     require(displayed && recovered && restarted && delivered > 50,
         "Physical attack replication failed to start, recover or start a fresh epoch");
-    require(world.players().at(player).vitals.health() < 100,
+    require(world.players().at(player).vitals.health() < 1,
         "Authoritative physical hands failed to injure the player");
     require(firstPose && laterPose && laterMotion, "Attack epoch fixtures missing");
     Scene delayedClient(options); openScene(delayedClient, false);

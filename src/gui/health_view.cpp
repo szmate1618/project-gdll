@@ -53,10 +53,10 @@ constexpr std::array<BodyRectangle, 29> body{{
     {InjuryBodyPart::RightFoot, "Right foot", "FOOT", 240, 439, 48, 23, true},
     {InjuryBodyPart::LeftFoot, "Left foot", "FOOT", 302, 439, 48, 23, false}
 }};
-static_assert(body.size() == static_cast<std::size_t>(InjuryBodyPart::Count));
+static_assert(body.size() == static_cast<std::size_t>(InjuryBodyPart::None));
 constexpr std::array<const char*, static_cast<std::size_t>(InjuryType::Count)> injuryNames{
     "Cut", "Abrasion", "Puncture", "Bruise", "Blunt trauma", "Sprain", "Strain",
-    "Dislocation", "Fracture", "Crush", "Burn"
+    "Dislocation", "Fracture", "Crush", "Burn", "Blood loss", "Minor bruises"
 };
 
 std::string encode(const std::string& text) { return Rml::StringUtilities::EncodeRml(text); }
@@ -108,7 +108,7 @@ std::string stat(const char* label, std::optional<float> value, const char* colo
         "<div class='health-stat-fill' style='background-color:" + color + ";width:" +
         (known ? std::to_string(std::clamp(*value, 0.f, 1.f) * 100) : "0") + "%'></div></div></div>";
 }
-std::string bodyMarkup(const std::optional<PlayerHealth>& medical) {
+std::string bodyMarkup(const std::optional<PlayerHealth>& medical, bool canBandage) {
     std::string rectangles, notes, links;
     std::array<int, 2> nextNoteY{};
     for (const auto& part : body) {
@@ -133,10 +133,12 @@ std::string bodyMarkup(const std::optional<PlayerHealth>& medical) {
             const auto flags = injuryFlags(*injury);
             entries += "<div class='health-injury-entry'><div class='health-injury-type'>" +
                 std::string(injuryNames.at(static_cast<std::size_t>(injury->type()))) +
-                "</div><div class='health-injury-scores'>Pain " + percent(injury->pain()) +
+                " · " + percent(injury->damage()) + " damage</div><div class='health-injury-scores'>Pain " + percent(injury->pain()) +
                 " / Weakness " + percent(injury->weakness()) + "</div>" +
-                (flags.empty() ? "" : "<div class='health-injury-flags'>" + flags + "</div>") + "</div>";
-            noteHeight += 38 + (flags.empty() ? 0 : 14);
+                (flags.empty() ? "" : "<div class='health-injury-flags'>" + flags + "</div>") +
+                (canBandage && injury->modifiers().bleeding ?
+                    "<button class='health-bandage' data-injury='" + std::to_string(injury->id()) + "'>Apply bandage</button>" : "") + "</div>";
+            noteHeight += 52 + (flags.empty() ? 0 : 14) + (canBandage && injury->modifiers().bleeding ? 28 : 0);
         }
         auto& next = nextNoteY[part.noteOnLeft ? 0 : 1];
         const int top = std::max(part.y, next);
@@ -154,8 +156,12 @@ std::string bodyMarkup(const std::optional<PlayerHealth>& medical) {
             "border-color:" + color + "'><div class='health-injury-part'>" + part.name + "</div>" + entries + "</div>";
         next = top + noteHeight + 8;
     }
+    std::string systemic;
+    if (medical) for (const auto& injury : medical->injuries()) if (injury.bodyPart() == InjuryBodyPart::None)
+        systemic += "<div class='health-systemic'>" + std::string(injuryNames.at(static_cast<std::size_t>(injury.type()))) +
+            " · " + percent(injury.damage()) + " damage</div>";
     return "<div style='height:" + std::to_string(std::max({464, nextNoteY[0], nextNoteY[1]})) +
-        "dp'>" + links + rectangles + notes + "</div>";
+        "dp'>" + links + rectangles + notes + "</div>" + systemic;
 }
 std::string medicalItems(const PlayerInventory& inventory, std::size_t& count) {
     std::string result;
@@ -189,6 +195,29 @@ std::string medicalItems(const PlayerInventory& inventory, std::size_t& count) {
 }
 } // namespace
 
+HealthView::HealthView(Rml::ElementDocument& document) : document_(document) {
+    document_.AddEventListener("click", this);
+}
+HealthView::~HealthView() { document_.RemoveEventListener("click", this); }
+void HealthView::ProcessEvent(Rml::Event& event) {
+    if (bandageItem_.empty()) return;
+    for (auto* target = event.GetTargetElement(); target && target != &document_; target = target->GetParentNode()) {
+        const auto id = target->GetAttribute<Rml::String>("data-injury", "");
+        if (id.empty()) continue;
+        InventoryDragAction action;
+        action.kind = InventoryDragActionKind::ApplyBandage;
+        action.item = bandageItem_;
+        action.injury = std::stoull(id);
+        actions_.push_back(std::move(action));
+        event.StopPropagation();
+        return;
+    }
+}
+std::vector<InventoryDragAction> HealthView::takeActions() {
+    std::vector<InventoryDragAction> result;
+    result.swap(actions_);
+    return result;
+}
 void HealthView::markup(const char* id, const std::string& value) {
     auto [entry, inserted] = contents_.emplace(id, value);
     if (!inserted && entry->second == value) return;
@@ -203,11 +232,18 @@ void HealthView::update(const HudState& state, const PlayerInventory& inventory)
         stat("STAMINA", state.stamina, "#65a9e7") + stat("STRAIN", state.strain, "#ec6962") +
         stat("WEARINESS", state.weariness, "#e7cd65") +
         stat("PAIN TOLERANCE", state.medical ? std::optional<float>(state.medical->painTolerance()) : std::nullopt, "#f5f6f2"));
-    markup("health-body", bodyMarkup(state.medical));
+    bandageItem_.clear();
+    if (state.health.value_or(0) > 0 && !inventory.held() && !state.handInventoryActive &&
+        !state.sleepPlan.inSleepSession(state.localPlayer))
+        for (const auto& match : inventory.findByTag("bandage"))
+            if (match.item->inventory().type == "medical" && inventory.quantity(match.item->id()) > 0) {
+                bandageItem_ = match.item->id(); break;
+            }
+    markup("health-body", bodyMarkup(state.medical, !bandageItem_.empty()));
     const auto count = state.medical ? state.medical->injuries().size() : 0;
     markup("health-injury-count", state.medical ? std::to_string(count) + (count == 1 ? " INJURY" : " INJURIES") : "--");
     markup("health-record-status", !state.medical ? "Medical records unavailable" :
-        count == 0 ? "No recorded injuries" : "Pain and weakness shown before pain tolerance");
+        count == 0 ? "No recorded injuries" : "Base health regeneration: 50% per day; 2× asleep");
     std::size_t itemCount = 0;
     markup("health-medical-items", medicalItems(inventory, itemCount));
     markup("health-medical-count", std::to_string(itemCount) + (itemCount == 1 ? " ITEM" : " ITEMS"));

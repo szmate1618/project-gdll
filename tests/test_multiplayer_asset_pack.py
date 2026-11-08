@@ -80,6 +80,9 @@ class MultiplayerAssetPackTests(unittest.TestCase):
             self.write(f"storage/ammo/{name}.inventory.toml", b"ammo item definition\n")
             self.write(f"storage/ammo/{name}.acoustics.toml", b"ammo acoustics\n")
             self.write(f"storage/ammo/{name}.tags.txt", b"ammo, stackable\n")
+        self.write("storage/medical/bandage.acoustics.toml", b"medical impact acoustics\n")
+        self.write("storage/medical/bandage.inventory.toml", b"medical item definition\n")
+        self.write("storage/medical/bandage.tags.txt", b"medical, bandage\n")
         self.write("storage/doodads/branch.acoustics.toml", b"branch acoustics\n")
         self.write("storage/props/crate.acoustics.toml", b"crate acoustics\n")
         self.write("data/raw/input.bin", b"private preparation input")
@@ -309,6 +312,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         for suffix in ("inventory.toml", "acoustics.toml", "tags.txt"):
             expected.update(f"storage/ammo/{name}.{suffix}" for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
+        expected.update({"storage/medical/bandage.inventory.toml", "storage/medical/bandage.acoustics.toml", "storage/medical/bandage.tags.txt"})
         expected.update({"storage/doodads/branch.acoustics.toml", "storage/props/crate.acoustics.toml"})
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))
         expected.update(f"credits/software/{name}" for name in SOFTWARE_CREDIT_FILES)

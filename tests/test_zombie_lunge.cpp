@@ -61,13 +61,13 @@ struct Fixture {
 };
 
 void relativeVelocityDamage() {
-    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, 0}), 10, "Stationary target must take base damage");
-    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, -5}), 15, "Moving into the zombie must increase damage");
-    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, 5}), 5, "Moving away must reduce damage");
-    near(viewer::zombieAttackDamage({0, 0, 10}, {10, 0, 0}), std::sqrt(200.f),
+    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, 0}), 0.1f, "Stationary target must take base damage");
+    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, -5}), 0.15f, "Moving into the zombie must increase damage");
+    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, 5}), 0.05f, "Moving away must reduce damage");
+    near(viewer::zombieAttackDamage({0, 0, 10}, {10, 0, 0}), std::sqrt(200.f) * .01f,
         "Sideways velocity must use the full relative vector length");
     near(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, 10}), 0, "Equal velocities must produce zero damage");
-    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 5, 0}), std::sqrt(125.f),
+    near(viewer::zombieAttackDamage({0, 0, 10}, {0, 5, 0}), std::sqrt(125.f) * .01f,
         "Vertical player velocity must participate in damage");
     require(viewer::zombieAttackDamage({0, 0, 10}, {0, 0, std::numeric_limits<float>::infinity()}) == 0,
         "Nonfinite velocity must not produce damage");
@@ -85,7 +85,7 @@ void contactAndRecovery() {
         require(f.hits.size() == 1 && f.hits[0].player == 7, "Swept contact must hit the player once");
         require(f.noises.size() == 1 && f.noises[0].audience == viewer::NoiseAudience::playersOnly,
             "A body lunge contact must emit one player-only impact noise");
-        near(f.hits[0].damage, 10, "Contact clipping must not reduce the incoming base damage");
+        near(f.hits[0].damage, 0.1f, "Contact clipping must not reduce the incoming base damage");
         near(f.feet().z, .4f, "Combined body radii must stop a one-meter approach after 40 cm");
         require(!f.zombie.walking && !f.zombie.running && f.zombie.transform == f.zombie.restTransform &&
             f.zombie.transform[3] == f.zombie.restRoot[3], "Idle presentation and collision feet must agree");
@@ -133,7 +133,7 @@ void missesAndCurrentBodies() {
     moving.step(.3f, world);
     moving.step(.15f, world);
     require(moving.hits.size() == 1, "Moving target fixture did not collide");
-    near(moving.hits[0].damage, 15, "Actual contact must apply relative-velocity damage");
+    near(moving.hits[0].damage, 0.15f, "Actual contact must apply relative-velocity damage");
 }
 
 void blockersAndInterruptedRecovery() {
@@ -188,7 +188,7 @@ void supportedContactAndSlopeDamage() {
         for (const auto& contact : steps.contacts(f.feet(), .3f, 1.8f))
             require(contact.terrainSupport || contact.depth < .0004f,
                 "Contact partway through a walking step must publish a collision-validated endpoint");
-        if (!f.hits.empty()) near(f.hits[0].damage, 10, "Step contact against a stationary player must retain base damage");
+        if (!f.hits.empty()) near(f.hits[0].damage, 0.1f, "Step contact against a stationary player must retain base damage");
     }
     require(climbed, "Step contact regression never exercised a raised accepted endpoint");
 
@@ -201,7 +201,7 @@ void supportedContactAndSlopeDamage() {
     uphill.step(.3f, slopeWorld);
     uphill.step(.15f, slopeWorld);
     require(uphill.hits.size() == 1, "Slope fixture must collide with its player");
-    near(uphill.hits[0].damage, 10, "Slope direction must not increase stationary-player base damage");
+    near(uphill.hits[0].damage, 0.1f, "Slope direction must not increase stationary-player base damage");
 }
 
 void phaseTimingAndDeadAttackers() {

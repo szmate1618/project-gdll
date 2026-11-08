@@ -35,7 +35,7 @@ struct Fixture {
     void step() {
         auto& clock = viewer::SimulationClock::instance(); clock.advance(1./60);
         zombies.updateBehavior(1.f/60, player, collision, clock.seconds());
-        for (const auto& hit : zombies.attackHits()) { require(hit.player == 7 && hit.damage == 10, "Incorrect physical damage"); ++hits; }
+        for (const auto& hit : zombies.attackHits()) { require(hit.player == 7 && hit.damage == .1f, "Incorrect physical damage"); ++hits; }
         zombies.prepareAttackPhysics(scene); physics->step(1.f/60); zombies.synchronizePhysics();
     }
     glm::vec3 hand() const {

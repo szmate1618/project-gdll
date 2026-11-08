@@ -54,7 +54,7 @@ struct ServerPlayer {
     std::optional<std::uint64_t> birdTick;
     viewer::PlayerHouseState house;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
-    float sleepHealth = 100;
+    float sleepHealth = 1;
     std::string characterName;
     viewer::SleepGuardWatch sleepWatch;
 };

@@ -73,7 +73,7 @@ void trustedIntersectionFollowsMovingActor() {
     viewer::CollisionWorld world(viewer::Model{});
     require(layer.applyReportedShot(trace->claim, {0, .9f, 0}, {0, 0, -1}, 0, world, viewer::ShotCaliber::low),
         "Trusted hits must remain valid after the actor moves away from the original ray");
-    require(layer.damage().injury(0) && layer.damage().injury(0)->health == 9,
+    require(layer.damage().injury(0) && layer.damage().injury(0)->health == .9f,
         "Server-owned low-caliber damage must apply once");
     const auto bursts = layer.bloodMist().sample(0);
     require(bursts.size() == 1 && std::abs(bursts[0].position.x - 10) < .0001f &&
@@ -81,7 +81,7 @@ void trustedIntersectionFollowsMovingActor() {
         "Impact effects must follow the reported anatomical point on the current actor");
     const auto head = layer.traceShot(0, layer.instances[0], {10, 1.65f, 0}, {0, 0, -1}, 0);
     require(head && head->claim.headshot && layer.applyReportedShot(head->claim, {10, 1.65f, 0},
-                {0, 0, -1}, 0, world, viewer::ShotCaliber::high) && layer.damage().injury(0)->health == 5,
+                {0, 0, -1}, 0, world, viewer::ShotCaliber::high) && layer.damage().injury(0)->health == .5f,
         "Reported head classification must retain server-owned caliber and head damage");
 }
 

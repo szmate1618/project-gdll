@@ -1,0 +1,8 @@
+# A small soft dressing roll.
+schema_version = 1
+material = "soft"
+hollowness = 0.0
+size = 0.25
+gain = 0.15
+min_speed = 0.70
+noise_db = 22.0

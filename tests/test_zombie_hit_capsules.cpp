@@ -63,11 +63,11 @@ void narrowHitsAndAnimation() {
     auto layer = fixture();
     require(!layer.shoot({.5f, .9f, 0}, {0, 0, -1}), "Empty space inside the old torso sphere must miss");
     require(!layer.shoot({.2f, 1.65f, 0}, {0, 0, -1}), "Empty space inside the old head sphere must miss");
-    require(layer.shoot({0, .9f, 0}, {0, 0, -1}) && layer.damage().injury(0)->health == 9,
+    require(layer.shoot({0, .9f, 0}, {0, 0, -1}) && layer.damage().injury(0)->health == .9f,
             "Capsule body hit must retain ordinary damage");
-    require(layer.shoot({0, 1.65f, 0}, {0, 0, -1}) && layer.damage().injury(0)->health == 7,
+    require(layer.shoot({0, 1.65f, 0}, {0, 0, -1}) && layer.damage().injury(0)->health == .7f,
             "Head capsule hit must retain double damage");
-    require(layer.shoot({.1f, .1f, 0}, {0, 0, -1}) && layer.damage().injury(0)->health == 6,
+    require(layer.shoot({.1f, .1f, 0}, {0, 0, -1}) && layer.damage().injury(0)->health == .6f,
             "Broad bounds must include ankle capsules outside the old spheres");
     auto animated = fixture();
     animated.assets[0].boneFrames[2] = translation({4, 0, 0});

@@ -104,10 +104,10 @@ yield. Dog dimensions set aperture clearance. The common
 requests and passage owners remain separate from all zombie crowds. A dog and
 a zombie may still obstruct each other; no cross-population coordination is added.
 
-Bites use the authored non-looping attack, apply 10 damage once at its contact
+Bites use the authored non-looping attack, apply 0.1 damage once at its contact
 time, and recheck range, facing and occlusion at impact. Firearm pellets choose
 the nearest dog or humanoid contact; dog health and death are authoritative.
-Low/high-caliber hits deal 10/20 damage against 100 health, matching the humanoid
+Low/high-caliber hits deal 0.1/0.2 damage against 1.0 health, matching the humanoid
 body-shot proportions. Dead dogs use a frozen fallen pose. Quadruped ragdolls,
 humanoid wound/dismemberment effects, melee hand contacts, car knockdowns and
 grenade blast damage are not implemented for dogs in this first integration.
@@ -152,8 +152,9 @@ decisions; multiplayer clients play the existing replicated walking poses.
 
 ### Blood scent and hunting
 
-Any actual player health loss starts a bleeding flag. `setBleeding(false)` clears
-it; this does not add health drain, treatment controls or wound rendering.
+Every damaging attack creates a bleeding injury at a random body location.
+Bleeding stops when all wounds are bandaged or fully healed; untreated wounds
+add systemic blood loss. See [health and treatment](VIEWER.md#hud).
 Dead players do not emit scent. The standalone viewer and authoritative server
 deposit one unit per bleeding outdoor player every simulation second, using the
 existing three-second cached house membership. Replicas run neither scent nor AI.

@@ -1,0 +1,8 @@
+schema_version = 2
+id = "bandage"
+name = "Bandage"
+type = "medical"
+width = 1
+height = 1
+stackable = true
+max_stack = 10

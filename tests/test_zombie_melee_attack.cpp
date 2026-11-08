@@ -61,7 +61,7 @@ void contactAndTiming() {
             viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 4, &player, 1, dt, time, hits, rays, &noises);
             if (time < .25) require(hits.empty(), "Windup injured a player");
         }
-        require(hits.size() == 1 && hits[0].player == 7 && hits[0].damage == 10 && hits[0].zombie == 4,
+        require(hits.size() == 1 && hits[0].player == 7 && hits[0].damage == .1f && hits[0].zombie == 4,
             "Swept hand contact must emit exactly one base-damage hit at every timestep");
         require(noises.size() == 1 && noises[0].audience == viewer::NoiseAudience::playersOnly,
             "A hand contact must emit one player-only impact, not noise throughout the animation");

@@ -80,7 +80,7 @@ void behavior() {
     bite.updateBehavior(.1f,player,empty,0);
     require(bite.instances[0].attacking,"Close dog must start authored attack");
     bite.updateBehavior(.1f,player,empty,.5);
-    require(bite.attackHits().size()==1 && bite.attackHits()[0].damage==10,"Bite must damage at contact time");
+    require(bite.attackHits().size()==1 && bite.attackHits()[0].damage==.1f,"Bite must damage at contact time");
     bite.updateBehavior(.1f,player,empty,.6);
     require(bite.attackHits().empty(),"One bite must not hit twice");
     auto blocked = pack(); viewer::CollisionWorld closed(wall());
@@ -90,7 +90,7 @@ void behavior() {
     auto dodged = pack(); dodged.updateBehavior(.1f,player,empty,0);
     dodged.updateBehavior(.1f,{{{0,0,10}}},empty,.5);
     require(dodged.attackHits().empty(),"Bite must recheck target at impact");
-    require(dogs.damage(0,100) && dogs.instances[0].dead,"Lethal damage must kill dog");
+    require(dogs.damage(0,1) && dogs.instances[0].dead,"Lethal damage must kill dog");
     dogs.updateBehavior(.1f,player,empty,1);
     require(!dogs.instances[0].walking && !dogs.instances[0].attacking,"Dead dogs must stop AI");
     require(!dogs.damage(0,1),"Dead dog must not take another living hit");

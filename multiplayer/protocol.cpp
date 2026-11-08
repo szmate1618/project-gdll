@@ -185,10 +185,14 @@ void command(Wire& w, Command& c) {
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
-        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::HandRelease))
+        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::ApplyBandage))
             throw std::runtime_error("Invalid inventory action");
         action.kind = static_cast<viewer::InventoryDragActionKind>(kind);
         switch (action.kind) {
+        case viewer::InventoryDragActionKind::ApplyBandage:
+            w.text(action.item, 128); w.integer(action.injury);
+            if (!action.injury || action.item.empty()) throw std::runtime_error("Invalid bandage request");
+            break;
         case viewer::InventoryDragActionKind::HandPickUp:
         case viewer::InventoryDragActionKind::PickUp: w.text(action.item, 128); break;
         case viewer::InventoryDragActionKind::HandStore:
@@ -442,7 +446,7 @@ void dogStates(Wire& w, std::vector<DogState>& dogs) {
         w.integer(flags);
         d.walking = flags&1; d.running = flags&2; d.attacking = flags&4; d.dead = flags&8;
         if (d.id >= viewer::maxDogs || d.asset >= 3 || flags > 15 || d.phase < 0 || d.phase >= 1 ||
-            d.walkSeconds < 0 || d.attackSeconds < 0 || d.health < 0 || d.health > 100 ||
+            d.walkSeconds < 0 || d.attackSeconds < 0 || d.health < 0 || d.health > 1 ||
             (d.dead && (d.walking || d.running || d.attacking || d.health != 0)) ||
             (!d.dead && d.health == 0) || (d.running && !d.walking))
             throw std::runtime_error("Invalid dog motion");
@@ -477,11 +481,44 @@ void sleepPlan(Wire& w, viewer::SleepPlanState& sleep) {
             throw std::runtime_error("Invalid guard alert");
     } else if (w.reading) sleep.guardAlert = {};
 }
+void medicalRecords(Wire& w, std::optional<viewer::PlayerHealth>& medical) {
+    bool present = medical.has_value(); w.flag(present);
+    if (!present) { medical.reset(); return; }
+    viewer::PlayerHealth restored;
+    float tolerance = w.reading ? 0 : medical->painTolerance(); w.number(tolerance);
+    restored.setPainTolerance(tolerance);
+    std::uint32_t count = w.reading ? 0 : static_cast<std::uint32_t>(medical->injuries().size());
+    w.integer(count);
+    if (count > 1024) throw std::runtime_error("Too many player injuries");
+    for (std::uint32_t i = 0; i < count; ++i) {
+        std::uint64_t id = 0;
+        std::uint8_t part = 0, type = 0;
+        float damage = 0, original = 0, pain = 0, weakness = 0;
+        viewer::InjuryModifiers modifiers;
+        if (!w.reading) {
+            const auto& injury = medical->injuries()[i];
+            id = injury.id(); part = static_cast<std::uint8_t>(injury.bodyPart());
+            type = static_cast<std::uint8_t>(injury.type()); damage = injury.damage();
+            original = injury.originalDamage(); pain = injury.pain(); weakness = injury.weakness();
+            modifiers = injury.modifiers();
+        }
+        w.integer(id); w.integer(part); w.integer(type);
+        w.number(damage); w.number(original); w.number(pain); w.number(weakness);
+        w.flag(modifiers.bleeding); w.flag(modifiers.swelling); w.flag(modifiers.infected);
+        if (!id || damage <= 0) throw std::runtime_error("Invalid player injury");
+        restored.addInjury({static_cast<viewer::InjuryBodyPart>(part), static_cast<viewer::InjuryType>(type),
+                           damage, pain, weakness, modifiers, id, original});
+    }
+    if (w.reading) medical = std::move(restored);
+}
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
         w.integer(p.id); w.integer(p.resolved); w.number(p.health);
-        if (p.health < 0 || p.health > 100) throw std::runtime_error("Invalid player health");
+        if (p.health < 0 || p.health > 1) throw std::runtime_error("Invalid player health");
+        medicalRecords(w, p.medical);
+        if (p.medical && std::abs(p.health - p.medical->health()) > 1e-5f)
+            throw std::runtime_error("Player health does not match injuries");
         movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
         w.flag(p.weaponCoolingDown); w.flag(p.flashlight);

@@ -40,7 +40,7 @@ struct DogBehavior {
 struct DogInstance {
     std::size_t asset = 0;
     glm::mat4 root{1}, transform{1}; // World feet/yaw, followed by asset normalization.
-    float phase = 0, health = 100;
+    float phase = 0, health = 1;
     float displayedAnimationFrame = -1; // Renderer snapshot only; never simulation or wire state.
     double walkSeconds = 0, attackSeconds = 0;
     bool walking = false, running = false, attacking = false, dead = false, removed = false;

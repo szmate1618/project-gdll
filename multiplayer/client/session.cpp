@@ -978,6 +978,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 hudState.reloadDuration = ownState.reloadDuration;
                 if (prediction.ready()) {
                     hudState.health = ownState.health;
+                    if (in.hudScreen == viewer::HudScreen::Health) hudState.medical = ownState.medical;
                     hudState.stamina = prediction.controller().exertion().stamina;
                     hudState.strain = prediction.controller().exertion().strain;
                     hudState.lastDamageSeconds = lastDamageSeconds;

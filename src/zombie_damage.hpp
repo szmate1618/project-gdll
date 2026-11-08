@@ -8,7 +8,7 @@
 namespace viewer {
 
 struct ZombieInjury {
-    int health = 10;
+    float health = 1.f;
 };
 
 // Sparse injury records owned by one population. Keys are stable instance IDs;
@@ -16,9 +16,9 @@ struct ZombieInjury {
 class ZombieDamage {
 public:
     const ZombieInjury* injury(std::size_t zombie) const;
-    // Creates the first record at 10 HP, then applies this individual hit.
+    // Creates the first record at full health (1.0), then applies this individual hit.
     // Returns remaining health, clamped to zero. Headshots double base damage.
-    int hit(std::size_t zombie, ShotCaliber caliber, bool headshot);
+    float hit(std::size_t zombie, ShotCaliber caliber, bool headshot);
     void remove(std::size_t zombie) { injuries_.erase(zombie); }
 
 private:

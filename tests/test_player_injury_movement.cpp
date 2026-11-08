@@ -40,13 +40,13 @@ void bodyPartsAndAggregation() {
         InjuryBodyPart::LeftLowerLeg, InjuryBodyPart::LeftKnee, InjuryBodyPart::LeftUpperLeg, InjuryBodyPart::LeftHip};
     const InjuryBodyPart right[] = {InjuryBodyPart::RightFoot, InjuryBodyPart::RightAnkle,
         InjuryBodyPart::RightLowerLeg, InjuryBodyPart::RightKnee, InjuryBodyPart::RightUpperLeg, InjuryBodyPart::RightHip};
-    for (int part = 0; part < static_cast<int>(InjuryBodyPart::Count); ++part) {
+    for (int part = 0; part < static_cast<int>(InjuryBodyPart::None); ++part) {
         const auto bodyPart = static_cast<InjuryBodyPart>(part);
         bool leftLeg = false, rightLeg = false;
         for (const auto legPart : left) leftLeg |= bodyPart == legPart;
         for (const auto legPart : right) rightLeg |= bodyPart == legPart;
         PlayerHealth health;
-        health.addInjury({bodyPart, InjuryType::Bruise, 0, 1});
+        health.addInjury({bodyPart, InjuryType::Bruise, .01f, 0, 1});
         const auto movement = playerInjuryMovement(health);
         near(movement.speed, leftLeg || rightLeg ? .75f : 1.f, "Only leg parts may reduce movement speed");
         near(movement.forwardAcceleration, leftLeg || rightLeg ? .5f : 1.f, "Either leg must affect forward acceleration");
@@ -55,18 +55,18 @@ void bodyPartsAndAggregation() {
     }
     PlayerHealth health;
     health.setPainTolerance(.5f);
-    health.addInjury({InjuryBodyPart::LeftAnkle, InjuryType::Sprain, .9f, .2f});
-    health.addInjury({InjuryBodyPart::LeftFoot, InjuryType::Cut, .2f, .7f});
-    health.addInjury({InjuryBodyPart::RightKnee, InjuryType::Bruise, .4f, .3f});
+    health.addInjury({InjuryBodyPart::LeftAnkle, InjuryType::Sprain, .01f, .9f, .2f});
+    health.addInjury({InjuryBodyPart::LeftFoot, InjuryType::Cut, .01f, .2f, .7f});
+    health.addInjury({InjuryBodyPart::RightKnee, InjuryType::Bruise, .01f, .4f, .3f});
     auto movement = playerInjuryMovement(health);
     near(movement.speed, .8f, "Largest pain must be reduced by tolerance/5 before dividing by four");
     near(movement.forwardAcceleration, .6f, "Acceleration must divide the same adjusted pain by two");
     near(movement.rightAcceleration, .6f, "Pain and weakness from different left-leg injuries must be compared independently");
     near(movement.leftAcceleration, .85f, "The opposite leg's weaker injury must retain its own acceleration penalty");
-    health.addInjury({InjuryBodyPart::LeftAnkle, InjuryType::Bruise, .7f, .5f});
+    health.addInjury({InjuryBodyPart::LeftAnkle, InjuryType::Bruise, .01f, .7f, .5f});
     movement = playerInjuryMovement(health);
     near(movement.speed, .8f, "Multiple injuries must use maxima without adding penalties");
-    health.addInjury({InjuryBodyPart::RightHip, InjuryType::Fracture, 0, .9f});
+    health.addInjury({InjuryBodyPart::RightHip, InjuryType::Fracture, .01f, 0, .9f});
     movement = playerInjuryMovement(health);
     near(movement.speed, .775f, "Weakness must win when worse than pain");
     near(movement.forwardAcceleration, .55f, "Forward and backward acceleration must use the worse leg");
@@ -74,13 +74,13 @@ void bodyPartsAndAggregation() {
 
     PlayerHealth tolerant;
     tolerant.setPainTolerance(1);
-    tolerant.addInjury({InjuryBodyPart::LeftFoot, InjuryType::Cut, .1f, 0});
+    tolerant.addInjury({InjuryBodyPart::LeftFoot, InjuryType::Cut, .01f, .1f, 0});
     near(playerInjuryMovement(tolerant).speed, 1, "Pain below tolerance/5 must clamp to zero penalty");
     near(playerInjuryMovement(tolerant).rightAcceleration, 1, "Pain tolerance must never grant an acceleration boost");
 }
 void speedsAndStamina(const CollisionWorld& world) {
     PlayerHealth health;
-    health.addInjury({InjuryBodyPart::LeftKnee, InjuryType::Sprain, 0, .8f});
+    health.addInjury({InjuryBodyPart::LeftKnee, InjuryType::Sprain, .01f, 0, .8f});
     auto player = spawn(world, health, 0);
     near(player.movementSpeed(), 2.4f, "Leg weakness must reduce walking speed");
     near(player.movementSpeed(true), 4.8f, "The worse injury must win over stamina without multiplying penalties");
@@ -92,7 +92,7 @@ void speedsAndStamina(const CollisionWorld& world) {
     near(player.movementState().horizontalVelocity.x, .034f, "Stamina must win when worse than the injury acceleration penalty");
 
     PlayerHealth mild;
-    mild.addInjury({InjuryBodyPart::RightFoot, InjuryType::Cut, .2f, .1f});
+    mild.addInjury({InjuryBodyPart::RightFoot, InjuryType::Cut, .01f, .2f, .1f});
     auto tired = spawn(world, mild, 0);
     near(tired.movementSpeed(true), 5.04f, "Stamina must win when worse than injury speed penalties");
     auto fresh = spawn(world, health);
@@ -109,7 +109,7 @@ void speedsAndStamina(const CollisionWorld& world) {
 void directionalAcceleration(const CollisionWorld& world) {
     for (const bool injuredLeft : {false, true}) {
         PlayerHealth health;
-        health.addInjury({injuredLeft ? InjuryBodyPart::LeftKnee : InjuryBodyPart::RightKnee, InjuryType::Sprain, 0, 1});
+        health.addInjury({injuredLeft ? InjuryBodyPart::LeftKnee : InjuryBodyPart::RightKnee, InjuryType::Sprain, .01f, 0, 1});
         for (const float yaw : {0.f, 37.f, 90.f}) {
             const float radians = glm::radians(yaw);
             const glm::vec2 forward(std::cos(radians), std::sin(radians));
@@ -126,7 +126,7 @@ void directionalAcceleration(const CollisionWorld& world) {
         }
     }
     PlayerHealth health;
-    health.addInjury({InjuryBodyPart::LeftFoot, InjuryType::Cut, 0, 1});
+    health.addInjury({InjuryBodyPart::LeftFoot, InjuryType::Cut, .01f, 0, 1});
     auto player = spawn(world, health);
     FPSInput input; input.forward = 1; input.right = -1; input.yawDegrees = 0;
     player.update(1.f / 120, input, world);
@@ -142,11 +142,11 @@ void directionalAcceleration(const CollisionWorld& world) {
 }
 void ownershipAndRestore(const CollisionWorld& world) {
     PlayerVitals vitals;
-    vitals.healthState().addInjury({InjuryBodyPart::RightAnkle, InjuryType::Sprain, 1, .4f});
+    vitals.healthState().addInjury({InjuryBodyPart::RightAnkle, InjuryType::Sprain, .01f, 1, .4f});
     vitals.healthState().setPainTolerance(.5f);
-    vitals.applyDamage(10);
-    near(vitals.healthState().health(), 90, "Combat damage and medical records must share one health owner");
-    require(vitals.healthState().injuries().size() == 1, "Combat damage must retain existing injuries");
+    vitals.applyDamage(.1f);
+    near(vitals.healthState().health(), .89f, "Combat damage and medical records must share one health owner");
+    require(vitals.healthState().injuries().size() == 2, "Combat damage must retain existing injuries");
     auto player = spawn(world, vitals.healthState());
     const auto checkpoint = player.movementState();
     FPSController restored; restored.restoreMovement(checkpoint);

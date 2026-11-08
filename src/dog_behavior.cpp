@@ -119,7 +119,7 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
             const auto duration = assets[dog.asset].attackLeftClip ? assets[dog.asset].attackLeftClip->duration : .8f;
             if (!behavior.attackHit && dog.attackSeconds >= duration*.45f) {
                 behavior.attackHit = true;
-                if (eligible()) hits_.push_back({id,target->id,10.f});
+                if (eligible()) hits_.push_back({id,target->id,.1f});
             }
             if (dog.attackSeconds < duration) continue;
             dog.attacking = false; behavior.readyAt = now+.5;

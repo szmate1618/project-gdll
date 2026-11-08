@@ -118,6 +118,14 @@ int main(int argc, char** argv) {
                     "Ammo descriptor or tags were omitted from the scene fingerprint");
             fingerprint = changedAmmo.fingerprint;
         }
+        for (const auto* suffix : {".inventory.toml", ".tags.txt"}) {
+            { std::ofstream file(resources / "storage/medical" / (std::string("bandage") + suffix), std::ios::app);
+              file << "\n"; }
+            multiplayer::Scene changedMedical(options);
+            require(changedMedical.fingerprint != fingerprint,
+                    "Medical descriptor or tags were omitted from the scene fingerprint");
+            fingerprint = changedMedical.fingerprint;
+        }
         // A later join must use the session's fingerprinted starting definitions,
         // even if the source inventory is edited while the server is running.
         { std::ofstream inventory(resources / "inventory.toml"); inventory << "invalid inventory\n"; }

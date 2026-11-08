@@ -227,8 +227,9 @@ void committedAttackAndDamage() {
     player.feet = flocks.birds().front().position - glm::vec3(0, .9f, 0);
     viewer::PlayerVitals vitals;
     const auto hit = flocks.update(1.f / 60, player);
-    require(hit == 1 && vitals.applyDamage(static_cast<float>(hit)) == 1 && vitals.health() == 99,
-            "One overlapping bird must cause exactly one HP of damage");
+    require(hit == 1 && std::abs(vitals.applyDamage(static_cast<float>(hit) * .01f) - .01f) < 1e-6f && vitals.health() == .99f &&
+            vitals.healthState().injuries().size() == 1 && vitals.bleeding(),
+            "One overlapping bird must cause one percent damage and create a bleeding wound");
     require(flocks.flocks().front().target == committed,
             "Moving the player after commitment must not redirect the attack's fixed exit target");
     for (int tick = 0; tick < 60 && flocks.flocks().front().mode == viewer::BirdFlockMode::swooping; ++tick) {

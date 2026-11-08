@@ -161,7 +161,7 @@ void predictedMistPublication(const Options& options) {
     require(scene.zombies.bloodMist().sample(viewer::SimulationClock::instance().seconds()).size() == 2 &&
             world.players().at(shooter).shots == 2 &&
             world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 2 &&
-            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == 6,
+            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == .6f,
         "Mist prediction changed authoritative damage, ammunition or standalone effects");
     world.submit(shooter, Commands{{predicted}}); advance(world, 3);
     require(world.snapshot(remote).bloodMist.size() == 2 && world.snapshot(shooter).bloodMist.size() == 1,
@@ -211,7 +211,7 @@ void remoteMuzzlePublication(const Options& options) {
         "A headless firearm event did not provide an approximate muzzle");
     require(world.players().at(shooter).shots == 4 &&
             world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 4 &&
-            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == 4,
+            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == .4f,
         "Cosmetic muzzle validation changed damage or authoritative weapon acceptance");
 
     ServerSounds events;
@@ -271,7 +271,7 @@ void cosmeticMuzzleWireFallback(const Options& options) {
     }
     require(world.players().at(shooter).shots == 3 &&
             world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 3 &&
-            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == 4,
+            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == .4f,
         "Cosmetic muzzle wire fallback changed authoritative firing or damage");
 }
 
@@ -286,11 +286,11 @@ void movedTargetsAndCommandOrder(const Options& options) {
     auto shot = fire(1);
     world.submit(player, Commands{{shot}}); world.submit(player, Commands{{shot}}); world.step();
     require(world.players().at(player).shots == 1 && scene.zombies.damage().injury(0) &&
-            scene.zombies.damage().injury(0)->health == 8,
+            scene.zombies.damage().injury(0)->health == .8f,
         "Trusted head hit was retested against the current server ray");
     advance(world);
     world.submit(player, Commands{{shot}}); advance(world);
-    require(world.players().at(player).shots == 1 && scene.zombies.damage().injury(0)->health == 8,
+    require(world.players().at(player).shots == 1 && scene.zombies.damage().injury(0)->health == .8f,
         "Duplicate or held command repeated a reported hit");
     send(world, player, release(2));
     auto later = fire(4); later.movement.yawDegrees = 90;
@@ -299,7 +299,7 @@ void movedTargetsAndCommandOrder(const Options& options) {
     require(world.players().at(player).resolved == 2, "Out-of-order shot skipped a missing command");
     world.submit(player, Commands{{release(3)}}); advance(world, 2);
     require(world.players().at(player).resolved == 4 && world.players().at(player).shots == 2 &&
-            scene.zombies.damage().injury(0)->health == 6,
+            scene.zombies.damage().injury(0)->health == .6f,
         "Queued command order lost or repeated its trusted hit");
 }
 
@@ -359,7 +359,7 @@ void sniperWeaponBinding(const Options& options) {
     world.step();
     require(state.resolved == 2 && state.shots == 1 && state.weapons.state(3).loaded == sniperLoaded - 1 &&
             state.weapons.state(0).loaded == pistolLoaded && scene.zombies.damage().injury(0) &&
-            scene.zombies.damage().injury(0)->health == 6,
+            scene.zombies.damage().injury(0)->health == .6f,
         "A later weapon switch changed the accepted sniper shot or rejected its distant hit");
 }
 } // namespace

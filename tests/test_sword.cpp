@@ -81,14 +81,14 @@ void contacts() {
         viewer::Camera camera; camera.setPosition({0, 1.5f, 0}); camera.setOrientation(-90, 0);
         viewer::SwordMelee sword; viewer::SwordCombat combat;
         sword.trigger(true); sword.drag({-40, 0}); require(sword.update(1), "Test cut failed to start");
-        const auto hp = [&] { const auto* injury = zombies.damage().injury(0); return injury ? injury->health : 10; };
+        const auto hp = [&] { const auto* injury = zombies.damage().injury(0); return injury ? injury->health : 1.f; };
         combat.update(sword, camera, 1.05, 1.05, world, &zombies, nullptr);
-        require(hp() == 10, "Windup must not damage actors");
+        require(hp() == 1.f, "Windup must not damage actors");
         if (cancel) sword.cancel();
         // One late update must consume the full finite cut, including a frame stall.
         combat.update(sword, camera, 2, 2, world, &zombies, nullptr);
         const auto health = hp();
-        require((health < 10) == (!wall && !far && !cancel), "Sword reach, wall occlusion or cancellation failed");
+        require((health < 1.f) == (!wall && !far && !cancel), "Sword reach, wall occlusion or cancellation failed");
         combat.update(sword, camera, 3, 3, world, &zombies, nullptr);
         require(hp() == health, "A cut must not damage the same actor twice");
     };

@@ -36,7 +36,7 @@ void SwordCombat::update(const SwordMelee& sword, const Camera& camera, double s
             const auto hit = dogs->traceShot(a, direction, world, animationSeconds);
             if (hit && hit->distance <= length && !hitDogs_.count(hit->dog) &&
                 world.lineOfSight(camera.position(), a + direction * hit->distance)) {
-                dogs->damage(hit->dog, 20.f); hitDogs_.insert(hit->dog);
+                dogs->damage(hit->dog, .2f); hitDogs_.insert(hit->dog);
             }
         }
     };

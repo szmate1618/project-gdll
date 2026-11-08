@@ -295,7 +295,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         }
     }
     std::vector<std::filesystem::path> definitions;
-    for (const auto* directory : {"storage/weapons", "storage/ammo"})
+    for (const auto* directory : {"storage/weapons", "storage/ammo", "storage/medical"})
         for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / directory)) {
             const auto filename = entry.path().filename().string();
             const bool tags = filename.size() >= 9 && filename.compare(filename.size() - 9, 9, ".tags.txt") == 0;

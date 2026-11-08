@@ -221,7 +221,7 @@ void lifecycle() {
     for (int visit = 0; visit < 3; ++visit) {
         f.load(); population.update(*f.floors, layer, *f.collision, {{0, 0, 8}});
         require(!layer.instances[1].removed && glm::vec3(layer.instances[1].restRoot[3]) == injuredFeet &&
-                layer.damage().injury(1) && layer.damage().injury(1)->health == 9,
+                layer.damage().injury(1) && layer.damage().injury(1)->health == .9f,
                 "Regeneration must wake the same survivor with its position and health");
         require(layer.instances[2].ragdoll && !layer.instances[3].removed && glm::vec3(layer.instances[3].restRoot[3]).x == 20,
                 "Regeneration must never resurrect kills or teleport escaped actors home");

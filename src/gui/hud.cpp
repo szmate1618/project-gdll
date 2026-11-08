@@ -424,6 +424,10 @@ std::optional<GraphicsSettings> Hud::takeGraphicsSettingsRequest() {
 }
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
     auto actions = impl_->equipmentDrawer->takeActions();
+    if (impl_->healthView) {
+        auto medical = impl_->healthView->takeActions();
+        actions.insert(actions.end(), medical.begin(), medical.end());
+    }
     if (impl_->inventoryInteraction) {
         auto storage = impl_->inventoryInteraction->takeActions();
         actions.insert(actions.end(), storage.begin(), storage.end());

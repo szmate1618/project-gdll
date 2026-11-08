@@ -14,7 +14,7 @@ constexpr float zombieAttackApproachDistance = 1.0f;
 constexpr float zombieLungeDistance = 1.5f;
 constexpr float zombieLungeSeconds = .15f;
 constexpr float zombieLungeSpeed = zombieLungeDistance / zombieLungeSeconds; // m/s before impact.
-constexpr float zombieBaseAttackDamage = 10.0f;
+constexpr float zombieBaseAttackDamage = .1f;
 
 struct ZombieAttackHit {
     std::size_t zombie = 0;

@@ -26,15 +26,15 @@ void injuryRecordsAndDeath() {
     using viewer::ShotCaliber;
     viewer::ZombieDamage damage;
     require(!damage.injury(42), "An untouched zombie must have no injury record");
-    require(damage.hit(42, ShotCaliber::low, false) == 9, "First injury starts at 10 HP and applies the hit");
-    require(damage.hit(42, ShotCaliber::high, false) == 7, "High caliber removes two HP from the same record");
-    require(damage.hit(42, ShotCaliber::low, true) == 5, "Low-caliber headshots remove two HP");
-    require(damage.hit(42, ShotCaliber::high, true) == 1, "High-caliber headshots remove four HP");
-    require(damage.hit(7, ShotCaliber::low, false) == 9 && damage.injury(42)->health == 1,
+    require(damage.hit(42, ShotCaliber::low, false) == .9f, "First injury starts at 1.0 health and applies the hit");
+    require(damage.hit(42, ShotCaliber::high, false) == .7f, "High caliber removes 20% health from the same record");
+    require(damage.hit(42, ShotCaliber::low, true) == .5f, "Low-caliber headshots remove 20% health");
+    require(damage.hit(42, ShotCaliber::high, true) == .1f, "High-caliber headshots remove 40% health");
+    require(damage.hit(7, ShotCaliber::low, false) == .9f && damage.injury(42)->health == .1f,
             "Stable IDs own independent injury records");
     require(damage.hit(42, ShotCaliber::high, true) == 0, "Overkill must clamp health to zero");
     damage.remove(42);
-    require(!damage.injury(42) && damage.injury(7)->health == 9, "Death cleanup must remove only its own record");
+    require(!damage.injury(42) && damage.injury(7)->health == .9f, "Death cleanup must remove only its own record");
 
     for (const auto caliber : {ShotCaliber::low, ShotCaliber::high}) {
         for (const bool headshot : {false, true}) {
@@ -49,10 +49,10 @@ void injuryRecordsAndDeath() {
                 if (health > 0) {
                     require(!layer.instances[0].ragdoll && layer.behaviors.contains(0),
                             "Nonlethal hits must preserve living behavior");
-                    require(layer.damage().injury(0) && layer.damage().injury(0)->health == health,
+                    require(layer.damage().injury(0) && layer.damage().injury(0)->health == float(health) / 10,
                             "Each hit must update the same injury record");
                     layer.rebuildSpatialIndex();
-                    require(layer.damage().injury(0)->health == health, "Index rebuild must preserve injuries");
+                    require(layer.damage().injury(0)->health == float(health) / 10, "Index rebuild must preserve injuries");
                 }
             }
             require(layer.instances[0].physicsRagdoll && !layer.behaviors.contains(0) &&
@@ -81,7 +81,7 @@ void missesAndExplosions() {
             "A blocked hit must not create an injury record");
     require(layer.shoot({0, .9f, 0}, {0, 0, -1}), "Injury setup must hit");
     require(!layer.shootWithOcclusion({0, .9f, 0}, {0, 0, -1}, 0, blocked) &&
-            layer.damage().injury(0)->health == 9, "Blocked shots must preserve existing health");
+            layer.damage().injury(0)->health == .9f, "Blocked shots must preserve existing health");
     require(layer.explode({0, .9f, -2}, 5, 0, clear) == 1 && !layer.damage().injury(0),
             "Grenade deaths must also erase existing injury records");
 }
@@ -138,14 +138,14 @@ void configuredPellets() {
     for (std::size_t pellet = 0; pellet < directions.size(); ++pellet) {
         require(layer.shootWithOcclusion({0, .9f, 0}, directions[pellet], 0, clear, config.caliber),
                 "Every close body pellet must independently register on the same zombie");
-        require(!layer.instances[0].ragdoll && layer.damage().injury(0)->health == 9 - int(pellet),
+        require(!layer.instances[0].ragdoll && layer.damage().injury(0)->health == float(9 - int(pellet)) / 10,
                 "Each shotgun pellet must remove exactly one HP without deduplicating the target");
     }
-    require(layer.damage().injury(0)->health == 2, "Eight body pellets must leave two HP");
+    require(layer.damage().injury(0)->health == .2f, "Eight body pellets must leave 20% health");
     auto head = target(1);
     for (int pellet = 0; pellet < 4; ++pellet) {
         require(head.shoot({0, 1.65f, 0}, directions[pellet], 0, config.caliber), "Close head pellet must hit");
-        require(head.damage().injury(0)->health == 8 - 2 * pellet, "Pellet headshots must double one base damage");
+        require(head.damage().injury(0)->health == float(8 - 2 * pellet) / 10, "Pellet headshots must double one base damage");
     }
     require(head.shoot({0, 1.65f, 0}, directions[4], 0, config.caliber) && head.instances[0].ragdoll &&
             !head.damage().injury(0), "Fifth pellet headshot must kill and erase the record");

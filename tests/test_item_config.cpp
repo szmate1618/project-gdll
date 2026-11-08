@@ -20,6 +20,8 @@ struct Fixture {
             std::filesystem::copy_options::recursive);
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/ammo", root / "storage/ammo",
             std::filesystem::copy_options::recursive);
+        std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/medical", root / "storage/medical",
+            std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "inventory.toml", root / "inventory.toml");
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills.toml", root / "skills.toml");
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills", root / "skills", std::filesystem::copy_options::recursive);
@@ -48,8 +50,8 @@ struct Fixture {
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 6> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
-    require(inventory.owned.size() == 18 && inventory.quantities.size() == 12,
-        "All six weapons and twelve ammo stacks must have owned item definitions");
+    require(inventory.owned.size() == 19 && inventory.quantities.size() == 13,
+        "All six weapons, twelve ammo stacks and the medical stack must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–7");
         const auto& item = inventory.owned.at(expected[slot]);

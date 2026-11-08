@@ -689,7 +689,7 @@ void perceptionDisabled() {
     for (const auto& instance : layer.instances)
         require(!instance.walking && instance.restRoot[3].z == 0 && instance.heardNoiseRevision == 0 && instance.chaseRevision == 0,
                 "Disabled perception must leave ordinary zombies idle without reaction notifications");
-    require(layer.shoot({0, .9f, 3}, {0, 0, -1}) && layer.damage().injury(0)->health == 9,
+    require(layer.shoot({0, .9f, 3}, {0, 0, -1}) && layer.damage().injury(0)->health == .9f,
             "Disabling perception must not disable shooting or damage");
     layer.setPerceptionEnabled(true);
     layer.chase(.1f, {0, 0, 10}, world);

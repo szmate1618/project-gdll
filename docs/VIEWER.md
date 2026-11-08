@@ -310,12 +310,26 @@ strain values; the Health page's compact tracks cap their visual fill at 100%.
 
 The right-hand list uses the inventory's scrolling style and includes only
 carried items with the exact `medical` tag, showing quantities and storage
-locations. Empty stacks are omitted. No existing items receive the tag yet;
-the list shows an empty state until medical items are defined. This screen
-presents supplies without adding treatment actions. Standalone reads the
-player's medical records and weariness. Multiplayer currently supplies health,
-stamina and strain; missing medical records have neutral borders and an
-unavailable label, while unknown stats show `--`.
+locations. Empty stacks are omitted. Players start with four bandages in the
+backpack. Click **Apply bandage** beside a bleeding injury to consume one and
+immediately stop that wound's bleeding; its damage still needs to heal.
+Standalone and multiplayer both supply medical records, including systemic
+blood loss and minor bruises, which have no body location. Unknown stats show `--`.
+
+Player, zombie and undead dog maximum health is **1.0 = 100%**. Player health is
+`max(0, 1 - sum(injury damage))`. Every attack that damages a player creates a
+separate bleeding cut at a randomly chosen body location. Blood loss and minor
+bruises can also be created explicitly, but attacks do not directly create them.
+Each untreated bleeding wound adds **0.01 blood-loss damage per in-game hour**.
+Blood loss is recorded as one accumulating systemic injury and also regenerates.
+
+**Base health regeneration** heals half of each injury's original damage per
+in-game day. Sleeping doubles that rate; guards receive the ordinary rate even
+while the shared clock runs faster. Thus an injury with no further damage heals
+in two awake days or one sleeping day. Healing runs while menus are open, follows
+the configured day length, and freezes with a frozen calendar. At zero damage an
+injury disappears, including its bleeding and movement penalties. Dead players
+do not regenerate. Bandages never restore health directly.
 
 [map.rml](../ui/map.rml)
 shows the entire published Sentinel image, fitted without cropping or changing
@@ -1411,7 +1425,7 @@ Each lower arm carries a **10 cm hand sphere**. During the forward swing
 swept against current player body capsules. Hits use physical deflection rather
 than the desired animation path. Assets with named hands/clips but no complete
 ragdoll mapping keep baked playback and sweeps in at most 1/120-second segments.
-The first contact consumes the swing and inflicts **10 health damage** only after fresh range/FOV/visibility checks.
+The first contact consumes the swing and inflicts **0.1 health damage** only after fresh range/FOV/visibility checks.
 Scene contacts and hand/torso visibility prevent strikes through walls, current
 doors and props. Windup, recovery and idle contacts cannot injure. Dodging,
 crouching and separate floors use current body dimensions and positions. A miss
@@ -1422,9 +1436,8 @@ collision-limited body lunge: 0.3 s windup, at most 1.5 m over 0.15 s, 0.4 s
 return, then 0.5 s cooldown. That fallback retains its idle animation and
 velocity-scaled body-contact damage.
 
-`PlayerVitals` owns independent float health and weariness values for
-each player. Health starts at **100**, damage preserves fractions and clamps
-health at zero. Weariness starts at zero and remains reserved for future mechanics.
+`PlayerVitals` owns each player's medical state and weariness.
+Health starts at **1.0**, derives from injury damage, and clamps at zero. Weariness starts at zero and remains reserved for future mechanics.
 `FPSController` owns stamina, movement load and the separate strain stat through
 `PlayerExertion`; these travel with movement checkpoints for prediction and replay.
 Zero health does not introduce death, control restrictions or respawning.
@@ -1433,11 +1446,12 @@ server and transmits authoritative health; clients only present the result.
 
 `PlayerHealth` in `src/player_health.hpp` stores localized injuries inside each
 player's `PlayerVitals`.
-It stores health on the existing **0–100** scale, pain tolerance on **0–1**, and
-an owned list of `PlayerInjury` records. Each injury has a required `InjuryBodyPart`
-and `InjuryType`, plus independent **0–1** pain and weakness scores (**1 = 100%**).
+It derives health on the **0–1** scale from an owned list of `PlayerInjury`
+records, with pain tolerance also on **0–1**. Each injury has a required
+`InjuryBodyPart`, `InjuryType` and damage, plus independent **0–1** pain and
+weakness scores (**1 = 100%**). Systemic injuries use the `None` location.
 Several injuries can affect the same part. Invalid ranges and non-finite values
-are rejected. New state starts at 100 health, zero pain tolerance and no injuries.
+are rejected. New state starts at 1.0 health, zero pain tolerance and no injuries.
 Movement subtracts pain tolerance divided by five from the relevant pain score,
 clamping the adjusted pain at zero.
 
@@ -1445,22 +1459,23 @@ Health locations have left/right hand, forearm, upper arm, wrist, elbow, shoulde
 foot, lower leg, upper leg, ankle, knee and hip, plus pelvis, lower torso, upper
 torso, head and neck. These 29 locations are separate from physics/render parts.
 Injury types are cut, abrasion, puncture, bruise, blunt trauma, sprain (including
-a rolled joint), strain, dislocation, fracture, crush and burn. Bleeding, swelling
+a rolled joint), strain, dislocation, fracture, crush, burn, blood loss and minor bruises. Bleeding, swelling
 and infection are independent modifiers attached to each injury.
 
 Combat damage continues through `PlayerVitals` and updates its owned `PlayerHealth`.
-Hits do not automatically create localized injuries yet. Bleeding damage, healing
-and treatment are not implemented. Multiplayer remains server-authoritative;
-snapshots carry derived movement multipliers for client prediction and replay,
-while the medical records themselves remain with their owner.
+Hits create bleeding cuts at random body locations. All injury damage heals at
+the base regeneration rate; untreated wounds add systemic blood loss. Bandages
+stop one selected wound's bleeding immediately. Multiplayer remains authoritative;
+snapshots carry derived movement multipliers for prediction and replay, and
+send each player's medical records only to their own client.
 
 The custom-rig lunge fallback uses incoming world-space velocities in meters/second:
-`10 * length(zombieVelocity - playerVelocity) / baseLungeSpeed`, where
+`0.1 * length(zombieVelocity - playerVelocity) / baseLungeSpeed`, where
 `baseLungeSpeed = 1.5 / 0.15 = 10 m/s`. Use the velocity immediately before
 contact, rather than the stopped velocity or displacement divided by a whole
 collision-truncated step. The player velocity comes from the last solved
-simulation step. A stationary player takes 10 damage; moving away along the
-lunge at 3 m/s gives 7 damage, and moving toward it at 3 m/s gives 13.
+simulation step. A stationary player takes 0.1 damage; moving away along the
+lunge at 3 m/s gives 0.07 damage, and moving toward it at 3 m/s gives 0.13.
 The full vector length also accounts for sideways and vertical movement.
 
 `SimulationClock::instance()` provides elapsed in-game seconds throughout the
@@ -1646,9 +1661,9 @@ sampling a skeleton. `ZombieLayer::shootingStats()` reports candidate count,
 sampled poses, and posed head vertices for the last shot. Everything runs on the
 existing simulation thread.
 
-Unmapped fallback rigs use a standard head region. Each zombie starts at 10 HP. The
+Unmapped fallback rigs use a standard head region. Each zombie starts at 1.0 health. The
 `ZombieDamage` class stores a record by stable zombie ID only after a confirmed,
-unblocked hit. Low-caliber bullets/pellets deal 1 damage; high caliber deals 2.
+unblocked hit. Low-caliber bullets/pellets deal 0.1 damage; high caliber deals 0.2.
 Headshots double those values. If multiple damage volumes intersect the ray, the first
 surface entered determines the region. Each shotgun pellet applies damage
 separately, including repeated hits on the same zombie. Surviving zombies retain
@@ -2108,7 +2123,8 @@ each game hour represents. A frozen calendar cannot start sleep.
 Sleep restores stamina using prone recovery and removes **150 percentage points
 of strain per game day** (**50 points per eight game hours**) while stamina is above zero.
 Guards receive ordinary standing stamina recovery and the base strain recovery
-of **75 percentage points per game day**. Sleep does not heal injuries or stop bleeding. The group
+of **75 percentage points per game day**. Sleep doubles base injury regeneration;
+bandages stop bleeding immediately, while untreated wounds bleed until healed. The group
 wakes when the duration ends, a sleeper or guard takes damage, a player joins/leaves, or
 a living member of a scenario horde configured with `movement = "travel"`
 approaches within **60 metres of a sleeper**. This distance-only wake-up represents
@@ -2629,7 +2645,7 @@ Each [weapon TOML](../storage/weapons/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `draw_time_seconds`, `reload_time_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
 (cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
 Firearms also require `caliber = "low"` or `"high"`. The pistol and SMG use low,
-the sniper uses high, and the shotgun uses low per pellet (1 body / 2 head damage).
+the sniper uses high, and the shotgun uses low per pellet (0.1 body / 0.2 head damage).
 The optional `hip_fire_inaccuracy_degrees` array supplies the standing, walking
 and running normal standard deviations described above; omitted values default to zero.
 The muzzle is a required three-number array in the prepared model's local meters:

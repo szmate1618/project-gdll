@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "player_medical.hpp"
 #include "sleep_threat.hpp"
 #include "physics_impacts.hpp"
 #include "inventory_state.hpp"
@@ -72,6 +73,10 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, bool temporaryHan
             player.pendingInventoryActions.pop_front(); continue;
         }
         switch (action.kind) {
+        case viewer::InventoryDragActionKind::ApplyBandage:
+            if (!player.inventoryDrag.held())
+                viewer::applyBandage(player.vitals.healthState(), player.inventory, action.item, action.injury);
+            break;
         case viewer::InventoryDragActionKind::HandPickUp:
             if (!player.weaponSwitch.pending() && !player.weaponReload.pending() &&
                 (temporaryHandling || player.weapons.slot() == viewer::handlingSlot))
@@ -191,7 +196,11 @@ void World::step() {
     sounds_.expire(tick_);
     std::vector<glm::vec3> interiorObservers;
     interiorObservers.reserve(players_.size());
-    for (const auto& entry : players_) interiorObservers.push_back(entry.second.controller.feet());
+    for (auto& [id, player] : players_) {
+        interiorObservers.push_back(player.controller.feet());
+        if (sleepPlan_.state().inSleepSession(id)) player.sleepHealth = player.vitals.health();
+        player.vitals.advance(tickSeconds, scene_.dayNight, sleepPlan_.state().asleep(id));
+    }
     scene_.floorplans->update(interiorObservers);
     if (scene_.interiorZombies)
         scene_.interiorZombies->update(*scene_.floorplans, scene_.zombies, *scene_.collision, interiorObservers, scene_.dayNight);
@@ -499,7 +508,7 @@ void World::step() {
             scene_.zombies.applyReportedShot(report.hit, shot.origin, shot.directions[report.pellet],
                                             now, *scene_.collision, shot.caliber, shot.excludedMistObserver);
         for (const auto& report : shot.dogHits)
-            scene_.dogs.damage(report.dog, shot.caliber == viewer::ShotCaliber::high ? 20.f : 10.f);
+            scene_.dogs.damage(report.dog, shot.caliber == viewer::ShotCaliber::high ? .2f : .1f);
     }
     for (const auto& reaction : scene_.zombies.takeReactionEvents())
         sounds_.emit(tick_, reaction.chase ? SoundKind::chase : SoundKind::heard,
@@ -512,7 +521,9 @@ void World::step() {
         const auto birdHits=birds_.step(birdPlayers);
         std::size_t birdPlayer=0;
         for (auto& [id,player]:players_) {
-            (void)id; player.vitals.applyDamage(static_cast<float>(birdHits[birdPlayer++]));
+            (void)id;
+            const auto hits = birdHits[birdPlayer++];
+            for (unsigned hit = 0; hit < hits; ++hit) player.vitals.applyDamage(.01f);
         }
     }
     if (sleepPlan_.begin(now, scene_.dayNight))
@@ -585,8 +596,10 @@ Snapshot World::snapshot(std::uint32_t id) {
                 s.players.back().inventoryPlacements.push_back(player.inventory.placements().at(itemId));
             }
     }
-    for (auto& state : s.players)
-        if (state.id == id && !state.inventoryDragging) state.inventoryState = captureInventory(observer.inventory);
+    for (auto& state : s.players) if (state.id == id) {
+        state.medical = observer.vitals.healthState();
+        if (!state.inventoryDragging) state.inventoryState = captureInventory(observer.inventory);
+    }
     s.groundItems = captureGround(*scene_.groundItems, observer.controller.feet());
     auto view = observer.replicationView.value_or(ReplicationView{});
     if (!observer.replicationView || glm::distance(view.eye, observer.camera.position()) > 30.f) {

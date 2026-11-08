@@ -1,39 +1,39 @@
 #pragma once
 
 #include "player_health.hpp"
-
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 namespace viewer {
 
-// Health and long-term weariness. Movement owns stamina and the separate strain
-// stat in PlayerExertion so prediction can restore them without restoring health.
 class PlayerVitals {
 public:
     static constexpr float maximumHealth = PlayerHealth::maximumHealth;
-
     float health() const { return health_.health(); }
     PlayerHealth& healthState() { return health_; }
     const PlayerHealth& healthState() const { return health_; }
     float weariness() const { return weariness_; }
-    bool bleeding() const { return bleeding_ && health() > 0; }
-    void setBleeding(bool bleeding) { bleeding_ = bleeding; }
+    bool bleeding() const { return health_.bleeding(); }
+    void advance(double seconds, const DayNightCycle& cycle, bool sleeping) { health_.advance(seconds, cycle, sleeping); }
 
-    // Returns health actually lost, including fractional damage. Invalid damage
-    // has no effect, and damage to an already depleted player returns zero.
+    // Every successful attack creates its own bleeding cut at a random body
+    // location. Systemic injuries are created explicitly, never by this path.
     float applyDamage(float amount) {
         if (!std::isfinite(amount) || amount <= 0) return 0;
         const float previous = health();
-        health_.setHealth(previous - std::min(previous, amount));
-        if (health() < previous) bleeding_ = true;
+        amount = std::min(previous, amount);
+        if (previous - amount == previous) return 0;
+        const auto part = static_cast<InjuryBodyPart>(std::uniform_int_distribution<int>(
+            0, static_cast<int>(InjuryBodyPart::None) - 1)(random_));
+        health_.addInjury({part, InjuryType::Cut, amount, 0, 0, {true, false, false}});
         return previous - health();
     }
 
 private:
     PlayerHealth health_;
     float weariness_ = 0.f;
-    bool bleeding_ = false;
+    std::mt19937 random_{std::random_device{}()};
 };
 
 } // namespace viewer

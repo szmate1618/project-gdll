@@ -72,14 +72,14 @@ Item loadItem(const Path& directory, const std::string& id) {
         if (!std::filesystem::is_regular_file(directory / (weapon + ".gameplay.toml")))
             invalid(file, "missing gameplay definition for weapon " + weapon);
         gameplay = loadWeaponConfig(directory / (id + ".gameplay.toml"), id);
-    } else if (item.type == "ammo") {
-        item.ammoType = label(table, "ammo_type", file);
+    } else if (item.type == "ammo" || item.type == "medical") {
+        if (item.type == "ammo") item.ammoType = label(table, "ammo_type", file);
         item.stackable = required<bool>(table, "stackable", file);
-        if (!item.stackable) invalid(file, "ammo must be stackable");
+        if (!item.stackable) invalid(file, "consumables must be stackable");
         if (!table["max_stack"].is_integer()) invalid(file, "max_stack must be a positive integer");
         item.maxStack = required<int>(table, "max_stack", file);
         if (item.maxStack < 1) invalid(file, "max_stack must be a positive integer");
-    } else invalid(file, "type must be 'weapon' or 'ammo'");
+    } else invalid(file, "type must be 'weapon', 'ammo' or 'medical'");
     const auto dimension = [&](const char* key) {
         if (!table[key].is_integer()) invalid(file, std::string(key) + " must be an integer cell count");
         const auto value = required<std::int64_t>(table, key, file);

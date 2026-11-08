@@ -189,7 +189,7 @@ void playerScentEmission(multiplayer::Scene& server) {
             player.controller.teleport({0,.01f,0});
             player.camera.setPosition(player.controller.eyePosition());
         }
-        player.vitals.applyDamage(1);
+        player.vitals.applyDamage(.01f);
         for (int tick = 0; tick < 65; ++tick) world.step();
         require(player.house.outside() != inside && player.vitals.bleeding(),
                 "Scent fixture must retain its authoritative bleeding and house states");
@@ -197,7 +197,8 @@ void playerScentEmission(multiplayer::Scene& server) {
                 "Only an authoritative bleeding outdoor player may emit scent");
         if (!inside) {
             const float before = server.dogs.scent().at(player.controller.feet());
-            player.vitals.setBleeding(false);
+            for (const auto& injury : player.vitals.healthState().injuries())
+                player.vitals.healthState().bandage(injury.id());
             for (int tick = 0; tick < 60; ++tick) world.step();
             require(server.dogs.scent().at(player.controller.feet()) < before,
                     "Clearing the wound must stop deposits while old scent continues decaying");

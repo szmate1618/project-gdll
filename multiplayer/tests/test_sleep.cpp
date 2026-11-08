@@ -172,6 +172,15 @@ void server(const char* map) {
     require(world.snapshot(first).sleepPlan.ready(), "Remote guard response did not reach proposer");
     require(world.snapshot(first).sleepPlan.sleeping && world.simulationRate() == 30, "Guarded sleep must permit acceleration");
     require(!world.players().at(first).inventory.held(), "Sleep left an unfinished inventory transaction attached to the player");
+    auto& sleeper = const_cast<ServerPlayer&>(world.players().at(first));
+    auto& guard = const_cast<ServerPlayer&>(world.players().at(second));
+    sleeper.vitals.healthState().addInjury({viewer::InjuryBodyPart::Head, viewer::InjuryType::Bruise, .2f});
+    guard.vitals.healthState().addInjury({viewer::InjuryBodyPart::Head, viewer::InjuryType::Bruise, .2f});
+    const float sleepingHealth = sleeper.vitals.health(), guardingHealth = guard.vitals.health();
+    for (int tick = 0; tick < 60; ++tick) world.step();
+    require(sleeper.vitals.health() > sleepingHealth && guard.vitals.health() > guardingHealth &&
+        std::abs((sleeper.vitals.health() - sleepingHealth) - 2 * (guard.vitals.health() - guardingHealth)) < 1e-6f,
+        "Actual sleepers must heal twice as fast as guards on the same accelerated world clock");
     command.sequence = 2; command.sleepAction = viewer::SleepAction{viewer::SleepActionKind::Accept, proposal.revision, 30};
     world.submit(second,Commands{{command}});
     for (int i=0;i<10;++i) world.step();

@@ -159,7 +159,7 @@ void authoritativeShooting(const std::filesystem::path& map, const std::filesyst
             }
             require(command.firearmShot->dogHits.size()==1,"Aimed shot missed the actual dog torso");
             send(command);
-            const float expected=100.f*(1.f-float(hit)/lethalHits);
+            const float expected=1.f-float(hit)/lethalHits;
             require(std::abs(scene.dogs.instances[0].health-expected)<.001f,"Accepted firearm hit did not reduce dog health");
             require(world.players().at(player).shots==std::uint64_t(hit) &&
                 world.players().at(player).weapons.equipped().loaded==loaded-hit,"Dog shot was rejected or consumed incorrect ammunition");

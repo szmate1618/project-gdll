@@ -17,7 +17,7 @@
         <div class="panel-heading">MEDICAL ITEMS</div><div id="health-medical-count" class="panel-meta"></div>
         <div class="health-medical-caption">CARRIED SUPPLIES</div>
         <div id="health-medical-scroll" class="health-scroll"><div id="health-medical-items"></div></div>
-        <div class="health-footnote">Medical supplies in your inventory.</div>
+        <div class="health-footnote">Apply a bandage beside a bleeding wound.<br />Each wound loses 1% blood per game hour.</div>
     </div>
 </body>
 </rml>

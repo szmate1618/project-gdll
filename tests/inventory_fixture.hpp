@@ -17,7 +17,7 @@ inline viewer::StorageLoadout storage(const std::filesystem::path& root) {
 inline viewer::InventoryContents contents(const std::filesystem::path& root) {
     auto result = viewer::loadInventoryContents(root);
     // These swap tests intentionally keep the original fixed set of items.
-    for (const auto* id : {"molotov","molotovs_1"}) {
+    for (const auto* id : {"molotov","molotovs_1","bandages"}) {
         result.owned.erase(id); result.placements.erase(id); result.quantities.erase(id);
     }
     result.hotbar[7].clear();

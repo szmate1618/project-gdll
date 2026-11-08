@@ -40,6 +40,7 @@
 #include "player_body_renderer.hpp"
 #include "player_presentation.hpp"
 #include "player_vitals.hpp"
+#include "player_medical.hpp"
 #include "melee_combat.hpp"
 #include "camera_rig.hpp"
 #include "mouse_input.hpp"
@@ -858,7 +859,7 @@ bool updateWeapons(AppState& app, double seconds) {
                     if (trace && trace->distance < dog->distance) { nearerZombie = true; break; }
                 }
             }
-            if (dog && !nearerZombie) app.dogs->damage(dog->dog,config.caliber == viewer::ShotCaliber::high ? 20.f : 10.f);
+            if (dog && !nearerZombie) app.dogs->damage(dog->dog,config.caliber == viewer::ShotCaliber::high ? .2f : .1f);
             else if (app.zombies) app.zombies->shootWithOcclusion(origin,direction,app.displayedAnimationSeconds,app.world,config.caliber);
         }
     }
@@ -1178,7 +1179,7 @@ void inputSelfTest(GLFWwindow* window) {
         const auto rounds = shot.weapons.equipped().loaded;
         updateWeapons(shot, 0);
         const auto* injury = zombies.damage().injury(0);
-        if (zombie.ragdoll || (blocked ? injury != nullptr : !injury || injury->health != 9) ||
+        if (zombie.ragdoll || (blocked ? injury != nullptr : !injury || injury->health != .9f) ||
             shot.weapons.equipped().loaded != rounds - 1)
             throw std::runtime_error("Single-player shooting occlusion/ammo self-test failed");
         if (zombies.behaviors.find(0)->state != viewer::ZombieState::looking || zombie.heardNoiseRevision != 1)
@@ -1958,6 +1959,8 @@ int run(const Options& options) {
         };
         const auto beforePhysics = [&](float step) {
             simulated = true;
+            if (sleepPlan.state().asleep(1)) sleepHealth = app.vitals.health();
+            app.vitals.advance(step, options.dayNight, sleepPlan.state().asleep(1));
             simulationClock.advance(step);
             sleepPlan.update(simulationClock.seconds());
             if (zombies) zombies->setSleepTravel(sleepPlan.state().rate() > 1, collision);
@@ -2078,8 +2081,9 @@ int run(const Options& options) {
                 const auto& player = app.rig.player();
                 const viewer::BirdFlockPlayer target{player.feet(), player.bodyHeight(), player.bodyRadius(),
                     app.rig.walking() && !app.driver.occupied() && app.vitals.health() > 0, player.collisionBox()};
-                if (app.vitals.applyDamage(static_cast<float>(birds->update(step, target))) > 0)
-                    app.lastDamageSeconds = simulationClock.seconds();
+                const auto hits = birds->update(step, target);
+                for (unsigned hit = 0; hit < hits; ++hit)
+                    if (app.vitals.applyDamage(.01f) > 0) app.lastDamageSeconds = simulationClock.seconds();
             }
             if (sleepPlan.state().asleep(1)) {
                 if (app.vitals.health() < sleepHealth || app.vitals.health() <= 0)
@@ -2257,6 +2261,10 @@ int run(const Options& options) {
         }
         for (const auto& action : hud.takeInventoryActions()) {
             switch (action.kind) {
+            case viewer::InventoryDragActionKind::ApplyBandage:
+                if (!hud.inventoryDragging() && !app.handInventory.active() && !sleepPlan.state().inSleepSession(1))
+                    viewer::applyBandage(app.vitals.healthState(), app.inventory, action.item, action.injury);
+                break;
             case viewer::InventoryDragActionKind::HandPickUp:
                 if (app.handling() && !app.weaponSwitch.pending() && !app.weaponReload.pending())
                     app.handInventory.begin(action.item);

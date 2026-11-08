@@ -172,3 +172,13 @@ in the root config names an `item` descriptor and `quantity` from zero to
 `max_stack`, plus its own `[placements.<instance-id>]`. Zero stacks stay in
 place. Reloads add the selected stack's adjusted storage access time to the
 weapon's `reload_time_seconds`; see [inventory behavior](../docs/INVENTORY.md#ammo-stacks-and-reloads).
+
+## Medical supplies
+
+Medical descriptors and tags live in `medical/`, using `type = "medical"`,
+`stackable = true` and `max_stack` with the existing inventory footprint schema.
+They have no gameplay TOML or ammo type. Root `[medical.<instance-id>]` entries
+specify `item` and `quantity`, and use ordinary placements. `bandage` carries the
+`medical` and `bandage` tags. The starter `bandages` stack contains four dressings;
+the Health page applies one to a selected bleeding injury immediately. These
+shared definitions are fingerprinted, packaged and kept in LF form.

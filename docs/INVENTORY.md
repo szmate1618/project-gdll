@@ -192,3 +192,9 @@ The inventory panel shows the overall main-grid range, using h=1:
 These are times for one access, before weapon draw/put-away costs. A taller
 footprint narrows the range. The extrema place the item at the top with all
 cells below occupied, or at the bottom with all cells above occupied.
+
+Medical consumables live in `storage/medical/` and use `type = "medical"`,
+stack limits and inventory footprints without weapon gameplay. The starting
+inventory carries four bandages at `medical.bandages`; a bandage treats one
+selected bleeding wound from the Health page and consumes one unit. Stale
+requests, empty stacks and active storage transactions consume nothing.

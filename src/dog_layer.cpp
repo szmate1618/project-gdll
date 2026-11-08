@@ -113,6 +113,7 @@ bool DogLayer::damage(std::size_t id, float amount) {
     auto& dog = instances[id];
     if (dog.dead || dog.removed) return false;
     dog.health = std::max(0.f, dog.health - amount);
+    if (dog.health < 1e-6f) dog.health = 0;
     if (dog.health == 0) {
         dog.dead = true;
         dog.walking = dog.running = dog.attacking = false;

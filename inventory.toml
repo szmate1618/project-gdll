@@ -58,6 +58,10 @@ quantity = 5
 item = "molotovs"
 quantity = 2
 
+[medical.bandages]
+item = "bandage"
+quantity = 4
+
 # Owned item IDs or skill:<ID> references registered in skills.toml.
 [hotbar]
 0 = "skill:object_handling"
@@ -163,3 +167,8 @@ y = 6
 storage = "backpack/tactical_backpack/main"
 x = 6
 y = 6
+
+[placements.bandages]
+storage = "backpack/tactical_backpack/main"
+x = 3
+y = 0

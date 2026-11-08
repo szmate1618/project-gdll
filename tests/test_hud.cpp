@@ -1,5 +1,7 @@
 #include "inventory_fixture.hpp"
 #include "gui/hud.hpp"
+#include "player_medical.hpp"
+#include "inventory/item_config.hpp"
 #include "ground_items.hpp"
 #include "collision_world.hpp"
 #include "inventory/inventory_config.hpp"
@@ -239,13 +241,13 @@ int main(int argc, char** argv) {
             if (argc > 1) capture(argv[1], first, 1280, 720);
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unchanged HUD state changed rendered output");
-            state.health = 100.f;
+            state.health = 1.f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto fullHealth = pixels(1280, 720);
             require(isColor(colorAt(fullHealth, 1280, 720, 270, 605), {89,196,156}),
                     "Full health must fill the existing health track");
             if (argc > 1) capture((std::string(argv[1]) + "-full-health.ppm").c_str(), fullHealth, 1280, 720);
-            state.health = 50.5f;
+            state.health = .505f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto injured = pixels(1280, 720);
             require(isColor(colorAt(injured, 1280, 720, 120, 605), {89,196,156}) &&
@@ -286,7 +288,7 @@ int main(int argc, char** argv) {
                     "Strain must replace the weariness row with its current fill");
             if (argc > 1) capture((std::string(argv[1]) + "-exertion.ppm").c_str(), exertion, 1280, 720);
             state.strain = 1.5f;
-            state.health = 100.f;
+            state.health = 1.f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto highStrain = pixels(1280, 720);
             require(isColor(colorAt(highStrain, 1280, 720, 270, 673), {236,105,98}) &&
@@ -782,13 +784,14 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-graphics-small.ppm").c_str(), pixels(640, 360), 640, 360);
             state.screen = viewer::HudScreen::Health;
-            state.health = 72.5f; state.stamina = .6f; state.strain = 1.5f; state.weariness = .25f;
+            state.health = .725f; state.stamina = .6f; state.strain = 1.5f; state.weariness = .25f;
             state.medical.emplace();
             state.medical->setPainTolerance(.4f);
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto health = pixels(1280, 720);
             if (argc > 1) capture((std::string(argv[1]) + "-health.ppm").c_str(), health, 1280, 720);
             auto* context = Rml::GetContext("game-hud");
+            context->SetDefaultScrollBehavior(Rml::ScrollBehavior::Instant, 1);
             Rml::ElementDocument* healthPage = nullptr;
             for (int i = 0; i < context->GetNumDocuments(); ++i)
                 if (auto* page = context->GetDocument(i); page->GetElementById("health-body")) healthPage = page;
@@ -796,9 +799,9 @@ int main(int argc, char** argv) {
             const auto healthElement = [&](const char* id) { return healthPage->GetElementById(id); };
             Rml::ElementList parts;
             healthPage->GetElementsByClassName(parts, "health-part");
-            require(parts.size() == static_cast<std::size_t>(viewer::InjuryBodyPart::Count),
+            require(parts.size() == static_cast<std::size_t>(viewer::InjuryBodyPart::None),
                     "Health diagram must include every medical body location");
-            for (int i = 0; i < static_cast<int>(viewer::InjuryBodyPart::Count); ++i)
+            for (int i = 0; i < static_cast<int>(viewer::InjuryBodyPart::None); ++i)
                 require(healthPage->GetElementById("health-part-" + std::to_string(i)), "Missing body location");
             const auto stats = healthElement("health-stats")->GetInnerRML();
             for (const char* text : {"73%", "60%", "150%", "25%", "40%"})
@@ -811,9 +814,9 @@ int main(int argc, char** argv) {
             };
             require(partColor(viewer::InjuryBodyPart::Head) == Rml::Colourb(89,196,156),
                     "Uninjured body parts must have green borders");
-            state.medical->addInjury({viewer::InjuryBodyPart::Head, viewer::InjuryType::Cut, .5f, .2f, {true, false, false}});
-            state.medical->addInjury({viewer::InjuryBodyPart::LeftKnee, viewer::InjuryType::Fracture, 1, .8f, {false, true, false}});
-            state.medical->addInjury({viewer::InjuryBodyPart::LeftKnee, viewer::InjuryType::Abrasion, .1f, 0, {false, false, true}});
+            state.medical->addInjury({viewer::InjuryBodyPart::Head, viewer::InjuryType::Cut, .01f, .5f, .2f, {true, false, false}});
+            state.medical->addInjury({viewer::InjuryBodyPart::LeftKnee, viewer::InjuryType::Fracture, .01f, 1, .8f, {false, true, false}});
+            state.medical->addInjury({viewer::InjuryBodyPart::LeftKnee, viewer::InjuryType::Abrasion, .01f, .1f, 0, {false, false, true}});
             clear(); hud.draw(state, 1280, 720); checkState();
             require(partColor(viewer::InjuryBodyPart::Head) == Rml::Colourb(231,205,101) &&
                     partColor(viewer::InjuryBodyPart::LeftKnee) == Rml::Colourb(236,105,98) &&
@@ -857,8 +860,8 @@ int main(int argc, char** argv) {
                     partColor(viewer::InjuryBodyPart::Head) == Rml::Colourb(245,246,242,77),
                     "Missing medical records must clear stale injuries and show neutral body parts");
             state.medical.emplace();
-            for (int i = 0; i < static_cast<int>(viewer::InjuryBodyPart::Count); ++i)
-                state.medical->addInjury({static_cast<viewer::InjuryBodyPart>(i), viewer::InjuryType::Bruise, .3f, .2f});
+            for (int i = 0; i < static_cast<int>(viewer::InjuryBodyPart::None); ++i)
+                state.medical->addInjury({static_cast<viewer::InjuryBodyPart>(i), viewer::InjuryType::Bruise, .01f, .3f, .2f});
             clear(); hud.draw(state, 1280, 720); checkState();
             Rml::ElementList injuryEntries;
             healthPage->GetElementsByClassName(injuryEntries, "health-injury-entry");
@@ -871,6 +874,42 @@ int main(int argc, char** argv) {
             if (argc > 1) capture((std::string(argv[1]) + "-health-crowded.ppm").c_str(), pixels(1280,720), 1280,720);
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-health-small.ppm").c_str(), pixels(640,360), 640,360);
+            const auto bandage = viewer::loadItem(std::filesystem::path(VIEWER_HUD_DIR).parent_path() / "storage/medical", "bandage");
+            require(hudInventory.insert(bandage.renamed("bandages"), 4, {"backpack/tactical_backpack/main", 4, 5}),
+                    "Bandage fixture must fit in the backpack");
+            hud.refreshInventoryLayout();
+            state.medical.emplace();
+            const auto woundId = state.medical->addInjury({viewer::InjuryBodyPart::Head, viewer::InjuryType::Cut, .2f, 0, 0, {true}});
+            state.medical->addInjury({viewer::InjuryBodyPart::None, viewer::InjuryType::BloodLoss, .04f});
+            state.medical->addInjury({viewer::InjuryBodyPart::None, viewer::InjuryType::MinorBruises, .03f});
+            state.health = state.medical->health();
+            healthElement("health-body-scroll")->ScrollTo({0, 0}, Rml::ScrollBehavior::Instant);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            clear(); hud.draw(state, 1280, 720); checkState();
+            healthElement("health-body-scroll")->ScrollTo({0, 0}, Rml::ScrollBehavior::Instant);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            Rml::ElementList dressings;
+            healthPage->GetElementsByClassName(dressings, "health-bandage");
+            require(dressings.size() == 1 && healthElement("health-body")->GetInnerRML().find("Blood loss") != std::string::npos &&
+                    healthElement("health-body")->GetInnerRML().find("Minor bruises") != std::string::npos,
+                    "Bleeding wounds need a treatment control and systemic injuries need a visible summary");
+            if (argc > 1) capture((std::string(argv[1]) + "-health-bandage.ppm").c_str(), pixels(1280,720), 1280,720);
+            hud.takeInventoryActions();
+            const auto button = dressings[0]->GetAbsoluteOffset(Rml::BoxArea::Border);
+            hud.pointerMove((button.x + 10) / 1280, (button.y + 8) / 720);
+            hud.pointerButton(0, true); hud.pointerButton(0, false);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto medicalActions = hud.takeInventoryActions();
+            require(medicalActions.size() == 1 && medicalActions[0].kind == viewer::InventoryDragActionKind::ApplyBandage &&
+                    medicalActions[0].injury == woundId && medicalActions[0].item == "bandages",
+                    "Clicking Apply bandage must queue the selected stable wound and supply stack");
+            require(viewer::applyBandage(*state.medical, hudInventory, medicalActions[0].item, medicalActions[0].injury),
+                    "Treatment from the HUD request must succeed");
+            clear(); hud.draw(state, 1280, 720); checkState();
+            dressings.clear(); healthPage->GetElementsByClassName(dressings, "health-bandage");
+            require(dressings.empty() && hudInventory.quantity("bandages") == 3,
+                    "Treated wounds must lose their button and consume exactly one dressing");
+            if (argc > 1) capture((std::string(argv[1]) + "-health-treated.ppm").c_str(), pixels(1280,720), 1280,720);
             state.health.reset(); state.stamina.reset(); state.strain.reset(); state.medical.reset();
             state.screen = viewer::HudScreen::Map;
             clear(); hud.draw(state, 1280, 720); checkState();

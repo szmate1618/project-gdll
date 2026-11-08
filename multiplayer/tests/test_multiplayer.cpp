@@ -178,7 +178,7 @@ void playerHealthProtocol() {
     Snapshot snapshot;
     PlayerState player; player.id = 1;
     snapshot.players.push_back(player);
-    for (const float health : {0.f, .125f, 73.625f, 100.f}) {
+    for (const float health : {0.f, .00125f, .73625f, 1.f}) {
         snapshot.players[0].health = health;
         const auto bytes = encode(snapshot);
         const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
@@ -187,7 +187,7 @@ void playerHealthProtocol() {
     const auto valid = encode(snapshot);
     // Health follows header, tick, player count, ID and resolved command fields.
     constexpr std::size_t healthOffset = 9 + 8 + 4 + 4 + 8;
-    for (const float health : {-0.01f, 100.01f, std::numeric_limits<float>::quiet_NaN(),
+    for (const float health : {-0.01f, 1.01f, std::numeric_limits<float>::quiet_NaN(),
                                std::numeric_limits<float>::infinity()}) {
         snapshot.players[0].health = health;
         rejects([&] { encode(snapshot); }, "Invalid player health encoded");
@@ -236,7 +236,7 @@ void injuryPrediction() {
     require(server.spawn({0, 1.7f, 0}, collision), "Injury prediction fixture must spawn");
     viewer::PlayerHealth health;
     health.setPainTolerance(.5f);
-    health.addInjury({viewer::InjuryBodyPart::RightKnee, viewer::InjuryType::Sprain, 1, .4f});
+    health.addInjury({viewer::InjuryBodyPart::RightKnee, viewer::InjuryType::Sprain, .01f, 1, .4f});
     server.setMovementHealth(health);
     PlayerState state; state.id = 1; state.movement = server.movementState();
     const auto received = [&] {
@@ -749,7 +749,7 @@ void catchUpWeapons(const std::filesystem::path& asset) {
         require(player.resolved == 2 && player.shots == 1,
             "Catch-up reload or weapon switch erased a preceding click");
         require(!zombie.ragdoll && scene.zombies.damage().injury(0) &&
-                scene.zombies.damage().injury(0)->health == 8,
+                scene.zombies.damage().injury(0)->health == .8f,
                 "Catch-up shot must use its original aim and apply one low-caliber headshot");
         if (!switchWeapon) {
             require(player.weaponReload.pending() && player.weapons.equipped().loaded == 11 && player.weapons.equipped().reserve == 120,
@@ -1075,6 +1075,47 @@ void serverGrenades(const std::filesystem::path& asset) {
     require(delayed.grenades().empty() && !delayed.explosionLights(20).empty(),
             "An interpolated grenade must disappear on the same frame as its confirmed explosion light");
 }
+void serverMedical(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); World world(scene);
+    const auto id = world.join(), other = world.join();
+    auto& player = const_cast<ServerPlayer&>(world.players().at(id));
+    for (int tick = 0; tick < 5; ++tick) world.step(); // Allow the startup input buffer to open.
+    player.vitals.applyDamage(.1f); player.vitals.applyDamage(.2f);
+    const auto wound = player.vitals.healthState().injuries()[0].id();
+    Command treatment; treatment.sequence = 1;
+    viewer::InventoryDragAction action;
+    action.kind = viewer::InventoryDragActionKind::ApplyBandage;
+    action.item = "bandages"; action.injury = wound;
+    treatment.inventoryActions.push_back(action);
+    const auto request = encode(Commands{{treatment}});
+    const auto decoded = std::get<Commands>(decode(request.data(), request.size()));
+    require(decoded.commands[0].inventoryActions[0].injury == wound,
+            "Treatment protocol lost the stable wound ID");
+    world.submit(id, decoded); world.submit(id, decoded); world.step();
+    require(player.inventory.quantity("bandages") == 3 &&
+            !player.vitals.healthState().injuries()[0].modifiers().bleeding &&
+            player.vitals.healthState().injuries()[1].modifiers().bleeding,
+            "The server must dress only the chosen wound, once despite duplicate commands");
+    const auto snapshot = world.snapshot(id);
+    const auto bytes = encode(snapshot);
+    const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+    const auto& own = *std::find_if(copy.players.begin(), copy.players.end(), [&](const auto& p) { return p.id == id; });
+    require(own.medical && own.medical->injuries().size() == 3 &&
+            own.medical->injuries()[0].id() == wound && !own.medical->injuries()[0].modifiers().bleeding &&
+            std::abs(own.health - own.medical->health()) < 1e-6f,
+            "Replicated medical records must preserve wound identity, damage, blood loss and treatment");
+    const auto& remote = *std::find_if(copy.players.begin(), copy.players.end(), [&](const auto& p) { return p.id == other; });
+    require(!remote.medical && world.players().at(other).inventory.quantity("bandages") == 4,
+            "Treatment and detailed medical records belong only to their player");
+    treatment.sequence = 2; world.submit(id, Commands{{treatment}}); world.step();
+    require(player.inventory.quantity("bandages") == 3, "A stale treatment must consume no further bandage");
+    player.vitals.healthState().bandage(player.vitals.healthState().injuries()[1].id());
+    const float before = player.vitals.health();
+    for (int tick = 0; tick < 60; ++tick) world.step();
+    require(player.vitals.health() > before, "The authoritative world must advance base health regeneration");
+}
 void serverInventoryAmmo(const std::filesystem::path& asset) {
     using namespace multiplayer;
     using Action = viewer::InventoryDragActionKind;
@@ -1123,7 +1164,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
             "Network stack merge must preserve the source footprint and total ammo");
     const auto snapshot = world.snapshot(id).players[0];
     require(!snapshot.inventoryDragging && snapshot.inventoryPlacements.size() == player.inventory.items().size() &&
-            snapshot.ammoQuantities.size() == 12,
+            snapshot.ammoQuantities.size() == 13,
             "Authoritative idle inventory must publish placements and all stack quantities");
     submit(fire);
     Command outward;
@@ -1332,7 +1373,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
