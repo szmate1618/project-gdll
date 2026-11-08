@@ -15,7 +15,7 @@
 #include <random>
 
 namespace viewer {
-constexpr std::size_t maxDogs = 1000;
+constexpr std::size_t maxDogs = 1500;
 constexpr float dogRadius = .25f, dogHeight = .9f;
 // Meters per animation second. Actual travel / reference speed keeps playback
 // proportional when gameplay movement speeds change.

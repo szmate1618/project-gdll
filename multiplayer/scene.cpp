@@ -115,7 +115,7 @@ Options parseOptions(int argc, char** argv, bool server, const std::optional<vie
         else if (arg == "--help") {
             std::cout << (server ? "godollo_server" : "godollo_client") << " [map.glb] "
                 << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--fullscreen] [--resolution WxH] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
-                << "\nShared: --dogs PATH --dog-count N (0..1000) --no-dogs --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
+                << "\nShared: --dogs PATH --dog-count N (0.." << viewer::maxDogs << ") --no-dogs --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --no-cars --seconds N --lag-ms N --loss-percent N\n"
                    "        --birds enables server-owned deterministic flocks; --no-birds disables them\n"

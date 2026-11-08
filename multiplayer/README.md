@@ -1186,7 +1186,7 @@ hardware validation.
 ### Undead dogs
 
 The Host Game screen has a separate dog count. `--dog-count N` enables up to
-1,000 dogs in local/hosted sessions or on the dedicated server; zero is the
+1,500 dogs in local/hosted sessions or on the dedicated server; zero is the
 default. `--dogs PATH` selects the three approved variant models. Joining clients
 adopt the host count and verify matching model fingerprints. See the
 [dog runtime guide](../docs/DOGS.md) for local asset setup, LoDs, synchronization

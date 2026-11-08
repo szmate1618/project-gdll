@@ -1,6 +1,6 @@
 # Undead dogs
 
-Dogs are an independent population of up to 1,000 actors. All three
+Dogs are an independent population of up to 1,500 actors. All three
 [approved appearances](../assets/undead_dog/HANDOFF.md) are selected in stable
 round-robin order. Models retain their authored meter scale and feet origin.
 Dogs face local +Z, matching the simulation's yaw convention.
@@ -17,8 +17,9 @@ own exact counts and spawn regions. Authored packs override the manual dog
 count; scenarios without packs retain the controls above. See
 [dog scenario settings](ZOMBIE_NAVIGATION_RUNTIME.md#density-placed-dog-packs-version-6).
 
-The corridor scenario spreads its 500 dogs over the whole town according to
-family-house density. This does not guarantee dogs near the player's starting
+The original corridor scenario spreads its 500 dogs over the whole town according
+to family-house density; `gray-scott-corridors-2` uses 1,500 dogs with the same
+density image. This does not guarantee dogs near the player's starting
 point. The viewer title shows visible/total dogs. With `--profile`, the log also
 reports hunting dogs, occupied scent cells and player bleeding, with separate CPU
 timings for scent, dog behavior and fetch physics preparation. Those timings are

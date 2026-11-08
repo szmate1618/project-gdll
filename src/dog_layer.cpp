@@ -57,7 +57,7 @@ std::vector<std::filesystem::path> dogAssetPaths(const std::filesystem::path& di
     return paths;
 }
 DogLayer loadDogLayer(const std::filesystem::path& directory, const std::vector<glm::mat4>& placements, bool replica) {
-    if (placements.size() > maxDogs) throw std::invalid_argument("Dog population exceeds 1000");
+    if (placements.size() > maxDogs) throw std::invalid_argument("Dog population exceeds " + std::to_string(maxDogs));
     DogLayer result;
     if (placements.empty()) return result;
     for (const auto& path : dogAssetPaths(directory)) {

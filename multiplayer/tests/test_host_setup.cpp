@@ -33,7 +33,9 @@ int main(int argc, char** argv) {
         require(setup.scenarios().size() == 5, "Catalog did not deduplicate paths or retain invalid entries");
         auto options = setup.options();
         require(options.scene.dogCount == 1000,"Host defaults lost dog count");
-        setup.dogCount = 1001; rejects([&] { setup.options(); },"Oversized dog population accepted");
+        setup.dogCount = 1500;
+        require(setup.options().scene.dogCount == 1500,"Host must support the full dog population limit");
+        setup.dogCount = 1501; rejects([&] { setup.options(); },"Oversized dog population accepted");
         setup.dogCount = 10;
         require(setup.options().scene.dogCount == 10,"Host dog selection did not reach authoritative options");
         require(options.scenario.empty() && options.scene.birds && options.scene.port == 31234 &&

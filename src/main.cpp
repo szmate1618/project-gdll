@@ -294,8 +294,8 @@ Options parseOptions(int argc, char** argv, const std::optional<viewer::Graphics
         else if (argument == "--dog-count") {
             const auto text = value(); std::size_t used = 0;
             options.dogCount = std::stoi(text, &used);
-            if (used != text.size() || options.dogCount < 0 || options.dogCount > 1000)
-                throw std::runtime_error("--dog-count requires an integer from 0 to 1000");
+            if (used != text.size() || options.dogCount < 0 || options.dogCount > static_cast<int>(viewer::maxDogs))
+                throw std::runtime_error("--dog-count requires an integer from 0 to " + std::to_string(viewer::maxDogs));
         }
         else if (argument == "--no-dogs") options.dogCount = 0;
         else if (argument == "--fixed-step") options.fixedStep = true;
@@ -454,7 +454,7 @@ void printHelp() {
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --dogs PATH         Approved dog asset directory\n"
-              << "  --dog-count N       Separate dog population, 0..1000 (default 0)\n"
+              << "  --dog-count N       Separate dog population, 0.." << viewer::maxDogs << " (default 0)\n"
               << "  --no-dogs           Disable dogs\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
               << "  --fixed-step        Advance simulation by 1/60 s per frame (benchmark)\n"

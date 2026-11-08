@@ -189,13 +189,15 @@ void dogPacks() {
             pack.spawnDensity == std::filesystem::current_path()/"scenario-config-test-fixtures/../density/houses.png" &&
             pack.placementSearchRadius == 12.5f,
             "Dog packs must retain independent world bounds, relative density paths and repair radius");
-    const auto mixed = fixture.parse(zombieSettings+"[dogs.yards]\ncount = 1000\n");
-    require(mixed.count() == 1000 && mixed.dogCount() == 1000 && mixed.needsNavigation(),
+    const auto mixed = fixture.parse(zombieSettings+"[dogs.yards]\ncount = 1500\n");
+    require(mixed.count() == 1000 && mixed.dogCount() == 1500 && mixed.needsNavigation(),
             "Omitted version must support mixed populations with independent capacities");
     for (const auto* version : {"4","5"}) fixture.invalid(std::string("version = ")+version+"\n[dogs.yard]\ncount = 1\n","version = 6");
-    for (const auto* count : {"0","-1","1001","1.5","true","'3'"})
+    for (const auto* count : {"0","-1","1501","1.5","true","'3'"})
         fixture.invalid(std::string("[dogs.yard]\ncount = ")+count+"\n","dogs.yard.count");
-    fixture.invalid("[dogs.a]\ncount=600\n[dogs.b]\ncount=600\n","1000");
+    require(fixture.parse("[dogs.a]\ncount=750\n[dogs.b]\ncount=750\n").dogCount() == 1500,
+            "Multiple packs must support the full dog population limit");
+    fixture.invalid("[dogs.a]\ncount=750\n[dogs.b]\ncount=751\n","1500");
     for (const auto* setting : {"movement='travel'\n","destination=[0,0,10,10]\n","destination_density='end.png'\n","typo=true\n"})
         fixture.invalid(std::string("[dogs.yard]\ncount=1\n")+setting,"dogs.yard.");
     for (const auto* path : {"''","'/absolute.png'","'C:/file.png'","true","1"})
@@ -203,7 +205,7 @@ void dogPacks() {
     fixture.invalid("[dogs.yard]\ncount=1\nspawn=[0,0,0,10]\n","spawn");
     fixture.invalid("[dogs.yard]\ncount=1\nplacement_search_radius=nan\n","placement_search_radius");
     fixture.invalid("[dogs]\n"); fixture.invalid("dogs=true\n"); fixture.invalid("[dogs.'']\ncount=1\n");
-    auto direct = dogs; direct.dogPacks.front().count = 1001;
+    auto direct = dogs; direct.dogPacks.front().count = 1501;
     rejects<std::invalid_argument>([&] { (void)direct.count(); },"Direct callers must validate dog population limits");
 }
 

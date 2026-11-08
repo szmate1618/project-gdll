@@ -23,5 +23,5 @@ count = 1000
 movement = "travel"
 
 [dogs.neighborhood]
-count = 500
+count = 1500
 spawn_density = "../density/family_house_density.png"

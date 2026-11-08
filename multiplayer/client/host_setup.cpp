@@ -69,7 +69,7 @@ ServerOptions HostSetup::options() const {
     if (!std::isfinite(startHour) || startHour < 0 || startHour >= 24 || !std::isfinite(dayLengthSeconds) ||
         dayLengthSeconds < 0 || (dayLengthSeconds > 0 && dayLengthSeconds < 1) || dayLengthSeconds > 86400)
         throw std::runtime_error("Choose a valid starting time and day/night cycle.");
-    if (dogCount > viewer::maxDogs) throw std::runtime_error("Choose between 0 and 1000 dogs.");
+    if (dogCount > viewer::maxDogs) throw std::runtime_error("Choose between 0 and " + std::to_string(viewer::maxDogs) + " dogs.");
     ServerOptions result; result.scene = defaults_; result.scenario = scenarios_[selected].path;
     result.scene.port = static_cast<std::uint16_t>(value); result.scene.birds = birds;
     result.scene.dogCount = dogCount;

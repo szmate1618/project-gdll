@@ -11,7 +11,7 @@
 namespace viewer {
 
 inline constexpr std::size_t zombieScenarioMaximumCount = 100000;
-inline constexpr std::size_t dogScenarioMaximumCount = 1000;
+inline constexpr std::size_t dogScenarioMaximumCount = 1500;
 
 enum class ZombieScenarioMovement { idle, travel };
 

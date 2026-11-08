@@ -14,12 +14,12 @@ void require(bool v,const char* m) { if(!v) throw std::runtime_error(m); }
 template<class F> void rejects(F f) { bool rejected=false; try { f(); } catch(const std::exception&) { rejected=true; } require(rejected,"Malformed dog data accepted"); }
 void network() {
     using namespace multiplayer;
-    viewer::DogLayer dogs; dogs.instances.resize(1000); dogs.behaviors.resize(1000);
-    for (std::size_t id=0;id<1000;++id) dogs.instances[id].asset=id%3;
+    viewer::DogLayer dogs; dogs.instances.resize(1500); dogs.behaviors.resize(1500);
+    for (std::size_t id=0;id<1500;++id) dogs.instances[id].asset=id%3;
     DogReplication replication;
     Snapshot snapshot; snapshot.tick=60;
-    std::vector<bool> seen(1000);
-    for (std::uint64_t tick=60;tick<=69;tick+=3) {
+    std::vector<bool> seen(1500);
+    for (std::uint64_t tick=60;tick<=75;tick+=3) {
         snapshot.tick=tick;
         replication.append(dogs,{0,0,0},tick,snapshot.dogs);
         require(snapshot.dogs.size()<=256,"Dog packet exceeded its bounded batch");
@@ -32,8 +32,8 @@ void network() {
     }
     for(bool present:seen) require(present,"Initial dog batches starved a late stable ID");
     std::fill(seen.begin(),seen.end(),false);
-    for(int i=0;i<4;++i) {
-        const auto frame=replication.nextFrame(dogs,69);
+    for(int i=0;i<6;++i) {
+        const auto frame=replication.nextFrame(dogs,75);
         require(frame.has_value(),"Initial reliable dog delivery ended too early");
         const auto bytes=encode(*frame);
         const auto copy=std::get<DogFrame>(decode(bytes.data(),bytes.size()));
@@ -41,23 +41,24 @@ void network() {
         replication.frameSent(*frame);
     }
     for(bool present:seen) require(present,"Reliable dog bootstrap lost an identity");
-    require(!replication.nextFrame(dogs,69),"Reliable dog bootstrap repeated after successful send");
+    require(!replication.nextFrame(dogs,75),"Reliable dog bootstrap repeated after successful send");
     auto invalid=snapshot; invalid.dogs.push_back(invalid.dogs.front()); rejects([&]{encode(invalid);});
     invalid=snapshot; invalid.dogs[1].id=invalid.dogs[0].id; rejects([&]{encode(invalid);});
+    invalid=snapshot; invalid.dogs[0].id=1500; rejects([&]{encode(invalid);});
     invalid=snapshot; invalid.dogs[0].asset=3; rejects([&]{encode(invalid);});
     invalid=snapshot; invalid.dogs[0].health=-1; rejects([&]{encode(invalid);});
     invalid=snapshot; invalid.dogs[0].running=true; rejects([&]{encode(invalid);});
-    SessionSettings settings; settings.dogCount=1000;
+    SessionSettings settings; settings.dogCount=1500;
     auto encoded=encode(settings); auto roundtrip=std::get<SessionSettings>(decode(encoded.data(),encoded.size()));
-    require(applySessionSettings(Options{},roundtrip).dogCount==1000,"Joining must adopt host dog count");
-    settings.dogCount=1001; rejects([&]{encode(settings);});
+    require(applySessionSettings(Options{},roundtrip).dogCount==1500,"Joining must adopt host dog count");
+    settings.dogCount=1501; rejects([&]{encode(settings);});
     dogs.instances[7].dead=true; dogs.instances[7].health=0;
-    replication.append(dogs,{0,0,80},72,snapshot.dogs);
+    replication.append(dogs,{0,0,80},78,snapshot.dogs);
     bool death=false; for(const auto& d:snapshot.dogs) if(d.id==7) death=d.dead;
     require(death,"Death must bypass distant cadence");
-    replication.append(dogs,{0,0,500},75,snapshot.dogs); require(snapshot.dogs.empty(),"Dog interest range ignored");
+    replication.append(dogs,{0,0,500},81,snapshot.dogs); require(snapshot.dogs.empty(),"Dog interest range ignored");
     std::fill(seen.begin(),seen.end(),false);
-    for(std::uint64_t tick=78;tick<=87;tick+=3) {
+    for(std::uint64_t tick=84;tick<=99;tick+=3) {
         replication.append(dogs,{0,0,0},tick,snapshot.dogs);
         for(const auto& dog:snapshot.dogs) seen[dog.id]=true;
     }

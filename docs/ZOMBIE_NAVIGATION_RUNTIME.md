@@ -225,7 +225,7 @@ placement_search_radius = 100
 ```
 
 `count` is required and positive. The total across all dog packs must not exceed
-1,000, independently of zombie capacity. `spawn`, `spawn_density`, and
+1,500, independently of zombie capacity. `spawn`, `spawn_density`, and
 `placement_search_radius` use the same world coordinates, image orientation,
 grayscale weighting and bounded nearby repair as zombie placement. Omitting
 the image selects uniform placement; omitting bounds uses the complete map.
@@ -265,8 +265,9 @@ in multiplayer asset packages.
 ```
 
 The [`gray-scott-corridors-2` variant](../scenarios/gray-scott-corridors-2/scenario.toml)
-keeps the same seed, zombie groups, dogs and density images. It starts east of
-the MOL station at Pattantyús Ábrahám körút 4 in the southwest industrial area,
+keeps the same seed, zombie groups and density images, with 1,500 dogs (three
+times the original's 500). It starts east of the MOL station at Pattantyús
+Ábrahám körút 4 in the southwest industrial area,
 facing southwest toward the station's shop (OSM way/272536099).
 
 ```bash

@@ -119,7 +119,8 @@ std::size_t ZombieScenarioConfig::dogCount() const {
     std::size_t total = 0;
     for (const auto& pack : dogPacks) {
         if (!pack.count || pack.count > dogScenarioMaximumCount || pack.count > dogScenarioMaximumCount-total)
-            throw std::invalid_argument("Dog pack '" + pack.name + "': each count and the scenario dog total must be between 1 and 1000");
+            throw std::invalid_argument("Dog pack '" + pack.name + "': each count and the scenario dog total must be between 1 and " +
+                std::to_string(dogScenarioMaximumCount));
         if (!std::isfinite(pack.placementSearchRadius) || pack.placementSearchRadius < 0)
             throw std::invalid_argument("Dog pack '" + pack.name + "' placement_search_radius must be finite and nonnegative");
         total += pack.count;
@@ -217,7 +218,7 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
         pack.name = name.str();
         const auto count = requiredInteger(table->get("count"),path,prefix+"count");
         if (count < 1 || static_cast<std::uint64_t>(count) > dogScenarioMaximumCount)
-            invalid(path,prefix+"count must be between 1 and 1000");
+            invalid(path,prefix+"count must be between 1 and " + std::to_string(dogScenarioMaximumCount));
         pack.count = static_cast<std::size_t>(count);
         pack.spawn = rectangle(*table,"spawn",path,prefix);
         pack.spawnDensity = densityPath(*table,"spawn_density",path,prefix);
