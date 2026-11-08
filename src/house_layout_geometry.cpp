@@ -59,6 +59,25 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         const auto p = corners(r);
         quad(floors, world(p[0], y), world(p[1], y), world(p[2], y), world(p[3], y));
     };
+    const auto floorPlane = [&](Rectangle bounds, float y) {
+        // Cut every incoming flight out of this slab, including the basement
+        // flight through the ground floor and both bays of apartment stairs.
+        std::vector<Rectangle> pieces{bounds};
+        for (const auto& stair : layout.stairs) {
+            if (std::abs(stair.top - y) > .02f) continue;
+            std::vector<Rectangle> remaining;
+            for (const auto& piece : pieces) {
+                const Rectangle hole{glm::max(piece.low, stair.opening.low), glm::min(piece.high, stair.opening.high)};
+                if (hole.low.x >= hole.high.x || hole.low.y >= hole.high.y) { remaining.push_back(piece); continue; }
+                remaining.push_back({piece.low, {hole.low.x, piece.high.y}});
+                remaining.push_back({{hole.high.x, piece.low.y}, piece.high});
+                remaining.push_back({{hole.low.x, piece.low.y}, {hole.high.x, hole.low.y}});
+                remaining.push_back({{hole.low.x, hole.high.y}, {hole.high.x, piece.high.y}});
+            }
+            pieces = std::move(remaining);
+        }
+        for (const auto& piece : pieces) plane(piece, y);
+    };
     for (const auto& room : layout.rooms) {
         auto boundary = polygon(room.bounds);
         if (!room.polygon.empty()) {
@@ -73,12 +92,13 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         }
         result.rooms.push_back({room.kind, std::move(boundary), room.entrances,
             room.kind == HouseRoom::Kind::StairArea, room.storey});
-        if (room.storey == 0 && !layout.wholeGroundFloor) plane(room.bounds, result.floor + .01f);
+        if (room.storey == 0 && !layout.wholeGroundFloor) floorPlane(room.bounds, result.floor + .01f);
     }
-    if (layout.wholeGroundFloor) plane(footprint, result.floor + .01f);
+    if (layout.wholeGroundFloor) floorPlane(footprint, result.floor + .01f);
+    if (result.basementFloor) plane(footprint, *result.basementFloor + .01f);
     for (const auto& wall : layout.partitions) {
-        const float floor = wall.storey == 0 ? result.floor : result.upperFloors.at(wall.storey - 1);
-        const float ceiling = wall.storey < result.upperFloors.size() ? result.upperFloors[wall.storey] : result.ceiling;
+        const float floor = result.floorHeight(wall.storey) - (wall.storey == 0 ? .01f : 0.f);
+        const float ceiling = result.ceilingHeight(wall.storey);
         const auto point = [&](float along, float y) {
             glm::vec2 p; p[wall.axis] = wall.position; p[1 - wall.axis] = along; return world(p, y);
         };
@@ -113,16 +133,7 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
             quad(walls, point(cursor, floor), point(span.second, floor), point(span.second, ceiling), point(cursor, ceiling));
         }
     }
-    for (const auto y : result.upperFloors) {
-        const auto stair = std::find_if(layout.stairs.begin(), layout.stairs.end(), [&](const Stair& s) { return std::abs(s.top - y) < .001f; });
-        if (stair == layout.stairs.end()) { plane(footprint, y); continue; }
-        const auto hole = stair->opening;
-        // Four rectangles tile the floor around its rectangular staircase cutout.
-        plane({footprint.low, {hole.low.x, footprint.high.y}}, y);
-        plane({{hole.high.x, footprint.low.y}, footprint.high}, y);
-        plane({{hole.low.x, footprint.low.y}, {hole.high.x, hole.low.y}}, y);
-        plane({{hole.low.x, hole.high.y}, {hole.high.x, footprint.high.y}}, y);
-    }
+    for (const auto y : result.upperFloors) floorPlane(footprint, y);
     plane(footprint, result.ceiling);
     for (const auto& stair : layout.stairs) {
         const auto height = [&](glm::vec2 p) {

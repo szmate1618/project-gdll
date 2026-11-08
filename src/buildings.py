@@ -15,6 +15,7 @@ import trimesh
 from trimesh.visual.material import PBRMaterial
 
 from .building_details import CRAWL_OPENING_MATERIAL, DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
+from .building_basement_terrain import carve_basement_terrain
 
 LOG = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ def _roof_surface(polygon: Polygon, shape: str, base_z: float, roof_height: floa
     return roof
 
 
-def _mesh_for_polygon(polygon, tags, elevation, config):
+def _mesh_for_polygon(polygon, tags, elevation, config, basement_floor=None):
     total_height = building_height(tags, config)
     shape = str(tags.get("roof:shape", "gabled" if tags.get("building") in PITCHED_TYPES else "flat")).lower()
     if shape not in ("flat", "gabled", "hipped"):
@@ -171,6 +172,8 @@ def _mesh_for_polygon(polygon, tags, elevation, config):
     count = len(roof.vertices)
     lower = roof.vertices.copy()
     lower[:, 2] = np.asarray(elevation(lower[:, 0], lower[:, 1]), dtype=float) - 0.08
+    if basement_floor is not None:
+        lower[:, 2] = min(basement_floor, float(np.min(ground))) - .08
     vertices = np.vstack([roof.vertices, lower])
     # The upward-oriented top boundary gives consistent outward wall normals on
     # both outer rings and courtyard rings. Include a bottom cap below terrain.
@@ -184,6 +187,9 @@ def _mesh_for_polygon(polygon, tags, elevation, config):
     wall = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
     wall.remove_unreferenced_vertices()
     wall.visual = trimesh.visual.TextureVisuals(material=WALL_MATERIAL)
+    if basement_floor is not None:
+        # Local ENU point: the runtime transforms this datum with the mesh.
+        wall.metadata["building_floor"] = [polygon.centroid.x, polygon.centroid.y, foundation_z]
     roof.visual = trimesh.visual.TextureVisuals(material=ROOF_MATERIAL)
     return wall, roof, shape
 
@@ -195,6 +201,7 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
     stats.update(building_detail_meshes=0, building_entrance_meshes=0, doors=0, windows=0)
     road_index = RoadIndex(roads)
     roof_shapes = Counter()
+    basements = []
     for feature in features:
         geometry = feature["geometry"]
         polygons = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
@@ -208,8 +215,13 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
             try:
-                detailed_wall, doors, windows, entrances, crawl_openings, detail_counts = facade_details(
+                detailed_wall, doors, windows, entrances, crawl_openings, railings, basement_floor, detail_counts = facade_details(
                     polygon, wall, roof, elevation, options, road_index.nearest(polygon))
+                if basement_floor is not None:
+                    wall, roof, shape = _mesh_for_polygon(polygon, feature.get("tags", {}), elevation, options, basement_floor)
+                    detailed_wall, doors, windows, entrances, crawl_openings, railings, _, detail_counts = facade_details(
+                        polygon, wall, roof, elevation, options, road_index.nearest(polygon), basement_floor)
+                    basements.append(polygon)
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 raise ValueError(f"Building {feature['id']} component {index}: {error}") from error
             name = f"building_{feature['id'].replace('/', '_')}_{index}"
@@ -231,6 +243,9 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 # Permanent collision/render geometry, independent of wall LoD.
                 scene.add_geometry(entrances, node_name=f"{name}_entrances", geom_name=f"{name}_entrances")
                 stats["building_entrance_meshes"] += 1
+            if railings is not None:
+                scene.add_geometry(railings, node_name=f"{name}_balcony_railings", geom_name=f"{name}_balcony_railings")
+                stats["building_entrance_meshes"] += 1
             for suffix, mesh in (("detailed_walls", detailed_wall), ("doors", doors), ("windows", windows),
                                  ("crawl_openings", crawl_openings)):
                 if mesh is not None:
@@ -244,5 +259,6 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
             added = True
         stats["buildings" if added else "skipped_buildings"] += 1
     stats["roof_shapes"] = dict(roof_shapes)
+    carve_basement_terrain(scene, basements)
     LOG.info("Generated %d buildings (%s)", stats["buildings"], stats["roof_shapes"])
     return stats

@@ -66,6 +66,7 @@ struct DrawInstance {
     float horizontalMotionRadius = 0.0f;
     bool fence = false; // Generated fence panels/posts, independent of material.
     bool terrainOverlay = false; // Exactly fitted road/path/railway; terrain supplies collision.
+    std::optional<float> buildingFloor{}; // Transformed main-floor datum for basement shells, metres Y up.
 };
 
 struct Model {

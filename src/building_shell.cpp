@@ -120,6 +120,8 @@ std::optional<Shell> inspect(const Model& model, const HouseSource& source) {
     }
     result.floor = std::numeric_limits<float>::lowest();
     for (const auto& b : bases) result.floor = std::max(result.floor, b.second + .08f);
+    for (const auto draw : source.walls)
+        if (model.draws.at(draw).buildingFloor) { result.floor = *model.draws.at(draw).buildingFloor; break; }
     return result;
 }
 } // namespace viewer::building_shell

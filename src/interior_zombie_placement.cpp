@@ -28,7 +28,7 @@ std::optional<glm::vec3> safeFeet(const HouseFloorplan& plan, const Candidate& c
         const float t = glm::clamp(glm::dot(candidate.feet - a, edge) / glm::dot(edge, edge), 0.f, 1.f);
         if (glm::distance(candidate.feet, a + t * edge) < .4f) return std::nullopt;
     }
-    const float floor = room.storey == 0 ? plan.floor + .01f : plan.upperFloors.at(room.storey - 1);
+    const float floor = plan.floorHeight(room.storey);
     const auto hit = world.walkingGroundAt(candidate.feet.x, candidate.feet.y, floor - .04f, floor + .04f);
     if (!hit || hit->normal.y < .99f || std::abs(hit->height - floor) > .04f) return std::nullopt;
     const glm::vec3 feet(candidate.feet.x, hit->height + .004f, candidate.feet.y);

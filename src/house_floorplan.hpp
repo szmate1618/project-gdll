@@ -3,6 +3,7 @@
 #include "door_geometry.hpp"
 #include <array>
 #include <optional>
+#include <limits>
 
 namespace viewer {
 // Draw IDs refer to the immutable, already-loaded map. No generated-map metadata
@@ -18,7 +19,7 @@ struct HouseRoom {
     std::vector<glm::vec2> polygon; // X/Z metres on the indicated storey.
     std::vector<std::size_t> entrances; // Exterior door IDs opening into this room.
     bool staircase = false;
-    std::size_t storey = 0; // Ground = 0; upperFloors[storey - 1] is its floor height.
+    std::size_t storey = 0; // Ground = 0; upper levels = 1..N; basement uses basementStorey.
     const char* name() const {
         return kind == Kind::Anteroom ? "anteroom" : kind == Kind::SmallRoom ? "small_rooms" :
             kind == Kind::StairArea ? "stair_area" : kind == Kind::Apartment ? "apartment" :
@@ -38,12 +39,22 @@ struct HouseStaircase {
     glm::vec3 bottom, top; // Centreline endpoints on the walkable plane.
 };
 struct HouseFloorplan {
+    static constexpr std::size_t basementStorey = std::numeric_limits<std::size_t>::max();
     enum class Kind { FamilyHouse, PrefabApartmentBlock };
     Kind kind = Kind::FamilyHouse;
     std::string name;
     glm::vec3 minimum{0}, maximum{0};
     float floor = 0, ceiling = 0;
     std::vector<float> upperFloors;
+    std::optional<float> basementFloor;
+    float floorHeight(std::size_t storey) const {
+        if (storey == basementStorey) return basementFloor.value() + .01f;
+        return storey ? upperFloors.at(storey - 1) : floor + .01f;
+    }
+    float ceilingHeight(std::size_t storey) const {
+        if (storey == basementStorey) return floor + .01f;
+        return storey < upperFloors.size() ? upperFloors[storey] : ceiling;
+    }
     std::vector<glm::vec2> footprint; // Actual simple shell boundary, X/Z metres; no holes.
     std::array<glm::vec2, 4> envelope{}; // Oriented rectangle: low, low/high, high, high/low.
     std::vector<HouseRoom> rooms;

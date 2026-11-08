@@ -253,13 +253,90 @@ void raisedEntrancePassage(const char* path) {
 }
 } // namespace
 
+void balconyPassage(const char* path) {
+    auto model = viewer::loadModel(path);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::CollisionWorld world(model, {}, &doors);
+    const auto exteriorCount = doors.count();
+    require(exteriorCount == 3, "Balcony fixture must split upper, lower and rear doors into independent leaves");
+    std::size_t lower = exteriorCount;
+    for (std::size_t id = 0; id < exteriorCount; ++id)
+        if (doors.panel(id).center.y < 2) lower = id;
+    require(lower < exteriorCount, "A lower door must occupy the gap beneath the balcony");
+    viewer::FloorplanLayer floors(model, doors, world);
+    doors.setAngle(lower, 1.6f);
+    floors.update({{6, 1.2f, 1.8f}});
+    require(floors.residentCount() == 1, "Opening only the lower door must stream the building interior");
+    const auto& plan = floors.resident().begin()->second;
+    require(std::abs(plan.floor - 1.16f) < .01f && plan.upperFloors.size() == 1,
+            "Lower doors must preserve the main floor datum and existing storey count");
+    require(plan.basementFloor && plan.stairs.size() == 2,
+            "A balcony house with an upstairs flight must also have a basement flight");
+    require(floors.navigationGraph(plan.name), "Basement interiors must also publish navigation graphs");
+    const auto& stair = plan.stairs.back();
+    require(plan.rooms.at(stair.room).storey == viewer::HouseFloorplan::basementStorey &&
+            plan.rooms.at(stair.room).entrances == std::vector<std::size_t>{lower},
+            "The lower exterior door must belong to the basement room");
+    require(stair.ramp == plan.stairs.front().ramp && std::abs(stair.top.y - plan.floor - .01f) < .001f,
+            "Basement flight must sit directly below the existing upward flight and meet the ground floor");
+    for (const bool opened : {false, true}) {
+        doors.setAngle(lower, opened ? 1.6f : 0.f);
+        viewer::FPSController player;
+        require(player.spawn({6, 1.7f, 2.5f}, world), "Must spawn before the lower door");
+        viewer::FPSInput input; input.crouch = true;
+        settleStance(player, world, input);
+        input.forward = 1; input.yawDegrees = -90;
+        for (int frame = 0; frame < 300; ++frame) player.update(1.f / 120, input, world);
+        require(opened ? player.feet().z < -.5f : player.feet().z > .2f,
+                "The lower door must block entry when closed and permit crouched entry when opened");
+    }
+    viewer::FPSController balcony;
+    balcony.teleport({6, plan.floor + .015f, .6f});
+    viewer::FPSInput outward; outward.forward = 1; outward.yawDegrees = 90;
+    for (int frame = 0; frame < 120; ++frame) balcony.update(1.f / 120, outward, world);
+    require(balcony.feet().z < 1.2f && balcony.feet().y > plan.floor - .05f,
+            "The alpha-masked front guard must prevent walking off the balcony");
+    viewer::CollisionWorld structure(plan.structure);
+    const auto direction = glm::normalize(glm::vec3(stair.top.x - stair.bottom.x, 0, stair.top.z - stair.bottom.z));
+    const auto hole = (stair.bottom + stair.top) * .5f;
+    require(!structure.walkingGroundAt(hole.x, hole.z, stair.top.y - .005f, stair.top.y + .005f),
+            "Basement staircase cutout must remove the ground-floor slab");
+    for (const bool upward : {false, true}) {
+        viewer::FPSController player;
+        const auto start = upward ? stair.bottom - direction * .4f : stair.top + direction * .4f;
+        player.teleport(start + glm::vec3(0, .015f, 0));
+        viewer::FPSInput input; input.crouch = true;
+        settleStance(player, world, input);
+        input.forward = 1;
+        const auto heading = upward ? direction : -direction;
+        input.yawDegrees = glm::degrees(std::atan2(heading.z, heading.x));
+        bool arrived = false;
+        for (int frame = 0; frame < 1200; ++frame) {
+            player.update(1.f / 120, input, world);
+            const auto goal = upward ? stair.top : stair.bottom;
+            if (glm::dot(player.feet() - goal, heading) > .2f && std::abs(player.feet().y - goal.y) < .1f) {
+                arrived = true; break;
+            }
+        }
+        if (!arrived) {
+            const auto p = player.feet();
+            std::cerr << "Basement " << (upward ? "up" : "down") << ": "
+                      << stair.bottom.x << ',' << stair.bottom.y << ',' << stair.bottom.z << " -> "
+                      << stair.top.x << ',' << stair.top.y << ',' << stair.top.z << "; feet "
+                      << p.x << ',' << p.y << ',' << p.z << '\n';
+        }
+        require(arrived, "A crouched player must walk the basement staircase in both directions");
+    }
+}
 int main(int argc, char** argv) {
     try {
         closedAndOpenPassage(glm::mat4(1), false);
         closedAndOpenPassage(glm::rotate(glm::mat4(1), -glm::half_pi<float>(), glm::vec3(1, 0, 0)), true);
         partialClearanceUsesCapsuleGeometry(); legacyOverlayKeepsVisibleWall();
         if (argc == 2) generatedMapPassage(argv[1]);
-        if (argc == 3 && std::string(argv[1]) == "--entrances-fixture") raisedEntrancePassage(argv[2]);
+        if (argc == 3 && std::string(argv[1]) == "--balcony-fixture") balconyPassage(argv[2]);
+        else if (argc == 3 && std::string(argv[1]) == "--entrances-fixture") raisedEntrancePassage(argv[2]);
         std::cout << "Door walking tests passed\n";
         return 0;
     } catch (const std::exception& error) {

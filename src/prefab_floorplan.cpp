@@ -1,6 +1,7 @@
 #include "prefab_floorplan.hpp"
 #include "apartment_layout.hpp"
 #include "house_polygon.hpp"
+#include "house_basement.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -61,20 +62,22 @@ std::optional<HouseFloorplan> generatePrefabFloorplan(const Model& model, const 
     std::vector<house_layout::Entrance> entryDoors;
     for (const auto id : source.doors) {
         const auto& p = entrances.at(id);
+        if (isBasementEntrance(p, result.floor)) continue;
         const glm::vec2 normal(p.outward.x, p.outward.z);
         const auto center = shell.local({p.center.x, p.center.z});
         const glm::vec2 outward(glm::dot(normal, shell.u), glm::dot(normal, shell.v));
         if (std::max(std::abs(outward.x), std::abs(outward.y)) < .99f) return std::nullopt;
         entryDoors.push_back({id, center, outward, std::min(1.f, p.halfExtents.x * 2)});
     }
-    const auto layout = apartment_layout::generate(source.name, {shell.low, shell.high}, shell.outline, block.slab,
+    auto layout = apartment_layout::generate(source.name, {shell.low, shell.high}, shell.outline, block.slab,
         result.floor, result.upperFloors, entryDoors, windows);
     if (!layout) return std::nullopt;
+    addHouseBasement(result, *layout, source, entrances, shell);
     house_layout::buildGeometry(result, source, *layout, shell.origin, shell.u, shell.v, {shell.low, shell.high}, shell.outline);
     if (result.doors.size() > prefabDoorCapacity(block, source.doors.size())) throw std::logic_error("Prefab door reservation was exceeded");
     result.minimum = glm::vec3(std::numeric_limits<float>::max()); result.maximum = -result.minimum;
     for (const auto p : result.envelope) {
-        result.minimum = glm::min(result.minimum, glm::vec3(p.x, result.floor, p.y));
+        result.minimum = glm::min(result.minimum, glm::vec3(p.x, result.basementFloor.value_or(result.floor), p.y));
         result.maximum = glm::max(result.maximum, glm::vec3(p.x, result.ceiling, p.y));
     }
     result.structure.boundsMin = result.minimum; result.structure.boundsMax = result.maximum;

@@ -37,8 +37,11 @@ struct Fixture {
     viewer::Model model;
     std::vector<viewer::DoorPanel> doors;
     viewer::HouseSource source;
-    Fixture(const glm::mat4& transform = glm::mat4(1), int storeys = 2)
-        : model(house_fixture::house(transform, true, storeys)), doors(viewer::prepareDoorPanels(model)) {
+    Fixture(const glm::mat4& transform = glm::mat4(1), int storeys = 2, bool basement = false)
+        : model(house_fixture::house(transform, true, storeys)) {
+        if (basement) interior_fixture::quad(model, {-.5f, -2.6f, -6}, {.5f, -2.6f, -6},
+            {.5f, -.5f, -6}, {-.5f, -.5f, -6}, "building_house_doors", transform);
+        doors = viewer::prepareDoorPanels(model);
         source.name = "building_house"; source.firstDoor = 100;
         for (std::size_t i = 0; i < model.draws.size(); ++i) {
             const auto& draw = model.draws[i];
@@ -278,6 +281,34 @@ bool smallRoomSwing(const viewer::HouseFloorplan& plan) {
     }
     return tested;
 }
+void basementGeometry(const glm::mat4& transform) {
+    for (const int storeys : {1, 2, 3}) {
+        Fixture fixture(transform, storeys, true), original(transform, storeys);
+        const auto plan = viewer::generateHouseFloorplan(fixture.model, fixture.source, fixture.doors);
+        const auto without = viewer::generateHouseFloorplan(original.model, original.source, original.doors);
+        require(plan && without && plan->basementFloor, "Lower doors must identify a basement even without an upstairs flight");
+        require(std::abs(plan->floor - without->floor) < .001f && plan->upperFloors == without->upperFloors,
+                "Lower leaves must not change the primary floor or upper-floor heights");
+        require(plan->rooms.size() == without->rooms.size() + 1 && plan->doors.size() == without->doors.size(),
+                "Adding a basement must preserve all ground and upper room choices and reserved interior doors");
+        require(plan->stairs.size() == without->stairs.size() + (storeys > 1 ? 1 : 0),
+                "Basement flights are conditional on an existing upward staircase");
+        const auto& room = plan->rooms.back();
+        require(room.storey == viewer::HouseFloorplan::basementStorey && room.entrances.size() == 1 &&
+                plan->minimum.y <= *plan->basementFloor,
+                "Basement room, lower doorway and streamed bounds must use the lower level");
+        if (storeys == 1) continue;
+        const auto& stair = plan->stairs.back();
+        require(stair.ramp == plan->stairs.front().ramp && stair.bottom.y < plan->floor &&
+                std::abs(stair.top.y - plan->floor - .01f) < .001f,
+                "A transformed basement flight must stack under the first upward flight");
+        viewer::CollisionWorld collision(plan->structure);
+        const auto middle = (stair.bottom + stair.top) * .5f;
+        require(collision.walkingGroundAt(middle.x, middle.z, middle.y - .001f, middle.y + .001f).has_value() &&
+                !collision.walkingGroundAt(middle.x, middle.z, stair.top.y - .001f, stair.top.y + .001f),
+                "Basement ramps must have walking support and a genuine ground-floor opening");
+    }
+}
 void geometry(const glm::mat4& transform, int storeys) {
     Fixture fixture(transform, storeys);
     bool testedSmallRoom = false;
@@ -347,6 +378,9 @@ void geometry(const glm::mat4& transform, int storeys) {
 int main() {
     try {
         variation(); windowPlacement();
+        basementGeometry(glm::mat4(1));
+        basementGeometry(glm::translate(glm::mat4(1), {87, 5, -39}) *
+            glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));
         loadedWindowGeometry(glm::mat4(1));
         loadedWindowGeometry(glm::translate(glm::mat4(1), {-1108, 5, -250}) *
             glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));

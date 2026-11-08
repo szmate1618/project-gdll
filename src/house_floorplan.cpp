@@ -1,6 +1,7 @@
 #include "house_floorplan.hpp"
 #include "house_layout.hpp"
 #include "building_shell.hpp"
+#include "house_basement.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -29,8 +30,8 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     const float eaves = shell.eaves;
     const auto windowFaces = faces(model, source.windows);
     const auto heads = windowHeads(windowFaces);
-    float doorHead = std::numeric_limits<float>::max();
-    for (const auto id : source.doors) doorHead = std::min(doorHead, entrances.at(id).center.y + entrances.at(id).halfExtents.y);
+    float doorHead = std::numeric_limits<float>::lowest();
+    for (const auto id : source.doors) doorHead = std::max(doorHead, entrances.at(id).center.y + entrances.at(id).halfExtents.y);
     // Generated exterior doors and first-row window heads share the same 2.1 m
     // datum above the highest foundation sample. Do not use sloped panel bottoms.
     const float floor = doorHead - 2.1f;
@@ -47,6 +48,7 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     std::vector<house_layout::Entrance> entryDoors;
     for (const auto id : source.doors) {
         const auto& door = entrances.at(id);
+        if (isBasementEntrance(door, floor)) continue;
         entryDoors.push_back({id, local({door.center.x, door.center.z}),
             {glm::dot(glm::vec2(door.outward.x, door.outward.z), u),
              glm::dot(glm::vec2(door.outward.x, door.outward.z), v)},
@@ -69,10 +71,11 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors, windows, shell.outline);
     if (layout.rooms.empty() || (!result.upperFloors.empty() && layout.stairs.empty())) return std::nullopt;
     if (!house_layout::generateUpperStoreys(layout, source.name, {low, high}, result.upperFloors, result.ceiling, allWindows, shell.outline)) return std::nullopt;
+    addHouseBasement(result, layout, source, entrances, shell);
     house_layout::buildGeometry(result, source, layout, shell.origin, u, v, {low, high}, shell.outline);
     result.minimum = glm::vec3(std::numeric_limits<float>::max()); result.maximum = -result.minimum;
     for (const auto q : {low, glm::vec2(low.x, high.y), high, glm::vec2(high.x, low.y)}) {
-        result.minimum = glm::min(result.minimum, world(q, floor));
+        result.minimum = glm::min(result.minimum, world(q, result.basementFloor.value_or(floor)));
         result.maximum = glm::max(result.maximum, world(q, result.ceiling));
     }
     result.structure.boundsMin = result.minimum; result.structure.boundsMax = result.maximum;

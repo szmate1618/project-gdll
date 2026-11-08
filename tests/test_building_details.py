@@ -101,14 +101,18 @@ class BuildingDetailTests(unittest.TestCase):
                         self.assertLess(aperture.intersection(Polygon(triangle[:, projection])).area, 1e-7)
         self.assert_closed_lods(scene)
 
-    def test_sloped_ground_pitched_roof_and_unchanged_low_lod(self):
+    def test_sloped_ground_preserves_roofs_and_closes_basement_shells(self):
         polygon = translate(rotate(box(0, 0, 20, 12), 17), 1500, -1700)
         elevation = lambda x, y: .1 * x + .08 * y
         for shape in ('flat', 'gabled', 'hipped'):
             tags = {'height': '9', 'roof:shape': shape}
             scene, _ = self.generate(polygon, tags=tags, elevation=elevation)
             wall, roof, _ = _mesh_for_polygon(polygon, tags, elevation, {})
-            np.testing.assert_array_equal(scene.geometry['building_way_1_0_walls'].vertices, wall.vertices)
+            generated = scene.geometry['building_way_1_0_walls']
+            np.testing.assert_array_equal(generated.vertices[:, :2], wall.vertices[:, :2])
+            upper = wall.vertices[:, 2] >= roof.vertices[:, 2].min() - .001
+            np.testing.assert_array_equal(generated.vertices[upper], wall.vertices[upper])
+            self.assertIn('building_floor', generated.metadata)
             np.testing.assert_array_equal(scene.geometry['building_way_1_0_roof'].vertices, roof.vertices)
             for suffix in ('doors', 'windows'):
                 mesh = scene.geometry[f'building_way_1_0_{suffix}']
@@ -117,9 +121,10 @@ class BuildingDetailTests(unittest.TestCase):
                 if suffix == 'windows':
                     self.assertTrue(np.all(mesh.vertices[:, 2] > ground))
                 else:
-                    self.assertTrue(np.all(mesh.vertices[:, 2] >= ground - 1e-4))
+                    self.assertTrue(np.all(mesh.vertices[:, 2] >= ground - .081))
                     for door in panels(mesh):
-                        self.assertAlmostEqual(door.extents[2], 2.1, delta=1e-4)
+                        self.assertGreaterEqual(door.extents[2], 1.13 - 1e-4)
+                        self.assertLessEqual(door.extents[2], 2.18 + 1e-4)
             self.assert_closed_lods(scene)
             restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
             self.assert_closed_lods(restored)
@@ -140,20 +145,19 @@ class BuildingDetailTests(unittest.TestCase):
                 restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
                 self.assert_closed_lods(restored)
 
-    def test_steep_bottom_caps_keep_the_original_surface(self):
+    def test_steep_basement_bottom_caps_are_flat_and_closed(self):
         scene, _ = self.generate(box(0, 0, 12, 9), elevation=lambda x, y: 2.5 * x + 3.0 * y)
         low = scene.geometry['building_way_1_0_walls']
         near = scene.geometry['building_way_1_0_detailed_walls']
         low_caps = low.triangles[low.face_normals[:, 2] < -1e-6].astype(np.float32)
         near_caps = near.triangles[near.face_normals[:, 2] < -1e-6].astype(np.float32)
         self.assertGreater(len(low_caps), 0)
-        self.assertTrue(np.all(low.face_normals[low.face_normals[:, 2] < -1e-6, 2] > -.5))
+        np.testing.assert_allclose(low.face_normals[low.face_normals[:, 2] < -1e-6, 2], -1)
         self.assertGreaterEqual(len(near_caps), len(low_caps))
         near_coverage = union_all([Polygon(triangle[:, :2]) for triangle in near_caps])
         low_coverage = union_all([Polygon(triangle[:, :2]) for triangle in low_caps])
         self.assertLess(near_coverage.symmetric_difference(low_coverage).area, 1e-7)
-        np.testing.assert_allclose(near_caps[:, :, 2], 2.5 * near_caps[:, :, 0] + 3 * near_caps[:, :, 1] - .08,
-                                   atol=1e-5, rtol=0)
+        np.testing.assert_allclose(near_caps[:, :, 2], low.bounds[0, 2], atol=1e-5, rtol=0)
         self.assertTrue(set(map(tuple, low_caps.reshape(-1, 3))).issubset(map(tuple, near_caps.reshape(-1, 3))))
         self.assert_closed_lods(scene)
 
@@ -230,15 +234,14 @@ class BuildingDetailTests(unittest.TestCase):
         # rendered wall base and terrain dip far below it.
         scene, _ = self.generate(box(0, 0, 12, 9), elevation=lambda x, y: (x - 6) ** 2)
         doors = scene.geometry['building_way_1_0_doors']
-        south = doors.vertices[np.isclose(doors.vertices[:, 1], 0)]
+        south = doors.vertices[np.isclose(doors.vertices[:, 1], 0) & (doors.vertices[:, 2] >= 36)]
         np.testing.assert_allclose(south[:, 2].min(), 36, atol=1e-5)
         np.testing.assert_allclose(south[:, 2].max(), 38.1, atol=1e-5)
-        opening = scene.geometry['building_way_1_0_crawl_openings']
-        # The former lower doorway remains an invisible aperture down to the
-        # original sampled foundation, rather than becoming opaque masonry.
-        south = opening.vertices[np.isclose(opening.vertices[:, 1], 0)]
-        self.assertTrue(np.any(np.all(np.isclose(south, [6, 0, -.08]), axis=1)))
-        self.assertAlmostEqual(south[:, 2].max(), 36, places=5)
+        lower = [door for door in panels(doors) if door.bounds[1, 2] < 36]
+        self.assertEqual(len(lower), 2)
+        for door in lower:
+            np.testing.assert_allclose(door.bounds[:, 2], [.17, 2.35], atol=1e-5)
+        self.assertNotIn('building_way_1_0_crawl_openings', scene.geometry)
         self.assert_closed_lods(scene)
 
     def test_window_rectangles_use_four_vertices_and_two_triangles(self):
@@ -261,7 +264,9 @@ class BuildingDetailTests(unittest.TestCase):
             doors = panels(scene.geometry['building_way_1_0_doors'])
             windows = panels(scene.geometry['building_way_1_0_windows'])
             first_head = min(window.bounds[1, 2] for window in windows)
-            for door in doors:
+            main_doors = [door for door in doors if door.bounds[1, 2] > first_head - .01]
+            self.assertEqual(len(main_doors), 2)
+            for door in main_doors:
                 self.assertEqual(door.bounds[1, 2], first_head)
             self.assert_closed_lods(scene)
 

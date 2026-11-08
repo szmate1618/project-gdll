@@ -7,7 +7,8 @@ import numpy as np
 from shapely.geometry import box
 import trimesh
 
-from src.building_entrances import Entrance, build_entrances
+from src.building_entrances import (Entrance, build_entrances, build_entrance_railings,
+                                    classify_entrance)
 from src.buildings import add_buildings
 from src.terrain import Terrain
 
@@ -91,6 +92,46 @@ class BuildingEntranceTests(unittest.TestCase):
         np.testing.assert_array_equal(mesh.visual.material.baseColorFactor, [140, 140, 140, 255])
         self.assertEqual(len(mesh.faces), len(original.faces))
         self.assertTrue(np.all(mesh.area_faces > 1e-10))
+
+    def test_crouchable_gap_replaces_ramps_with_three_textured_guard_panels(self):
+        terrain = lambda x, y: np.zeros_like(x)
+        for height in (1.14, 1.16, 2.8):
+            entrance = classify_entrance(self.entrance(height, .63), terrain)
+            mesh = build_entrances([entrance], terrain)
+            railing = build_entrance_railings([entrance])
+            if height < 1.15:
+                self.assertIsNone(railing)
+                self.assertIsNone(entrance.lower_floor)
+                continue
+            self.assertEqual(len(mesh.faces), 2)
+            self.assertEqual(len(railing.faces), 6)
+            np.testing.assert_allclose(mesh.vertices[:, 2], height + .01, atol=1e-5)
+            self.assertAlmostEqual(railing.bounds[1, 2] - railing.bounds[0, 2], 1, places=5)
+            material = railing.visual.material
+            self.assertEqual(material.alphaMode, 'MASK')
+            self.assertTrue(material.doubleSided)
+            alpha = np.asarray(material.baseColorTexture)[:, :, 3]
+            self.assertTrue(np.all(alpha[0] == 255))
+            self.assertEqual(alpha[-1, alpha.shape[1] // 2], 0)
+            self.assertEqual(alpha[-1, 0], 255)
+
+    def test_high_ground_on_the_under_landing_route_keeps_ramps(self):
+        entrance = classify_entrance(self.entrance(1.5), lambda x, y: .5 * (x - 1234 + .5))
+        self.assertIsNone(entrance.lower_floor)
+
+    def test_balcony_and_lower_door_survive_glb_export(self):
+        scene = trimesh.Scene()
+        stats = add_buildings(scene, [{'id': 'way/1', 'geometry': box(0, 0, 12, 9),
+                                      'tags': {'height': '6', 'roof:shape': 'flat'}}],
+                              lambda x, y: y * .3, {})
+        self.assertEqual(stats['doors'], 3)
+        restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
+        railing = restored.geometry['building_way_1_0_balcony_railings']
+        self.assertEqual(len(railing.faces), 6)
+        self.assertNotIn('building_detail', railing.metadata)
+        self.assertEqual(railing.visual.material.alphaMode, 'MASK')
+        self.assertIsNotNone(railing.visual.material.baseColorTexture)
+        self.assertEqual(railing.visual.uv.shape, (12, 2))
 
 
 if __name__ == '__main__':

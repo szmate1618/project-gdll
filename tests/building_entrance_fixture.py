@@ -12,10 +12,10 @@ from src.buildings import add_buildings
 from src.terrain import Terrain
 
 
-def write_fixture(path):
+def write_fixture(path, height=1):
     # Front ground is flat at zero; the back establishes a 1 m floor datum.
     north = np.linspace(15, -8, 24)
-    heights = np.repeat(np.clip(north[:, None] / 9, 0, 1), 25, axis=1)
+    heights = np.repeat(np.clip(north[:, None] / 9, 0, 1) * height, 25, axis=1)
     terrain = Terrain(heights, (-6, -8, 18, 15))
     scene = trimesh.Scene()
     scene.add_geometry(terrain.mesh(Image.new('RGB', (4, 4), (100, 125, 85))),
@@ -29,4 +29,4 @@ def write_fixture(path):
 
 
 if __name__ == '__main__':
-    write_fixture(sys.argv[1])
+    write_fixture(sys.argv[1], float(sys.argv[2]) if len(sys.argv) > 2 else 1)

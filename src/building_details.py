@@ -11,7 +11,8 @@ from shapely.ops import nearest_points
 from shapely.strtree import STRtree
 from trimesh.visual.material import PBRMaterial
 
-from .building_entrances import Entrance, build_entrances
+from .building_entrances import (Entrance, LOWER_DOOR_LINTEL, build_entrances,
+                                 build_entrance_railings, classify_entrance)
 from .wall_openings import cut_wall_openings
 
 DOOR_MATERIAL = PBRMaterial(name="building_door_brown", baseColorFactor=[112, 65, 32, 255],
@@ -116,7 +117,7 @@ def _rectangle(facade, center, width, bottom, height):
                      [*right, bottom + height], [*left, bottom + height]])
 
 
-def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
+def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None, basement_floor=None):
     """Return masonry, door/glass infills, entrance surfaces, and counts.
 
     The lowest roof vertex is the conservative eave height. Rectangles fit below
@@ -128,8 +129,8 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
     samples = np.vstack([np.asarray(ring.coords) for ring in [boundary.exterior, *boundary.interiors]])
     foundation = float(np.max(elevation(samples[:, 0], samples[:, 1])))
     # One exported-precision head height aligns both doors and the lowest
-    # window row. Door panels stop at the floor; the original doorway below
-    # them stays open down to the sampled wall base.
+    # window row. Main panels stop at the floor; crouchable gaps below them
+    # receive separate lower leaves rather than an always-open passage.
     first_head = float(np.float32(foundation + 2.1))
     floor = float(np.float32(first_head - 2.1))
     doors, windows = [], []
@@ -142,13 +143,26 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
         if first_head > eaves - 0.15:
             continue
         doors.append(_rectangle(facade, center, 1.0, floor, first_head - floor))
-        entrances.append(Entrance(facade.start + facade.direction * center,
-                                  facade.direction, facade.normal, floor))
+        entrance = classify_entrance(Entrance(facade.start + facade.direction * center,
+                                             facade.direction, facade.normal, floor), elevation)
+        entrances.append(entrance)
         openings.setdefault(index, []).append(("doors", doors[-1]))
-        # Reach below the full foundation profile and let the facade cutter
-        # clip the invisible opening to the existing wall outline.
+        # Reach below the foundation profile and let the facade cutter clip
+        # legacy apertures or lower leaves to the existing wall outline.
         bottom = float(wall.vertices[:, 2].min()) - .01
-        openings[index].append(("crawl_openings", _rectangle(facade, center, 1.0, bottom, floor - bottom)))
+        if entrance.lower_floor is None:
+            if basement_floor is None:
+                openings[index].append(("crawl_openings", _rectangle(facade, center, 1.0, bottom, floor - bottom)))
+        else:
+            # A masonry lintel separates the leaves so runtime door splitting
+            # keeps the upper and lower panels independently interactive.
+            head = min(entrance.lower_floor + 2.1, floor - LOWER_DOOR_LINTEL)
+            # Clip the leaf down to the original wall base. Starting it at
+            # the approach's highest ground would leave an open passage below
+            # the closed leaf wherever the doorway itself lies further downhill.
+            leaf_bottom = bottom if basement_floor is None else entrance.lower_floor - .08
+            doors.append(_rectangle(facade, center, 1.0, leaf_bottom, head - leaf_bottom))
+            openings[index].append(("doors", doors[-1]))
         door_spans[index] = (center - 0.65, center + 0.65, floor, first_head + .15)
 
     floor_height = float(options.get("floor_height_m", 3.0))
@@ -165,7 +179,9 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
                 windows.append(_rectangle(facade, center, 1.2, float(bottom), 1.2))
                 openings.setdefault(index, []).append(("windows", windows[-1]))
     if not openings:
-        return None, None, None, None, None, {"doors": 0, "windows": 0}
+        return None, None, None, None, None, None, None, {"doors": 0, "windows": 0}
     detailed_wall, door_mesh, window_mesh, crawl_openings = cut_wall_openings(wall, facades, openings)
     return (detailed_wall, door_mesh, window_mesh, build_entrances(entrances, elevation), crawl_openings,
+            build_entrance_railings(entrances),
+            min((entry.lower_floor for entry in entrances if entry.lower_floor is not None), default=None),
             {"doors": len(doors), "windows": len(windows)})

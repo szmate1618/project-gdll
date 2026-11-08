@@ -1,8 +1,10 @@
-"""Exterior landing and side-ramp surfaces in local east/north/up metres."""
+"""Exterior landings, low side ramps and guarded balconies in ENU metres."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
+from PIL import Image, ImageDraw
 from shapely.geometry import LineString
 import trimesh
 from trimesh.visual.material import PBRMaterial
@@ -16,6 +18,10 @@ RAMP_RUN = 2.0
 # Match the preferred run/rise of interior stairs (house_layout_rules.cpp).
 RAMP_SLOPE = 1.0 / 1.75
 FRONT_CLOSURE_HEIGHT = .4
+# FPSController's 1.10 m crouched body plus 3 cm below a 2 cm lintel.
+BALCONY_CLEARANCE = 1.13
+LOWER_DOOR_LINTEL = .02
+RAILING_HEIGHT = 1.0
 ENTRANCE_MATERIAL = PBRMaterial(name="building_entrance_grey", baseColorFactor=[140, 140, 140, 255],
                                doubleSided=True, metallicFactor=0.0, roughnessFactor=1.0)
 
@@ -26,16 +32,83 @@ class Entrance:
     direction: np.ndarray
     outward: np.ndarray
     floor: float
+    lower_floor: float | None = None
+
+
+def classify_entrance(entrance, elevation):
+    """Find a crouchable route beneath the landing using rendered terrain edges.
+
+    The 1 m wide approach includes the doorway and the full landing depth.
+    Use the highest ground on its cross sections, rather than a single low
+    sample that could leave the lower doorway impassable.
+    """
+    profiles = []
+    for out in (0, LANDING_DEPTH / 2, LANDING_DEPTH):
+        center = entrance.center + entrance.outward * out
+        profiles.append(LineString([center - entrance.direction * .5, center + entrance.direction * .5]))
+    for along in (-.5, 0, .5):
+        center = entrance.center + entrance.direction * along
+        profiles.append(LineString([center, center + entrance.outward * LANDING_DEPTH]))
+    ground = []
+    door_ground = None
+    for line in profiles:
+        xy, _ = sample_terrain_line(line, elevation)
+        heights = np.broadcast_to(elevation(*xy.T), (len(xy),))
+        if door_ground is None:
+            door_ground = float(np.max(heights))
+        ground.extend(heights)
+    if not np.isfinite(ground).all():
+        raise ValueError("Non-finite terrain below an entrance landing")
+    highest = float(np.max(ground))
+    if entrance.floor - LOWER_DOOR_LINTEL - highest >= BALCONY_CLEARANCE:
+        entrance.lower_floor = float(np.float32(door_ground))
+    return entrance
+
+
+@lru_cache(maxsize=1)
+def _railing_material():
+    # One horizontal top rail, with vertical bars below; no lower cross rail.
+    texture = Image.new("RGBA", (128, 256), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(texture)
+    draw.rectangle((0, 0, 127, 9), fill="white")
+    draw.rectangle((0, 0, 5, 255), fill="white")
+    draw.rectangle((122, 0, 127, 255), fill="white")
+    return PBRMaterial(name="building_balcony_railing", baseColorFactor=[75, 82, 78, 255],
+                       baseColorTexture=texture, alphaMode="MASK", alphaCutoff=.5,
+                       doubleSided=True, metallicFactor=.35, roughnessFactor=.85)
+
+
+def build_entrance_railings(entrances):
+    """Three continuous collision quads with alpha-masked top rail and bars."""
+    vertices, faces, uv = [], [], []
+    half = LANDING_WIDTH / 2
+    for entrance in entrances:
+        if entrance.lower_floor is None:
+            continue
+        corners = [(-half, 0), (-half, LANDING_DEPTH), (half, LANDING_DEPTH), (half, 0)]
+        for a, b in zip(corners[:-1], corners[1:]):
+            start = len(vertices)
+            for along, out in (a, b, b, a):
+                xy = entrance.center + entrance.direction * along + entrance.outward * out
+                vertices.append([*xy, entrance.floor + .01 + (RAILING_HEIGHT if len(vertices) - start >= 2 else 0)])
+            repeat = float(np.linalg.norm(np.subtract(b, a))) / .20
+            uv.extend([(0, 0), (repeat, 0), (repeat, 1), (0, 1)])
+            faces.extend([[start, start + 1, start + 2], [start, start + 2, start + 3]])
+    if not faces:
+        return None
+    return trimesh.Trimesh(vertices=np.asarray(vertices, dtype=np.float32), faces=faces, process=False,
+                           visual=trimesh.visual.TextureVisuals(uv=uv, material=_railing_material()))
 
 
 def build_entrances(entrances, elevation):
-    """Return walkable sheets, leaving the space below high landings open.
+    """Return walkable sheets for classified entrances in ENU metres.
 
     Ramps descend along the facade on both sides, with a fixed 2 m horizontal
     run. Their ends may be buried. The landing aligns with runtime floors,
     which sit 1 cm above the facade's floor datum. The exposed front of each
     ramp has a triangular cheek down to its low endpoint; the landing keeps
-    its separate, conditional front skirt.
+    its separate, conditional front skirt. Balconies keep only the landing;
+    build_entrance_railings supplies their separate masked guard material.
     """
     vertices, faces = [], []
 
@@ -59,7 +132,7 @@ def build_entrances(entrances, elevation):
         # Facade direction cross outward points down for a CCW exterior.
         quad([point(-half, 0, top), point(-half, LANDING_DEPTH, top),
               point(half, LANDING_DEPTH, top), point(half, 0, top)])
-        for side in (-1, 1):
+        for side in (() if entrance.lower_floor is not None else (-1, 1)):
             inner, outer = side * half, side * (half + RAMP_RUN)
             low = top - RAMP_RUN * RAMP_SLOPE
             points = [point(inner, 0, top), point(outer, 0, low),
@@ -69,6 +142,8 @@ def build_entrances(entrances, elevation):
                      point(outer, LANDING_DEPTH, low)]
             triangle(cheek if side > 0 else cheek[::-1])
 
+        if entrance.lower_floor is not None:
+            continue
         # Sample across the whole front. A high point must not hide a crawlable
         # gap at the other end. Keep tall fronts entirely open.
         along = np.linspace(-half, half, 4)

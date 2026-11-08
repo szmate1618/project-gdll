@@ -122,6 +122,17 @@ void testIndexWidthsAndHierarchy(Fixtures& files) {
         require(near(vertex.color.r, 1) && near(vertex.color.g, 128.0f / 255.0f) && near(vertex.color.a, 1), "Normalized interleaved color decoded incorrectly");
         require(near(vertex.normal.z, 1), "Missing normals should be generated with triangle winding");
 
+        if (width == 1) {
+            auto basement = document;
+            basement["meshes"][0]["extras"]["building_floor"] = {1, 2, 3};
+            const auto loaded = viewer::loadModel(files.write("basement-datum", basement, bytes));
+            require(loaded.draws[0].buildingFloor && near(*loaded.draws[0].buildingFloor, 26) &&
+                    loaded.draws[1].buildingFloor && near(*loaded.draws[1].buildingFloor, 2),
+                    "Basement main-floor datum must follow each instance transform exactly once");
+            basement["meshes"][0]["extras"]["building_floor"] = {1, 2};
+            expectError(files.write("bad-basement-datum", basement, bytes), "building_floor");
+        }
+
         for (const auto* name : {"roads_asphalt", "railways_ballast", "building_test"}) {
             auto overlay = document;
             overlay["meshes"][0]["name"] = name;

@@ -35,13 +35,23 @@ transforms, including reflections, are applied once. Sheds, apartment blocks
 and long narrow buildings usually fail these limits. Small shops
 can pass; distinguishing their use needs further rules or additional data.
 
-Door heads establish the existing facade generator's floor datum, 2.1 metres
-below the head. Newly generated exterior doors stop at this datum even downhill.
-Grey exterior landings align with the interior walking plane, with side ramps
-and open space under landings at least 40 cm above ground. The lower doorway
-remains an open passage beneath the floor, even with the door shut. Sloping
-ramps have triangular front cheeks. The generated window infills supply distinct
-row-head heights.
+The highest exterior door heads establish the facade generator's main floor
+datum, 2.1 metres below the head. Main doors stop at this datum even downhill.
+Grey exterior landings align with the interior walking plane. Entrances with
+less than crouching clearance retain their side ramps, triangular front cheeks,
+and open underfloor passages where the landing is at least 40 cm above ground.
+
+Where the 1 m wide approach beneath the landing has at least **1.15 m** of
+clearance, the landing becomes a balcony without side ramps. This allows the
+player's 1.10 m crouched body plus 3 cm clearance below a **2 cm lintel**.
+Three double-sided, alpha-masked textured quads guard its front and sides:
+one horizontal top rail with vertical bars underneath, without a lower rail.
+The full quads block walking, like mapped fences. A separate interactive door
+fills the lower doorway, up to 2.1 m tall. The masonry between the lower and
+main leaves keeps them independent when the GLB is loaded. Terrain sampling
+uses the rendered triangle boundaries along the doorway and landing approach.
+
+The generated window infills supply distinct row-head heights.
 Each additional row adds a full-footprint floor/ceiling plane at that row's
 offset from the first row. Adjacent rows must be 2.4–4.2 metres apart. One row,
 or no window data, does not invent extra storeys. A final ceiling sits 2 cm
@@ -189,6 +199,21 @@ door descriptors carry a storey index: 0 is ground, and `upperFloors[i-1]` is
 the floor height for storey i. Rendering and collision use that storey's ceiling.
 
 ## Staircase ramps
+
+Balcony buildings with lower exterior doors also receive a basement room and
+floor when their interiors stream in. Lower doors belong to this room; opening
+one can activate the interior just like opening a main door. The main and upper
+floor layout choices remain unchanged. If there is a ground-to-upper flight,
+a matching flight with the same horizontal footprint and ascent direction sits
+directly beneath it, ending at the ground-floor walking plane. Its cutout removes
+both rendered and collision floor geometry. Single-storey buildings receive no
+invented upward or downward flight. This applies to both family houses and
+prefab apartment blocks. The basement uses the lowest lower door's base as its
+floor datum. During generation, basement shells extend down to this level and
+terrain triangles are clipped only inside their footprints. Exterior terrain
+heights and texture mapping remain unchanged. The wall mesh records a local
+`building_floor` point to preserve the main-floor datum for shell inspection;
+the loader transforms that point once with its mesh.
 
 A multi-storey house selects one of the living rooms that can accommodate a
 staircase, preserving such a room while subdividing. Selection is deterministic

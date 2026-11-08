@@ -516,6 +516,18 @@ Model convert(const tinygltf::Model& source) {
             float detailDistance = 0.0f;
             bool lowDetail = false;
             std::string detailGroup;
+            std::optional<float> buildingFloor;
+            if (mesh.extras.IsObject() && mesh.extras.Has("building_floor")) {
+                const auto& point = mesh.extras.Get("building_floor");
+                if (!point.IsArray() || point.ArrayLen() != 3) fail("Invalid building_floor mesh metadata");
+                glm::vec3 local;
+                for (int axis = 0; axis < 3; ++axis) {
+                    if (!point.Get(axis).IsNumber()) fail("Invalid building_floor coordinate");
+                    local[axis] = asFloat(point.Get(axis).GetNumberAsDouble(), "building floor coordinate");
+                }
+                buildingFloor = (transform * glm::vec4(local, 1)).y;
+                if (!std::isfinite(*buildingFloor)) fail("Transformed building floor must be finite");
+            }
             if (mesh.extras.IsObject() && mesh.extras.Has("building_detail")) {
                 const auto& detail = mesh.extras.Get("building_detail");
                 if (!detail.IsObject() || !detail.Has("version") || !detail.Get("version").IsNumber() ||
@@ -539,6 +551,7 @@ Model convert(const tinygltf::Model& source) {
                 output.draws.push_back({primitive, transform, node.name.empty() ? mesh.name : node.name,
                                         detailDistance, lowDetail, detailGroup});
                 output.draws.back().fence = fence;
+                output.draws.back().buildingFloor = buildingFloor;
                 output.draws.back().terrainOverlay = mesh.extras.IsObject() &&
                     mesh.extras.Has("terrain_conforming") && mesh.extras.Get("terrain_conforming").IsBool() &&
                     mesh.extras.Get("terrain_conforming").Get<bool>() &&

@@ -13,11 +13,12 @@ namespace viewer {
 namespace {
 glm::vec2 xz(glm::vec3 p) { return {p.x, p.z}; }
 float floorAt(const HouseFloorplan& plan, std::size_t storey) {
-    return storey ? plan.upperFloors.at(storey - 1) : plan.floor + .01f;
+    return plan.floorHeight(storey);
 }
 std::size_t storeyAt(const HouseFloorplan& plan, float height) {
     std::size_t selected = 0; float best = std::numeric_limits<float>::max();
-    for (std::size_t level = 0; level <= plan.upperFloors.size(); ++level) {
+    for (const auto& room : plan.rooms) {
+        const auto level = room.storey;
         const float distance = std::abs(floorAt(plan, level) - height);
         if (distance < best) { best = distance; selected = level; }
     }

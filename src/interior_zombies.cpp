@@ -69,7 +69,7 @@ void InteriorZombies::update(const FloorplanLayer& floors, ZombieLayer& zombies,
         }
         // Record even an empty/blocked/exhausted encounter: no fresh roll on reentry.
         auto& encounter = state.encounters.emplace(name,
-            Impl::Encounter{plan.footprint, plan.floor, plan.ceiling, {}}).first->second;
+            Impl::Encounter{plan.footprint, plan.basementFloor.value_or(plan.floor), plan.ceiling, {}}).first->second;
         if (state.used == state.reserved) continue;
         auto placements = placeInteriorZombies(plan, floors.doors(), collision);
         if (placements.empty()) continue;
@@ -90,7 +90,8 @@ void InteriorZombies::update(const FloorplanLayer& floors, ZombieLayer& zombies,
             if (!group && !available(placement)) continue;
             const auto id = state.first + state.used++;
             // Upstairs takes precedence over the doorway/corner placement kind.
-            const auto initial = plan.rooms.at(placement.room).storey > 0 ? ZombieState::midnight :
+            const auto initial = plan.rooms.at(placement.room).storey > 0 &&
+                plan.rooms.at(placement.room).storey != HouseFloorplan::basementStorey ? ZombieState::midnight :
                 placement.position == InteriorZombiePosition::CenterGroup ? ZombieState::idle : ZombieState::hiding;
             const auto wake = initial == ZombieState::midnight ?
                 dayNight.nextMidnightAtOrAfter(SimulationClock::instance().seconds()) : 0.;

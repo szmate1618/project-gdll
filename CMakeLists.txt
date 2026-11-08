@@ -434,7 +434,7 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/hand_inventory.cpp)
+add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/hand_inventory.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)
@@ -1222,16 +1222,21 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_door_walking)
     add_test(NAME viewer_door_walking COMMAND test_door_walking)
     set(ENTRANCE_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/building-entrance-fixture.glb")
-    add_custom_command(OUTPUT "${ENTRANCE_FIXTURE}"
+    set(BALCONY_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/building-balcony-fixture.glb")
+    add_custom_command(OUTPUT "${ENTRANCE_FIXTURE}" "${BALCONY_FIXTURE}"
         COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
             "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/building_entrance_fixture.py" "${ENTRANCE_FIXTURE}"
+        COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
+            "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/building_entrance_fixture.py" "${BALCONY_FIXTURE}" 1.16
         DEPENDS tests/building_entrance_fixture.py src/building_entrances.py src/building_details.py
+            src/building_basement_terrain.py
             src/buildings.py src/wall_openings.py src/building_caps.py src/facade_surface.py
             src/terrain.py src/terrain_profile.py
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-    add_custom_target(building_entrance_fixture DEPENDS "${ENTRANCE_FIXTURE}")
+    add_custom_target(building_entrance_fixture DEPENDS "${ENTRANCE_FIXTURE}" "${BALCONY_FIXTURE}")
     add_dependencies(test_door_walking building_entrance_fixture)
     add_test(NAME viewer_building_entrances COMMAND test_door_walking --entrances-fixture "${ENTRANCE_FIXTURE}")
+    add_test(NAME viewer_building_balconies COMMAND test_door_walking --balcony-fixture "${BALCONY_FIXTURE}")
 
     foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_doorway zombie_door_attack zombie_interior_behavior zombie_house_investigation zombie_attack zombie_lunge zombie_melee_attack zombie_active_attack zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
         add_executable(test_${suite} tests/test_${suite}.cpp)

@@ -18,7 +18,8 @@ struct Shell {
     glm::vec3 world(glm::vec2 p, float y) const { const auto q = origin + u * p.x + v * p.y; return {q.x, y, q.y}; }
 };
 // Wall/roof geometry only. Floor uses the highest sampled wall base plus the
-// generator's 8 cm foundation skin; doors, windows and neighbours are not read.
+// generator's 8 cm foundation skin, or the explicit main-floor datum on basement
+// shells; doors, windows and neighbours are not read.
 std::optional<Shell> inspect(const Model& model, const HouseSource& source);
 } // namespace building_shell
 } // namespace viewer

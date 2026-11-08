@@ -92,6 +92,27 @@ void windowClearance(const viewer::HouseFloorplan& plan, const viewer::Model& mo
             }
         }
 }
+void basement() {
+    auto model = apartment_fixture::block();
+    for (auto& draw : model.draws) if (draw.name == "building_prefab_walls" && draw.lowDetail) {
+        for (auto& vertex : model.primitives.at(draw.primitive).vertices)
+            if (vertex.position.y < 0) vertex.position.y = -2.68f;
+        draw.buildingFloor = 0;
+    }
+    interior_fixture::quad(model, {-.5f, -2.6f, -12}, {.5f, -2.6f, -12},
+        {.5f, -.5f, -12}, {-.5f, -.5f, -12}, "building_prefab_doors");
+    const auto doors = viewer::prepareDoorPanels(model);
+    const auto source = apartment_fixture::source(model, doors);
+    const auto block = viewer::classifyPrefabBlock(model, source);
+    require(block && block->storeys == 5 && std::abs(block->shell.floor) < .001f,
+            "The recorded main-floor datum must preserve shell classification when foundations extend into a basement");
+    const auto plan = viewer::generatePrefabFloorplan(model, source, doors, *block);
+    require(plan && plan->basementFloor && plan->stairs.size() == block->storeys,
+            "Prefab balcony buildings must also extend the first stair flight into a basement");
+    require(plan->stairs.back().ramp == plan->stairs.front().ramp &&
+            plan->rooms.back().storey == viewer::HouseFloorplan::basementStorey,
+            "Prefab basement stairs must share the footprint of the ground-to-upper flight");
+}
 void classifier() {
     auto model = apartment_fixture::block();
     const auto doors = viewer::prepareDoorPanels(model);
@@ -236,7 +257,7 @@ void generated(float width, float depth, int levels, const glm::mat4& transform,
 }
 int main() {
     try {
-        classifier();
+        classifier(); basement();
         for (const auto size : {glm::vec3(14,48,5), {48,14,5}, {20,24,5}, {24,20,5}, {20,24,11}, {20,24,16}, {8,24,4}})
             generated(size.x,size.y,int(size.z),glm::mat4(1));
         generated(20,24,5,glm::translate(glm::mat4(1),{-1108,5,-250}) * glm::rotate(glm::mat4(1),glm::radians(31.f),glm::vec3(0,1,0)) * glm::scale(glm::mat4(1),{-1,1,1}));
