@@ -11,7 +11,7 @@ from shapely.ops import nearest_points
 from shapely.strtree import STRtree
 from trimesh.visual.material import PBRMaterial
 
-from .building_entrances import (Entrance, LOWER_DOOR_LINTEL, build_entrances,
+from .building_entrances import (Entrance, HEIGHT_TOLERANCE, LOWER_DOOR_LINTEL, MAX_STEP_HEIGHT, build_entrances,
                                  build_entrance_railings, classify_entrance)
 from .wall_openings import cut_wall_openings
 
@@ -151,7 +151,7 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None, 
         # legacy apertures or lower leaves to the existing wall outline.
         bottom = float(wall.vertices[:, 2].min()) - .01
         if entrance.lower_floor is None:
-            if basement_floor is None:
+            if basement_floor is None and entrance.step_height > MAX_STEP_HEIGHT + HEIGHT_TOLERANCE:
                 openings[index].append(("crawl_openings", _rectangle(facade, center, 1.0, bottom, floor - bottom)))
         else:
             # A masonry lintel separates the leaves so runtime door splitting

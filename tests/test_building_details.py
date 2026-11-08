@@ -90,6 +90,8 @@ class BuildingDetailTests(unittest.TestCase):
         # For every infill triangle, independently intersect all coplanar wall
         # triangles. No opaque masonry may remain behind glass or doors.
         for suffix in ('_doors', '_windows', '_crawl_openings'):
+            if 'building_way_1_0' + suffix not in scene.geometry:
+                continue
             for infill, normal in zip(scene.geometry['building_way_1_0' + suffix].triangles,
                                       scene.geometry['building_way_1_0' + suffix].face_normals):
                 axis = int(np.argmax(np.abs(normal[:2])))
@@ -271,7 +273,7 @@ class BuildingDetailTests(unittest.TestCase):
             self.assert_closed_lods(scene)
 
     def test_export_metadata_color_alpha_and_coordinate_frame(self):
-        scene, stats = self.generate(box(0, 0, 12, 9))
+        scene, stats = self.generate(box(0, 0, 12, 9), elevation=lambda x, y: y / 9)
         rotation = np.array([[1., 0., 0., 0.], [0., 0., 1., 0.], [0., -1., 0., 0.], [0., 0., 0., 1.]])
         scene.apply_transform(rotation)
         data = scene.export(file_type='glb')
@@ -313,6 +315,20 @@ class BuildingDetailTests(unittest.TestCase):
         world = trimesh.transform_points(windows.vertices, restored.graph[node][0])
         self.assertGreater(world[:, 1].min(), 0)
         self.assertLessEqual(world[:, 2].min(), -9)
+
+    def test_step_height_doorways_keep_masonry_below_the_leaves(self):
+        for rise in (.15, .30, .301):
+            scene, _ = self.generate(box(0, 0, 12, 9), elevation=lambda x, y: np.clip(y / 9, 0, 1) * (rise - .01))
+            south = scene.geometry['building_way_1_0_detailed_walls']
+            south_faces = south.triangles[np.all(np.isclose(south.triangles[:, :, 1], 0), axis=1)]
+            section = union_all([Polygon(triangle[:, [0, 2]]) for triangle in south_faces])
+            below_door = box(5.51, .005, 6.49, rise - .02)
+            self.assertEqual(section.covers(below_door), rise <= .30)
+            if rise <= .30:
+                self.assertNotIn('building_way_1_0_crawl_openings', scene.geometry)
+            self.assert_closed_lods(scene)
+            restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
+            self.assert_closed_lods(restored)
 
     def test_tiny_buildings_and_multipolygon_without_roads(self):
         scene, stats = self.generate(MultiPolygon([box(0, 0, 1.5, 1.5), box(10, 0, 22, 9)]))

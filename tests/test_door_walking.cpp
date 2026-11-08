@@ -329,6 +329,25 @@ void balconyPassage(const char* path) {
         require(arrived, "A crouched player must walk the basement staircase in both directions");
     }
 }
+void lowEntrancePassage(const char* path) {
+    auto model = viewer::loadModel(path);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::CollisionWorld world(model, {}, &doors);
+    require(!world.lineOfSight({6, .15f, .6f}, {6, .15f, -.6f}),
+            "Masonry must close the wall beneath a low door independently of the panel");
+    const auto exteriorCount = doors.count();
+    for (std::size_t id = 0; id < exteriorCount; ++id) doors.setAngle(id, 1.6f);
+    viewer::FloorplanLayer floors(model, doors, world);
+    floors.update({{6, 1.7f, 2}});
+    require(floors.residentCount() == 1, "A low entrance must retain a usable streamed interior");
+    viewer::FPSController player;
+    require(player.spawn({6, 1.7f, 2.5f}, world), "Must spawn before the low entrance");
+    viewer::FPSInput input; input.forward = 1; input.yawDegrees = -90;
+    for (int frame = 0; frame < 180; ++frame) player.update(1.f / 120, input, world);
+    require(player.feet().z < -.5f && player.feet().y >= .29f && player.grounded(),
+            "A standing player must step onto a 30 cm landing and enter without a ramp or jumping");
+}
 int main(int argc, char** argv) {
     try {
         closedAndOpenPassage(glm::mat4(1), false);
@@ -336,6 +355,7 @@ int main(int argc, char** argv) {
         partialClearanceUsesCapsuleGeometry(); legacyOverlayKeepsVisibleWall();
         if (argc == 2) generatedMapPassage(argv[1]);
         if (argc == 3 && std::string(argv[1]) == "--balcony-fixture") balconyPassage(argv[2]);
+        else if (argc == 3 && std::string(argv[1]) == "--step-fixture") lowEntrancePassage(argv[2]);
         else if (argc == 3 && std::string(argv[1]) == "--entrances-fixture") raisedEntrancePassage(argv[2]);
         std::cout << "Door walking tests passed\n";
         return 0;

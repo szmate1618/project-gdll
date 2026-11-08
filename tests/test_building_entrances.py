@@ -51,6 +51,22 @@ class BuildingEntranceTests(unittest.TestCase):
             np.testing.assert_allclose(mesh.bounds[0, 2], 1.01 - 2 / 1.75, atol=1e-6)
             np.testing.assert_allclose(mesh.area, 1.5 * 1.2 + 2 * 1.2 * np.hypot(2, 2 / 1.75) + 2 * (2 / 1.75), atol=4e-4)
 
+    def test_ramps_start_only_above_the_30_cm_walking_height(self):
+        for rise in (0, .15, .299, .30, .301, .31):
+            entrance = self.entrance(rise - .01)
+            mesh = build_entrances([entrance], lambda x, y: np.zeros_like(x))
+            along = (mesh.vertices[:, :2] - entrance.center) @ entrance.direction
+            if rise <= .30:
+                np.testing.assert_allclose([along.min(), along.max()], [-.75, .75], atol=1e-4)
+            else:
+                np.testing.assert_allclose([along.min(), along.max()], [-2.75, 2.75], atol=1e-4)
+
+    def test_low_door_with_a_deeper_approach_keeps_its_ramps(self):
+        entrance = self.entrance(.24)
+        mesh = build_entrances([entrance], lambda x, y: .1 * (y - entrance.center[1]))
+        along = (mesh.vertices[:, :2] - entrance.center) @ entrance.direction
+        self.assertGreater(along.max(), 2)
+
     def test_front_closes_only_below_40_cm(self):
         for gap in (.20, .399, .40, .401, .8):
             entrance = self.entrance(gap - .01)

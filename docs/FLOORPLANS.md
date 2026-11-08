@@ -37,9 +37,14 @@ can pass; distinguishing their use needs further rules or additional data.
 
 The highest exterior door heads establish the facade generator's main floor
 datum, 2.1 metres below the head. Main doors stop at this datum even downhill.
-Grey exterior landings align with the interior walking plane. Entrances with
-less than crouching clearance retain their side ramps, triangular front cheeks,
-and open underfloor passages where the landing is at least 40 cm above ground.
+Grey exterior landings align with the interior walking plane. At rises of
+**30 cm or less**, entrances need no ramps: the player, zombies and dogs can
+step onto the landing. Masonry closes the wall below these doors. The rise
+includes the walking plane's 1 cm offset and is checked over the 1 m wide
+doorway approach, including rendered terrain triangle boundaries.
+Higher entrances with less than crouching clearance retain their side ramps,
+triangular front cheeks, and open underfloor passages where the landing is at
+least 40 cm above ground.
 
 Where the 1 m wide approach beneath the landing has at least **1.15 m** of
 clearance, the landing becomes a balcony without side ramps. This allows the

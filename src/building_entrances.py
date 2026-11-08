@@ -18,6 +18,9 @@ RAMP_RUN = 2.0
 # Match the preferred run/rise of interior stairs (house_layout_rules.cpp).
 RAMP_SLOPE = 1.0 / 1.75
 FRONT_CLOSURE_HEIGHT = .4
+# Match players, zombies and dogs. Include the landing's 1 cm walking offset.
+MAX_STEP_HEIGHT = .30
+HEIGHT_TOLERANCE = 1e-6
 # FPSController's 1.10 m crouched body plus 3 cm below a 2 cm lintel.
 BALCONY_CLEARANCE = 1.13
 LOWER_DOOR_LINTEL = .02
@@ -33,6 +36,7 @@ class Entrance:
     outward: np.ndarray
     floor: float
     lower_floor: float | None = None
+    step_height: float | None = None
 
 
 def classify_entrance(entrance, elevation):
@@ -60,6 +64,7 @@ def classify_entrance(entrance, elevation):
     if not np.isfinite(ground).all():
         raise ValueError("Non-finite terrain below an entrance landing")
     highest = float(np.max(ground))
+    entrance.step_height = max(0., entrance.floor + .01 - float(np.min(ground)))
     if entrance.floor - LOWER_DOOR_LINTEL - highest >= BALCONY_CLEARANCE:
         entrance.lower_floor = float(np.float32(door_ground))
     return entrance
@@ -103,7 +108,8 @@ def build_entrance_railings(entrances):
 def build_entrances(entrances, elevation):
     """Return walkable sheets for classified entrances in ENU metres.
 
-    Ramps descend along the facade on both sides, with a fixed 2 m horizontal
+    Steps at most 30 cm high keep just the landing. Higher ramps descend along
+    the facade on both sides, with a fixed 2 m horizontal
     run. Their ends may be buried. The landing aligns with runtime floors,
     which sit 1 cm above the facade's floor datum. The exposed front of each
     ramp has a triangular cheek down to its low endpoint; the landing keeps
@@ -123,6 +129,8 @@ def build_entrances(entrances, elevation):
         faces.extend([[start, start + 1, start + 2], [start, start + 2, start + 3]])
 
     for entrance in entrances:
+        if entrance.step_height is None:
+            classify_entrance(entrance, elevation)
         def point(along, out, height):
             xy = entrance.center + entrance.direction * along + entrance.outward * out
             return np.array([*xy, height])
@@ -132,7 +140,8 @@ def build_entrances(entrances, elevation):
         # Facade direction cross outward points down for a CCW exterior.
         quad([point(-half, 0, top), point(-half, LANDING_DEPTH, top),
               point(half, LANDING_DEPTH, top), point(half, 0, top)])
-        for side in (() if entrance.lower_floor is not None else (-1, 1)):
+        needs_ramps = entrance.lower_floor is None and entrance.step_height > MAX_STEP_HEIGHT + HEIGHT_TOLERANCE
+        for side in ((-1, 1) if needs_ramps else ()):
             inner, outer = side * half, side * (half + RAMP_RUN)
             low = top - RAMP_RUN * RAMP_SLOPE
             points = [point(inner, 0, top), point(outer, 0, low),
