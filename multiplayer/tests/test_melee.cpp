@@ -300,19 +300,31 @@ void swordAuthority(const Options& options) {
     auto invalid = world.snapshot(id); invalid.players[0].sword.direction = {0, 0};
     rejects([&] { encode(invalid); }, "Invalid sword direction was accepted");
     for (std::uint64_t sequence = 3; sequence < 40; ++sequence) {
+        command.sequence = sequence; command.drag = sequence < 20 ? glm::vec2(-40, 0) : glm::vec2(0);
+        world.submit(id, Commands{{command}}); world.step();
+    }
+    require(world.players().at(id).shots == 1, "Recovery motion or a stationary held button repeated the cut");
+    require(scene.zombies.damage().injury(0) != nullptr, "Authoritative sword cut missed the nearby zombie");
+    command.sequence = 40; command.drag = {30, 30};
+    world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}}); world.step();
+    require(world.players().at(id).shots == 2, "A fresh held diagonal drag did not start exactly one second cut");
+    const auto second = wire(world.snapshot(id)).players[0];
+    require(second.sword.elapsed >= 0 && glm::distance(second.sword.direction, glm::normalize(glm::vec2(30, 30))) < 1e-6f,
+            "The second held cut did not publish its new direction");
+    command.sequence = 41; command.cancelInteraction = true;
+    world.submit(id, Commands{{command}}); world.step();
+    require(wire(world.snapshot(id)).players[0].sword.elapsed == -1, "Cancelling interaction retained the sword attack");
+    command.cancelInteraction = false;
+    for (std::uint64_t sequence = 42; sequence < 80; ++sequence) {
         command.sequence = sequence; command.drag = {-40, 0};
         world.submit(id, Commands{{command}}); world.step();
     }
-    require(world.players().at(id).shots == 1, "Held or duplicate sword commands repeated the cut");
-    require(scene.zombies.damage().injury(0) != nullptr, "Authoritative sword cut missed the nearby zombie");
-    command.sequence = 40; command.left = false; command.drag = {};
+    require(world.players().at(id).shots == 2, "A cancelled hold restarted the sword without a physical release");
+    command.sequence = 80; command.left = false; command.drag = {};
     world.submit(id, Commands{{command}}); world.step();
-    command.sequence = 41; command.left = true; command.drag = {30, 30};
+    command.sequence = 81; command.left = true; command.drag = {-30, 30};
     world.submit(id, Commands{{command}}); world.step();
-    require(world.players().at(id).shots == 2, "Release and a fresh diagonal drag did not start a second cut");
-    command.sequence = 42; command.cancelInteraction = true;
-    world.submit(id, Commands{{command}}); world.step();
-    require(wire(world.snapshot(id)).players[0].sword.elapsed == -1, "Cancelling interaction retained the sword attack");
+    require(world.players().at(id).shots == 3, "A physical release did not rearm sword input after cancellation");
 }
 void swordCorpseUpgrade(const Options& options) {
     Scene scene(options); openScene(scene);

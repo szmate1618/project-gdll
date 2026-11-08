@@ -2266,9 +2266,12 @@ is not implemented. Punch equips the existing fists, which use no ammunition.
 its weapon. The silver blade has a narrow hexagonal outline. Hold **left click**
 and drag in any direction: dragging left snaps the sword right, then cuts left
 across your front. Right, up, down and diagonal drags work the same way. A
-12-pixel threshold filters jitter. Each press allows one cut with a 0.09 s
-windup, 0.26 s cut and recovery finishing at 0.55 s. Release and press again
-to repeat. Mouse look pauses during a held sword drag. Damage follows the
+12-pixel threshold filters jitter. Each cut has a 0.09 s windup, a 0.26 s cut,
+and recovery finishing at 0.55 s. Keep holding left click and make a fresh drag
+after recovery to swing again in the new direction. Holding still does not
+repeat attacks; movement during recovery is discarded. Cancelling an attack
+requires releasing and pressing again before swinging. Mouse look pauses during
+a held sword drag. Damage follows the
 blade within its physical reach and cannot pass through walls. Each cut applies
 ordinary damage once per actor, then continues checking severable joints. A
 later joint contact can sever one joint even if the first body hit was fatal;

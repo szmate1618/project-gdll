@@ -235,8 +235,10 @@ a guard, a grip and a pommel. Geometry is generated once by `sword_geometry.cpp`
 
 Hold left click and drag at least 12 pixels to choose any cut direction,
 including diagonals. The sword snaps to the opposite side for a 0.09-second
-windup, cuts for 0.26 seconds, and returns to guard by 0.55 seconds. Each press
-permits one cut; release and press again after recovery to repeat. Dragging
+windup, cuts for 0.26 seconds, and returns to guard by 0.55 seconds. Keep holding
+left click and drag at least 12 fresh pixels after recovery for each new cut.
+Holding still does not repeat attacks, and recovery movement is discarded.
+Cancellation requires a physical release and a new press to rearm. Dragging
 controls the sword while the button is held; releasing restores mouse look.
 Damage follows the finite swept blade and checks scene occlusion. Each cut can
 apply ordinary damage once and sever one joint per zombie. Joint checks continue

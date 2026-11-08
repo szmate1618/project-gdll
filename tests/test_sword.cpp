@@ -20,7 +20,7 @@ void gestures() {
         require(!sword.update(1), "Small mouse jitter must not initiate a cut");
         sword.drag(drag);
         require(sword.update(1), "Held directional drag must initiate a cut");
-        require(!sword.update(1.1), "A single hold must not repeat its cut");
+        require(!sword.update(1.1), "Holding still must not repeat a cut");
         const auto direction = glm::normalize(drag);
         auto pose = sword.pose(1);
         const auto start = glm::vec3(viewer::swordTransform(pose) * glm::vec4(0, viewer::swordBladeTip, 0, 1));
@@ -41,6 +41,36 @@ void gestures() {
         require(!sword.update(3) && sword.pose(3).elapsed < 0, "Cancellation must clear active and pending cuts");
         sword.trigger(true); sword.drag(drag);
         require(!sword.update(4), "Cancellation must require a physical release before rearming");
+    }
+}
+void heldSwings() {
+    for (const glm::vec2 drag : {glm::vec2(-40, 0), {40, 0}, {0, 40}, {0, -40},
+            {-30, 30}, {30, 30}, {-30, -30}, {30, -30}}) {
+        viewer::SwordMelee sword;
+        sword.trigger(true); sword.drag(drag);
+        require(sword.update(1), "The initial held drag must start a cut");
+        const double ready = 1.0 + viewer::swordDurationSeconds;
+        sword.drag(-drag);
+        require(!sword.update(1.2), "Moving during a cut must not interrupt it");
+        sword.drag(glm::normalize(drag) * 5.f);
+        require(!sword.update(ready - .001) && !sword.update(ready + .001),
+                "Recovery motion, including small movements, must not queue the next cut");
+        require(!sword.update(2), "Holding still after recovery must not repeat a cut");
+        // Repeated held input is how the multiplayer server samples a hold.
+        sword.trigger(true);
+        const auto nextDirection = -glm::normalize(drag);
+        sword.drag(nextDirection * 6.f);
+        require(!sword.update(2), "Each cut must require its own drag threshold");
+        sword.drag(nextDirection * 8.f);
+        require(sword.update(2) && glm::distance(sword.pose(2).direction, nextDirection) < 1e-6f,
+                "A fresh reverse drag must start another cut without releasing the button");
+        require(!sword.update(3), "A held gesture must be consumed exactly once");
+        sword.drag(drag);
+        require(sword.update(3), "Another fresh drag must allow a third cut in the same hold");
+        sword.cancel(); sword.trigger(true); sword.drag(drag);
+        require(!sword.update(4), "Cancellation must still suppress a held button until release");
+        sword.trigger(false); sword.trigger(true); sword.drag(drag);
+        require(sword.update(4), "A physical release must rearm a cancelled hold");
     }
 }
 void geometryAndItem() {
@@ -205,7 +235,7 @@ void corpseMovementAndLifetime() {
 }
 }
 int main() {
-    try { gestures(); geometryAndItem(); contacts(); bodyThenJoint(); cancelAfterBody();
+    try { gestures(); heldSwings(); geometryAndItem(); contacts(); bodyThenJoint(); cancelAfterBody();
         finiteBladeQueries(); wallAfterBody(); corpseMovementAndLifetime();
         std::cout << "Sword gesture, geometry and contact checks passed\n"; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

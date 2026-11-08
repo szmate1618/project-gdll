@@ -13,7 +13,8 @@ constexpr float swordCutSeconds = .26f;
 constexpr float swordDurationSeconds = .55f;
 constexpr float swordBladeBase = 0.f, swordBladeTip = 1.04f;
 
-// One cut per press, after 12 mouse pixels. Releasing does not interrupt a cut.
+// Hold and drag 12 fresh mouse pixels after recovery for each cut. Releasing
+// does not interrupt a cut; cancellation requires a real release to rearm.
 class SwordMelee {
 public:
     void trigger(bool held);

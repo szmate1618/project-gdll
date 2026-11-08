@@ -15,10 +15,14 @@ void SwordMelee::drag(glm::vec2 pixels) {
         drag_ = glm::clamp(drag_ + pixels, glm::vec2(-2000), glm::vec2(2000));
 }
 bool SwordMelee::update(double seconds) {
-    if (!std::isfinite(seconds) || !held_ || !armed_ || glm::length(drag_) < 12) return false;
-    armed_ = false; // A gesture during recovery is consumed, never queued.
-    if (seconds < startedAt_ + swordDurationSeconds) return false;
+    if (!std::isfinite(seconds) || !held_ || !armed_) return false;
+    if (seconds < startedAt_ + swordDurationSeconds) {
+        drag_ = {}; // Recovery motion never queues or contributes to the next cut.
+        return false;
+    }
+    if (glm::length(drag_) < 12) return false;
     direction_ = glm::normalize(drag_);
+    drag_ = {}; // Another cut needs fresh movement, even while the button stays held.
     startedAt_ = seconds;
     return true;
 }
