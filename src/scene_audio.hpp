@@ -22,6 +22,7 @@ public:
     void reload(std::size_t weaponSlot = 0);
     void emptyClick() { audio_.playLocal(AudioEffect::emptyClick, 1.0f); }
     void grabDoor(const DoorLayer& doors, std::size_t id);
+    void setGain(float gain) { audio_.setGain(gain); }
     void service() { audio_.update(); }
     AudioStats stats() const { return audio_.stats(); }
 

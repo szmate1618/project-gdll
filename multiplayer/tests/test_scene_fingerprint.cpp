@@ -48,9 +48,9 @@ int main(int argc, char** argv) {
         options.forests = false;
         const glm::vec3 spawn{1.5f, -2.25f, 0};
         const auto fingerprint = multiplayer::sceneFingerprint(options, 7, spawn, {first});
-        // Independently calculated for protocol 61: SHA-256 of <III6f2B
+        // Independently calculated for protocol 62: SHA-256 of <III6f2B
         // little-endian settings followed by ASCII SHA-256("abc") in hex.
-        require(fingerprint == "41df20e05950ddf5f6cf70fc208431091d3b4afb5e7b4e639a23576eaa29b613",
+        require(fingerprint == "be4090b827253c6487a2c7052aa264688bc215f639b31baaacdb6bcea74c1bc2",
                 "Scene fingerprint differs from the cross-platform reference");
         require(multiplayer::sceneFingerprint(options, 7, spawn, {second}) == fingerprint,
                 "Resource paths changed the fingerprint");
@@ -69,9 +69,10 @@ int main(int argc, char** argv) {
         changed.display.resolution = glm::ivec2(960, 540);
         changed.graphics.shadowCasters = viewer::ShadowCasters::Trees;
         changed.graphics.distantScenery = 1; changed.graphics.skipHighestDetail = true;
-        changed.graphicsSettingsFile = "userdata/graphics.toml";
+        changed.settingsFile = "userdata/settings.toml";
+        changed.audioSettings.volume = .12f;
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) == fingerprint,
-                "Local display settings changed the shared scene fingerprint");
+                "Local display/audio settings changed the shared scene fingerprint");
         for (const char* value : {"960x540", "1280x720", "1920x1080"}) {
             const char* args[] = {"client", "--fullscreen", "--resolution", value};
             require(multiplayer::parseOptions(4, const_cast<char**>(args), false).display.resolution.has_value(),
@@ -113,7 +114,7 @@ int main(int argc, char** argv) {
                 "None preset must fingerprint the effective disabled vegetation");
         options.zombieRadius = 999.25f; options.trees = false; options.forests = true;
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {first}) ==
-                "4d633be99b29990d1206c14f8d2d46a730dec421edec96e151474de3f202a245",
+                "cf94b2ab17ef8ea7cef5dcc21d108cefb0ae9acbe584e34e7d4f068abd67feca",
                 "Fractional settings differ from the cross-platform reference");
         std::ofstream(second, std::ios::binary) << "abd";
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {second}) !=

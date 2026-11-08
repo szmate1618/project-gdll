@@ -3,7 +3,7 @@
 #include "server/runtime.hpp"
 #ifdef MP_GRAPHICS
 #include "menu.hpp"
-#include "graphics_settings_file.hpp"
+#include "settings_file.hpp"
 #include <GLFW/glfw3.h>
 #endif
 #include <chrono>
@@ -14,9 +14,9 @@
 int main(int argc, char** argv) {
     try {
 #ifdef MP_GRAPHICS
-        const auto settingsFile = viewer::graphicsSettingsPath();
-        auto game = multiplayer::parseGameOptions(argc, argv, viewer::readGraphicsSettings(settingsFile));
-        if (!game.scene.headless) game.scene.graphicsSettingsFile = settingsFile;
+        const auto settingsFile = viewer::settingsPath();
+        auto game = multiplayer::parseGameOptions(argc, argv, viewer::readSettings(settingsFile));
+        if (!game.scene.headless) game.scene.settingsFile = settingsFile;
 #else
         auto game = multiplayer::parseGameOptions(argc, argv);
 #endif
@@ -67,8 +67,8 @@ int main(int argc, char** argv) {
                     if (menu && mode == multiplayer::GameMode::Host) {
                         authoritative = menu->hostOptions(); options = authoritative.scene;
                         // Host configuration owns world settings, never local display preferences.
-                        multiplayer::applyGraphicsDefaults(options, game.scene.graphics);
-                        options.graphicsSettingsFile = game.scene.graphicsSettingsFile;
+                        multiplayer::applySettingsDefaults(options, {game.scene.graphics, game.scene.audioSettings});
+                        options.settingsFile = game.scene.settingsFile;
                     }
 #endif
                     authoritative.scene.seconds = 0;
@@ -105,9 +105,9 @@ int main(int argc, char** argv) {
             }
             if (game.scene.headless || game.scene.seconds) break;
 #ifdef MP_GRAPHICS
-            if (!game.scene.graphicsSettingsFile.empty())
-                if (const auto saved = viewer::readGraphicsSettings(game.scene.graphicsSettingsFile))
-                    multiplayer::applyGraphicsDefaults(game.scene, *saved);
+            if (!game.scene.settingsFile.empty())
+                if (const auto saved = viewer::readSettings(game.scene.settingsFile))
+                    multiplayer::applySettingsDefaults(game.scene, *saved);
             if (menu->closed()) break;
 #endif
             mode = multiplayer::GameMode::Menu;

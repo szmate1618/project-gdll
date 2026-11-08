@@ -1,0 +1,70 @@
+<rml>
+<head><title>Settings</title><link type="text/template" href="loadout.rml" /><link type="text/rcss" href="settings.rcss" /></head>
+<body template="loadout" class="loadout settings">
+    <div id="settings-panel" class="panel main-panel full-panel">
+        <div class="panel-heading">SETTINGS</div><div class="panel-meta">Applied and saved immediately / No restart required</div>
+        <div id="settings-tabs">
+            <button id="settings-graphics-tab" class="settings-section selected">GRAPHICS</button>
+            <button id="settings-audio-tab" class="settings-section">AUDIO</button>
+        </div>
+        <div id="graphics-content">
+            <div id="settings-controls">
+                <div class="settings-row" id="graphics-display-row">
+                    <div class="settings-label">Display mode</div>
+                    <div class="settings-control graphics-mode"><button id="graphics-windowed">WINDOWED</button><button id="graphics-fullscreen">FULLSCREEN</button></div>
+                </div>
+                <div class="settings-row" id="graphics-resolution-row">
+                    <label class="settings-label" for="graphics-resolution">Render resolution</label>
+                    <div class="settings-control">
+                        <div class="settings-value" id="graphics-resolution-value">1280 x 720</div>
+                        <input id="graphics-resolution" type="range" min="0" max="2" step="1" value="1" />
+                        <div class="settings-stops"><span>960 x 540</span><span>1280 x 720</span><span>1920 x 1080</span></div>
+                        <div class="settings-help">3D world and held weapon only. Menus and HUD stay at native resolution.</div>
+                    </div>
+                </div>
+                <div class="settings-row" id="graphics-distant-row">
+                    <label class="settings-label" for="graphics-distant">Distant scenery</label>
+                    <div class="settings-control">
+                        <div class="settings-value" id="graphics-distant-value">Disabled</div>
+                        <input id="graphics-distant" type="range" min="0" max="3" step="1" value="3" />
+                        <div class="settings-stops"><span>500 m</span><span>750 m</span><span>1000 m</span><span>Disabled</span></div>
+                        <div class="settings-help">Beyond this distance, static scenery refreshes at 15 FPS. Nearby scenery stays at full frame rate.</div>
+                    </div>
+                </div>
+                <div class="settings-row" id="graphics-shadow-row">
+                    <label class="settings-label" for="graphics-shadows">Shadow casters</label>
+                    <div class="settings-control">
+                        <div class="settings-value" id="graphics-shadows-value">+Objects</div>
+                        <input id="graphics-shadows" type="range" min="0" max="4" step="1" value="4" />
+                        <div class="settings-stops"><span>None</span><span>Buildings</span><span>+Trees</span><span>+NPCs</span><span>+Objects</span></div>
+                        <div class="settings-help">Choose what casts shadows. Each step includes earlier groups. Applies to sunlight and flashlight.</div>
+                        <div id="graphics-shadow-groups">Buildings, vegetation, zombies and dogs, cars and props.</div>
+                    </div>
+                </div>
+                <div class="settings-row" id="graphics-lod-row">
+                    <div class="settings-label">Level of detail</div>
+                    <div class="settings-control">
+                        <label class="graphics-checkbox"><input id="graphics-lod" type="checkbox" />Never use highest detail</label>
+                        <div class="settings-help">Use the next lower detail level for NPCs and cars, even up close. Models still simplify farther away.<br />Wound-specific meshes and models without lower detail keep their required geometry.</div>
+                    </div>
+                </div>
+            </div>
+            <button id="graphics-reset">RESET GRAPHICS</button>
+        </div>
+        <div id="audio-content">
+            <div id="audio-controls">
+                <div class="settings-row">
+                    <label class="settings-label" for="audio-volume">Game volume</label>
+                    <div class="settings-control">
+                        <div class="settings-value" id="audio-volume-value">60%</div>
+                        <input id="audio-volume" type="range" min="0" max="100" step="1" value="60" />
+                        <div class="settings-stops"><span>Muted</span><span>100%</span></div>
+                        <div class="settings-help">Adjust all game sounds, including ambience, weapons and voices.</div>
+                    </div>
+                </div>
+            </div>
+            <button id="audio-reset">RESET AUDIO</button>
+        </div>
+    </div>
+</body>
+</rml>

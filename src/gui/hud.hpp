@@ -3,7 +3,7 @@
 #include "inventory/inventory_action.hpp"
 #include "command_wheel.hpp"
 #include "mission_menu.hpp"
-#include "graphics_settings.hpp"
+#include "settings.hpp"
 #include "sleep_plan.hpp"
 #include "player_health.hpp"
 #include "../map_view.hpp"
@@ -86,8 +86,8 @@ public:
     bool cancelMissionConfirmation();
     void missionMenuKey(MissionMenuKey key);
     std::optional<std::uint64_t> takeMapMarkRemoval();
-    void setGraphicsSettings(const GraphicsSettings& settings);
-    std::optional<GraphicsSettings> takeGraphicsSettingsRequest();
+    void setSettings(const Settings& settings);
+    std::optional<Settings> takeSettingsRequest();
     std::vector<InventoryDragAction> takeInventoryActions();
     std::optional<SleepAction> takeSleepAction();
     bool inventoryDragging() const; // Includes completed actions awaiting delivery.

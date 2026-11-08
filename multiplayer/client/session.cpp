@@ -32,6 +32,7 @@
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
 #include "audio_playback.hpp"
+#include "settings_file.hpp"
 #include "weapon_feedback.hpp"
 #include "sound_cues.hpp"
 #include "window.hpp"
@@ -151,7 +152,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
             viewer::HudScreen::Health, viewer::HudScreen::Map};
         const auto requested = code == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay :
-            code == GLFW_KEY_F12 ? viewer::HudScreen::Graphics : screens[code - GLFW_KEY_F1];
+            code == GLFW_KEY_F12 ? viewer::HudScreen::Settings : screens[code - GLFW_KEY_F1];
         showHudScreen(window, in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested);
         return;
     }
@@ -329,6 +330,7 @@ struct Graphics {
 #ifdef MP_GRAPHICS
     std::unique_ptr<viewer::Renderer> renderer;
     std::unique_ptr<viewer::RuntimeGraphicsSettings> settings;
+    viewer::Settings preferences;
     std::unique_ptr<viewer::GpuTimer> gpuTimer;
     std::unique_ptr<viewer::BirdRenderer> birds;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
@@ -382,7 +384,7 @@ struct Graphics {
         renderer->setShadowCasters(options.graphics.shadowCasters);
         renderer->setSkipHighestDetail(options.graphics.skipHighestDetail);
         settings = std::make_unique<viewer::RuntimeGraphicsSettings>(window, *renderer, options.display.fullscreen,
-            options.display.renderSize(), options.graphicsSettingsFile);
+            options.display.renderSize());
         scene.zombies.releaseAnimationVertices();
         scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);
@@ -406,6 +408,8 @@ struct Graphics {
         viewer::AudioOptions audioOptions;
         audioOptions.directory = multiplayer::audioDirectory();
         audioOptions.enabled = options.audio;
+        audioOptions.gain = options.audioSettings.volume;
+        preferences = {settings->settings(), options.audioSettings};
         audio = std::make_unique<multiplayer::ClientAudio>(audioOptions);
     }
     void bindInput(Input& in) {
@@ -564,14 +568,22 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
         const double dt = std::min(.1, std::chrono::duration<double>(clockNow - previous).count()); previous = clockNow;
 #ifdef MP_GRAPHICS
         if (graphics.window) {
-            if (const auto changed = graphics.hud->takeGraphicsSettingsRequest()) {
-                graphics.settings->apply(*changed);
-                in.distantSceneCache = changed->distantScenery != 3;
+            bool settingsChanged = false;
+            if (const auto changed = graphics.hud->takeSettingsRequest()) {
+                graphics.settings->apply(changed->graphics);
+                graphics.audio->setGain(changed->audio.volume);
+                graphics.preferences = *changed;
+                settingsChanged = true;
+                in.distantSceneCache = changed->graphics.distantScenery != 3;
                 in.firstMouse = true;
             }
             glfwPollEvents();
+            const auto previousDistance = graphics.settings->settings().distantScenery;
             graphics.settings->syncDistantScenery(in.distantSceneCache);
-            graphics.hud->setGraphicsSettings(graphics.settings->settings());
+            graphics.preferences.graphics = graphics.settings->settings();
+            if (settingsChanged || previousDistance != graphics.preferences.graphics.distantScenery)
+                viewer::writeSettings(options.settingsFile, graphics.preferences);
+            graphics.hud->setSettings(graphics.preferences);
         }
         if (in.hud) {
             if (const auto action = in.hud->takeSleepAction()) in.sleepAction = *action;

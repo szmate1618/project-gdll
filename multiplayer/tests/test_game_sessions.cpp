@@ -59,7 +59,7 @@ struct Peer {
     }
 };
 void parser() {
-    const auto parse = [](std::vector<std::string> values, const std::optional<viewer::GraphicsSettings>& saved = {}) {
+    const auto parse = [](std::vector<std::string> values, const std::optional<viewer::Settings>& saved = {}) {
         std::vector<char*> pointers;
         for (auto& value : values) pointers.push_back(value.data());
         return multiplayer::parseGameOptions(static_cast<int>(pointers.size()), pointers.data(), saved);
@@ -75,16 +75,17 @@ void parser() {
             "Default window rendering must use a separate fixed 720p target");
     require(parse({"game", "--fullscreen"}).scene.display.renderSize() == glm::ivec2(1280, 720),
             "Fullscreen must default to a separate 720p render target");
-    viewer::GraphicsSettings saved;
-    saved.resolution = 2; saved.distantScenery = 0; saved.shadowCasters = viewer::ShadowCasters::Trees;
-    saved.skipHighestDetail = true;
+    viewer::Settings saved;
+    saved.audio.volume = .27f;
+    saved.graphics.resolution = 2; saved.graphics.distantScenery = 0; saved.graphics.shadowCasters = viewer::ShadowCasters::Trees;
+    saved.graphics.skipHighestDetail = true;
     const auto restored = parse({"game"}, saved).scene;
     require(restored.display.renderSize() == glm::ivec2(1920,1080) && restored.distantSceneCache &&
             restored.graphics.distantScenery == 0 && restored.graphics.shadowCasters == viewer::ShadowCasters::Trees &&
-            restored.graphics.skipHighestDetail, "Saved preferences must initialize the game options");
+            restored.graphics.skipHighestDetail && restored.audioSettings.volume == .27f, "Saved preferences must initialize the game options");
     const auto overridden = parse({"game", "--fullscreen", "--resolution", "960x540", "--distant-scene-cache"}, saved).scene;
     require(overridden.display.fullscreen && overridden.display.renderSize() == glm::ivec2(960,540) &&
-            overridden.graphics.distantScenery == 2 && overridden.graphics.skipHighestDetail,
+            overridden.graphics.distantScenery == 2 && overridden.graphics.skipHighestDetail && overridden.audioSettings.volume == .27f,
             "Explicit CLI options must override saved values while retaining other preferences");
     bool badResolution = false;
     try { parse({"game", "--resolution", "--host"}); } catch (const std::exception&) { badResolution = true; }

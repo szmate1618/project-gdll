@@ -8,7 +8,7 @@ namespace viewer {
 namespace {
 constexpr std::array<const char*, 5> names{"CANCEL", "DANGER", "MOVE THERE", "BACKUP", "MARK LOCATION"};
 constexpr std::array<const char*, 5> classes{"", "danger", "move", "backup", "mark"};
-constexpr std::array<const char*, 5> pages{"inventory", "skills", "health", "map", "graphics"};
+constexpr std::array<const char*, 5> pages{"inventory", "skills", "health", "map", "settings"};
 
 void quad(Rml::Mesh& mesh, Rml::Vector2f a, Rml::Vector2f b, Rml::Vector2f c, Rml::Vector2f d,
           Rml::ColourbPremultiplied color) {

@@ -25,6 +25,11 @@ headphones. There is no in-game profile calibration UI yet. OpenAL Soft also
 supports [custom HRTF datasets](https://github.com/kcat/openal-soft/blob/1.24.3/docs/hrtf.txt)
 through its own configuration.
 
+The in-game **F12 Settings → Audio** tab controls master volume from 0–100%,
+with 60% as the default. It applies immediately to every game sound and saves
+alongside graphics preferences in `userdata/settings.toml` beside the executable.
+Muting this slider does not alter AI hearing; `--no-audio` still skips opening a device.
+
 ## Sounds and replacement files
 
 The build copies 27 curated recordings from `assets/audio/` into `build/audio/`.

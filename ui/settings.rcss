@@ -1,0 +1,34 @@
+.settings #action-hotbar { display: none; }
+#settings-controls, #audio-controls { position: absolute; left: 120dp; top: 58dp; width: 970dp; }
+.settings-row { position: absolute; width: 970dp; border-top: 1dp #f5f6f226; padding-top: 15dp; }
+.settings-label { position: absolute; left: 0dp; top: 18dp; font-size: 16dp; }
+.settings-control { position: relative; margin-left: 260dp; width: 710dp; }
+#graphics-display-row { top: 0dp; }
+#graphics-resolution-row { top: 66dp; }
+#graphics-distant-row { top: 174dp; }
+#graphics-shadow-row { top: 282dp; }
+#graphics-lod-row { top: 400dp; }
+#graphics-reset, #audio-reset { position: absolute; right: 20dp; bottom: 14dp; width: 180dp; height: 30dp; line-height: 30dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f2bf; font-size: 11dp; text-align: center; cursor: pointer; }
+#graphics-reset:hover, #audio-reset:hover { background-color: #f5f6f21a; color: #f5f6f2; border-color: #ec6962; }
+.graphics-mode { display: flex; }
+.graphics-mode button { width: 150dp; height: 32dp; line-height: 32dp; margin-right: 8dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f299; font-size: 12dp; text-align: center; cursor: pointer; }
+.graphics-mode button.selected { color: #f5f6f2; border-bottom: 2dp #ec6962; background-color: #f5f6f21a; }
+.graphics-mode button:hover { color: #f5f6f2; background-color: #f5f6f21a; }
+.settings-value { height: 19dp; font-size: 14dp; }
+.settings input[type="range"] { display: block; width: 710dp; height: 22dp; cursor: pointer; }
+.settings slidertrack { height: 22dp; border-top: 3dp #f5f6f24d; }
+.settings sliderbar { width: 11dp; height: 17dp; background-color: #f5f6f2; border-bottom: 3dp #ec6962; }
+.settings sliderbar:hover { background-color: #ec6962; }
+.settings sliderarrowdec, .settings sliderarrowinc { width: 0dp; }
+.settings-stops { display: flex; justify-content: space-between; font-size: 11dp; color: #f5f6f2bf; }
+.settings-help { margin-top: 8dp; color: #f5f6f299; font-size: 11dp; }
+#graphics-shadow-groups { margin-top: 7dp; font-size: 11dp; }
+.graphics-checkbox { display: block; height: 23dp; font-size: 14dp; cursor: pointer; }
+.settings input[type="checkbox"] { width: 16dp; height: 16dp; margin-right: 10dp; border: 1dp #f5f6f299; background-color: #2b2d2f; vertical-align: middle; cursor: pointer; }
+.settings input[type="checkbox"]:checked { background-color: #ec6962; border-color: #ec6962; }
+
+#settings-tabs { position: absolute; left: 20dp; top: 58dp; width: 85dp; }
+.settings-section { display: block; width: 85dp; height: 32dp; line-height: 32dp; margin-bottom: 8dp; border: 1dp #f5f6f24d; background-color: #2b2d2f; color: #f5f6f299; font-size: 11dp; text-align: center; cursor: pointer; }
+.settings-section.selected { color: #f5f6f2; border-bottom: 2dp #ec6962; background-color: #f5f6f21a; }
+.settings-section:hover { color: #f5f6f2; background-color: #f5f6f21a; }
+#audio-content { display: none; }

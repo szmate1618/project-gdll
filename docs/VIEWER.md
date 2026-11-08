@@ -130,7 +130,7 @@ control modes, stances, vehicles, free fly, speed, player position and weapons.
 The gameplay weapon selector reuses those weapon icons. The game application's
 [team command wheel](../multiplayer/README.md#team-command-wheel) shares this HUD
 and the loadout palette; hold middle mouse on foot to select a signal, or move
-into its outer ring and release to open Inventory, Skills, Health, Map, or Graphics.
+into its outer ring and release to open Inventory, Skills, Health, Map, or Settings.
 Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
 and strain have tinted tracks at 60% opacity with white outlines at 80%.
@@ -372,11 +372,11 @@ within the same HUD session. Losing focus also cancels unfinished drawing;
 closing or losing focus during a point adjustment restores that point. A drag
 threshold of four design pixels prevents panning from adding measurement points.
 
-### Graphics settings
+### Settings
 
-**F12** opens/closes Graphics; its tab sits on the far right of the shared
+**F12** opens/closes Settings; its tab sits on the far right of the shared
 in-game header. **Home** releases/captures the mouse; the standalone viewer's
-frame-scene shortcut is **End**. Gameplay continues while this page is open.
+frame-scene shortcut is **End**. Gameplay continues while this page is open. The **Graphics** tab contains display and rendering controls; the **Audio** tab contains game volume.
 
 Display mode switches between windowed and fullscreen without recreating the
 OpenGL context. Render resolution selects 960x540, 1280x720 or 1920x1080 for the
@@ -397,11 +397,19 @@ Never use highest detail defaults off. When enabled, NPC and car meshes with
 prepared LoDs start at LOD1 even up close, while farther levels keep their normal
 selection. Wounded/severed zombie surfaces retain their required original
 vertex topology, and assets without a prepared lower mesh retain their fallback.
-Graphics settings save automatically to `userdata/graphics.toml` beside the running
-executable: `build/userdata/graphics.toml` for the development viewer, or
-`build/multiplayer/userdata/graphics.toml` for the client. Installed games use
+The Audio tab adjusts master game volume from 0% (muted) to 100%, with the existing
+60% volume as the default. Changes apply immediately to ambience, effects and voices,
+including sounds already playing. **Reset Graphics** and **Reset Audio** reset only
+their own tab. Volume never changes gameplay hearing or other applications.
+
+Graphics and audio settings save automatically to `userdata/settings.toml` beside the running
+executable: `build/userdata/settings.toml` for the development viewer, or
+`build/multiplayer/userdata/settings.toml` for the client. Installed games use
 `userdata` in their own executable directory, regardless of the working directory.
-Character-profile overrides do not relocate this graphics file.
+Character-profile overrides do not relocate this shared settings file.
+
+If the shared file is missing, the previous `userdata/graphics.toml` is loaded with
+default audio volume and left untouched. The next settings edit writes the shared file.
 
 Saved preferences load before explicit command-line options, which take precedence
 for that launch. The client also retains saved choices when starting another session
@@ -414,7 +422,7 @@ a temporary file and replace the previous save atomically.
 Preferences are local and do not change collision, AI, networking or fingerprints.
 
 For reproducible in-game captures, use `--hud-screen inventory`,
-`--hud-screen skills`, `--hud-screen health`, `--hud-screen map` or `--hud-screen graphics` with the
+`--hud-screen skills`, `--hud-screen health`, `--hud-screen map` or `--hud-screen settings` with the
 viewer's normal map, camera and screenshot options:
 
 ```bash
@@ -2039,7 +2047,7 @@ build directory when run by CTest.
 | F4 | Open / close the full Sentinel map |
 | F10 | Toggle collision visualization |
 | Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |
-| F12 | Open / close Graphics settings |
+| F12 | Open / close Settings |
 | Tab | Release / recapture the cursor for the Sleep and Inventory drawers |
 | Home | Release / capture the mouse |
 | L | Toggle the flashlight on/off |

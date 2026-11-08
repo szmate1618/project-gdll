@@ -20,7 +20,7 @@
 #include "vehicle_placement.hpp"
 #include "day_night.hpp"
 #include "client/display.hpp"
-#include "graphics_settings.hpp"
+#include "settings.hpp"
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -48,7 +48,8 @@ struct Options {
     bool distantSceneCache = false; // Experimental client presentation only; outside scene identity.
     ClientDisplay display; // Client presentation only; excluded from scene identity.
     viewer::GraphicsSettings graphics; // Local preferences, never negotiated with the host.
-    std::filesystem::path graphicsSettingsFile; // Empty for headless clients and isolated tests.
+    viewer::AudioSettings audioSettings;
+    std::filesystem::path settingsFile; // Empty for headless clients and isolated tests.
     bool birds = false; // Server opt-in during the deterministic flock experiment.
     bool zombiePerception = true; // Authoritative server setting; not world identity.
     bool explicitLook = false;
@@ -59,8 +60,8 @@ struct Options {
     std::filesystem::path screenshot;
 };
 Options parseOptions(int argc, char** argv, bool server,
-    const std::optional<viewer::GraphicsSettings>& graphicsDefaults = {});
-void applyGraphicsDefaults(Options& options, const viewer::GraphicsSettings& settings);
+    const std::optional<viewer::Settings>& settingsDefaults = {});
+void applySettingsDefaults(Options& options, const viewer::Settings& settings);
 // Count includes dormant slots, after checking the map extent.
 std::string sceneFingerprint(const Options& options, std::size_t count, glm::vec3 spawnEye,
                              const std::vector<std::filesystem::path>& content);

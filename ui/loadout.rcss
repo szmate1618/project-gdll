@@ -6,12 +6,12 @@ body.loadout { pointer-events: auto; }
 #skills-tab { left: 204dp; }
 #health-tab { left: 408dp; }
 #map-tab { left: 612dp; }
-#graphics-tab { right: 0dp; text-align: right; }
-#graphics-tab .key-label { width: 36dp; text-align: left; }
+#settings-tab { right: 0dp; text-align: right; }
+#settings-tab .key-label { width: 36dp; text-align: left; }
 .key-label { display: inline-block; width: 28dp; font-size: 11dp; }
 .inventory #inventory-tab, .skills #skills-tab, .health #health-tab, .map #map-tab { border-bottom-width: 2dp; }
 .close-hint { position: absolute; right: 0dp; top: 51dp; font-size: 10dp; }
-.graphics #graphics-tab { border-bottom-width: 2dp; }
+.settings #settings-tab { border-bottom-width: 2dp; }
 .panel { position: absolute; border-width: 1dp; }
 .main-panel { box-sizing: content-box; top: 68dp; height: 450dp; }
 .panel-heading { position: absolute; left: 20dp; top: 17dp; font-size: 12dp; letter-spacing: 2dp; }

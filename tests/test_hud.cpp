@@ -691,7 +691,7 @@ int main(int argc, char** argv) {
             click(245, 51); apply(viewer::HudScreen::Skills); // Click the nested F2 label.
             click(475, 53); apply(viewer::HudScreen::Health);
             click(680, 53); apply(viewer::HudScreen::Map);
-            click(1190, 53); apply(viewer::HudScreen::Graphics);
+            click(1190, 53); apply(viewer::HudScreen::Settings);
             click(80, 53); apply(viewer::HudScreen::Inventory);
             click(80, 53);
             require(!hud.takeScreenRequest(), "Clicking the active tab must keep its page open");
@@ -790,19 +790,20 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Inventory;
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-inventory-small.ppm").c_str(), pixels(640, 360), 640, 360);
-            state.screen = viewer::HudScreen::Graphics;
+            state.screen = viewer::HudScreen::Settings;
             clear(); hud.draw(state, 1280, 720); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-graphics.ppm").c_str(), pixels(1280, 720), 1280, 720);
-            require(!hud.takeGraphicsSettingsRequest(), "Opening Graphics must not change any settings");
-            const auto graphicsClick = [&](float x, float y) {
+            require(!hud.takeSettingsRequest(), "Opening Settings must not change any settings");
+            const auto settingsClick = [&](float x, float y) {
                 hud.pointerMove(x / 1280, y / 720);
                 hud.pointerButton(0, true); hud.pointerButton(0, false);
                 clear(); hud.draw(state, 1280, 720); checkState();
-                const auto request = hud.takeGraphicsSettingsRequest();
-                if (!request) throw std::runtime_error("Graphics control failed to publish a setting change at " + std::to_string(x) + "," + std::to_string(y));
-                require(!hud.takeGraphicsSettingsRequest(), "Graphics changes must be consumed once");
+                const auto request = hud.takeSettingsRequest();
+                if (!request) throw std::runtime_error("Settings control failed to publish a setting change at " + std::to_string(x) + "," + std::to_string(y));
+                require(!hud.takeSettingsRequest(), "Settings changes must be consumed once");
                 return *request;
             };
+            const auto graphicsClick = [&](float x, float y) { return settingsClick(x, y).graphics; };
             auto graphics = graphicsClick(640, 187);
             require(graphics.fullscreen, "Fullscreen button must select fullscreen");
             graphics = graphicsClick(480, 187);
@@ -811,7 +812,7 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720);
             hud.cancelPointerInteraction(); hud.pointerButton(0, false);
             clear(); hud.draw(state, 1280, 720);
-            require(!hud.takeGraphicsSettingsRequest(), "Cancelling a pressed control must not change graphics settings");
+            require(!hud.takeSettingsRequest(), "Cancelling a pressed control must not change graphics settings");
             graphics = graphicsClick(420, 267);
             require(graphics.resolution == 0, "Resolution slider must select 960x540");
             graphics = graphicsClick(420, 375);
@@ -825,11 +826,35 @@ int main(int argc, char** argv) {
             viewer::GraphicsSettings nondefault;
             nondefault.fullscreen = true; nondefault.resolution = 2; nondefault.distantScenery = 1;
             nondefault.shadowCasters = viewer::ShadowCasters::Npcs; nondefault.skipHighestDetail = true;
-            hud.setGraphicsSettings(nondefault);
-            graphics = graphicsClick(1130, 655);
+            hud.setSettings({nondefault, {.35f}});
+            const auto graphicsReset = settingsClick(1130, 655);
+            graphics = graphicsReset.graphics;
+            require(graphicsReset.audio.volume == .35f, "Reset Graphics must preserve the audio volume");
             require(!graphics.fullscreen && graphics.resolution == 1 && graphics.distantScenery == 3 &&
                     graphics.shadowCasters == viewer::ShadowCasters::Objects && !graphics.skipHighestDetail,
                     "Reset to defaults must restore every graphics control and publish one complete change");
+            hud.pointerMove(95.f / 1280, 225.f / 720);
+            hud.pointerButton(0, true); hud.pointerButton(0, false);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(!hud.takeSettingsRequest(), "Switching to Audio must not edit any preferences");
+            auto audioSettings = settingsClick(420, 200);
+            require(audioSettings.audio.volume == 0 && audioSettings.graphics.resolution == 1,
+                    "Audio slider must mute the game without changing graphics");
+            audioSettings = settingsClick(1120, 200);
+            require(audioSettings.audio.volume == 1, "Audio slider must reach full volume");
+            if (argc > 1) capture((std::string(argv[1]) + "-settings-audio.ppm").c_str(), pixels(1280, 720), 1280, 720);
+            clear(); hud.draw(state, 640, 360); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-settings-audio-small.ppm").c_str(), pixels(640, 360), 640, 360);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            audioSettings.graphics.resolution = 2;
+            hud.setSettings(audioSettings);
+            audioSettings = settingsClick(1130, 655);
+            require(audioSettings.audio.volume == .6f && audioSettings.graphics.resolution == 2,
+                    "Reset Audio must restore its default without changing graphics");
+            hud.pointerMove(95.f / 1280, 185.f / 720);
+            hud.pointerButton(0, true); hud.pointerButton(0, false);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(!hud.takeSettingsRequest(), "Returning to Graphics must not edit any preferences");
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-graphics-small.ppm").c_str(), pixels(640, 360), 640, 360);
             state.screen = viewer::HudScreen::Health;

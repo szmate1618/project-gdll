@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
             // device-failure path, rather than only the explicit mute switch.
             viewer::AudioSystem audio(options);
             require(!audio.enabled(), "Unavailable device must fall back to silent playback");
+            audio.setGain(.5f);
             audio.setListener({}, {0, 0, -1});
             audio.playLocal(viewer::AudioEffect::pistol);
             audio.setZombieEmitters({{1, {0, 0, 1}}});
@@ -104,6 +105,19 @@ int main(int argc, char** argv) {
             require(audio.stats().effects == 1, "Preloaded effects play after their file is removed");
             for (int i = 0; i < 10; ++i) audio.playLocal(viewer::AudioEffect::pistol);
             require(audio.stats().effects == 2, "Repeated gunfire respects the fixed effect pool");
+            for (const float gain : {0.f, .25f, 1.f}) {
+                audio.setGain(gain);
+                ALfloat actual = -1;
+                alGetListenerf(AL_GAIN, &actual);
+                require(actual == gain, "Live master volume must update the common OpenAL listener");
+                require(audio.stats().effects == 2 && audio.stats().playingStreams == 2,
+                        "Muting and changing volume must preserve active effects and ambience");
+            }
+            for (const float gain : {-1.f, 1.01f, std::numeric_limits<float>::quiet_NaN()}) {
+                bool rejected = false;
+                try { audio.setGain(gain); } catch (const std::invalid_argument&) { rejected = true; }
+                require(rejected, "Invalid master gain must be rejected");
+            }
             const auto before = audio.stats();
             require(before.streamBuffers == 8 && before.streamFramesRead == 32768,
                     "Two ambience files use four 4096-frame buffers each, including very short loops");
@@ -142,6 +156,7 @@ int main(int argc, char** argv) {
         }
         options.enabled = false;
         viewer::AudioSystem muted(options);
+        muted.setGain(0);
         require(!muted.enabled() && alcGetCurrentContext() == nullptr, "Explicit mute creates no output device/context");
         std::cout << "OpenAL audio tests passed\n";
         return 0;

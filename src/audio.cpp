@@ -275,6 +275,12 @@ AudioSystem::~AudioSystem() = default;
 bool AudioSystem::enabled() const { return impl_ && impl_->ready; }
 bool AudioSystem::hrtfEnabled() const { return enabled() && impl_->hrtf; }
 
+void AudioSystem::setGain(float gain) {
+    if (!std::isfinite(gain) || gain < 0 || gain > 1)
+        throw std::invalid_argument("Audio gain must be between 0 and 1");
+    if (enabled()) alListenerf(AL_GAIN, gain);
+}
+
 void AudioSystem::setListener(glm::vec3 eye, glm::vec3 forward, glm::vec3 up) {
     if (!enabled() || !finite(eye) || !finite(forward) || !finite(up) ||
         glm::length(forward) < 1e-5f || glm::length(glm::cross(forward, up)) < 1e-5f) return;

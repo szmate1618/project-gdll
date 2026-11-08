@@ -1,15 +1,13 @@
 #include "graphics_settings.hpp"
-#include "graphics_settings_file.hpp"
+#include "settings_file.hpp"
 #include "renderer.hpp"
 #include <GLFW/glfw3.h>
 #include <stdexcept>
-#include <iostream>
-#include <utility>
 
 namespace viewer {
 RuntimeGraphicsSettings::RuntimeGraphicsSettings(GLFWwindow* window, Renderer& renderer, bool fullscreen,
-                                                glm::ivec2 resolution, std::filesystem::path savePath)
-    : window_(window), renderer_(renderer), savePath_(std::move(savePath)) {
+                                                glm::ivec2 resolution)
+    : window_(window), renderer_(renderer) {
     settings_.fullscreen = glfwGetWindowAttrib(window_, GLFW_VISIBLE) ? glfwGetWindowMonitor(window_) != nullptr : fullscreen;
     const auto selected = resolution;
     for (std::size_t i = 0; i < renderResolutions.size(); ++i)
@@ -52,12 +50,7 @@ void RuntimeGraphicsSettings::apply(const GraphicsSettings& next) {
     renderer_.setShadowCasters(next.shadowCasters);
     renderer_.setSkipHighestDetail(next.skipHighestDetail);
     settings_ = next;
-    if (!savePath_.empty()) {
-        try { saveGraphicsSettings(savePath_, settings_); }
-        catch (const std::exception& error) {
-            std::cerr << "Graphics settings could not be saved to " << savePath_.u8string() << ": " << error.what() << '\n';
-        }
-    }
+
 }
 void RuntimeGraphicsSettings::syncDistantScenery(bool enabled) {
     if (enabled == (settings_.distantScenery != 3)) return;

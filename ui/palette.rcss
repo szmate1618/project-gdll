@@ -51,7 +51,7 @@ body.loadout { background-color: #2b2d2fed; }
 .field-label { color: #f5f6f280; }
 .page-tab:hover { color: #f5f6f2; background-color: #f5f6f21a; }
 .inventory #inventory-tab, .skills #skills-tab,
-.health #health-tab, .map #map-tab, .graphics #graphics-tab { color: #f5f6f2; border-color: #ec6962; }
+.health #health-tab, .map #map-tab, .settings #settings-tab { color: #f5f6f2; border-color: #ec6962; }
 .loadout .unselected { background-color: #f5f6f240; }
 .backpack-size, .storage-occupants, .item .assignment-type,
 .skill .assignment-type,
@@ -98,7 +98,7 @@ body.loadout { background-color: #2b2d2fed; }
 .key-label, .panel-meta, .backpack-size, .storage-time, .storage-item-quantity,
 .health-stat-value, .health-injury-scores, .ammo, #heading, #coordinates, #speed,
 #sleep-clock, #sleep-duration, #sleep-rest-clock, #sleep-rest-remaining,
-#switch-countdown, .selection-key, .action-number, .graphics-value, .graphics-stops,
+#switch-countdown, .selection-key, .action-number, .settings-value, .settings-stops,
 .equipment-access {
     font-family: plex-mono;
 }

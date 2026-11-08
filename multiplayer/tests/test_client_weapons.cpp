@@ -346,10 +346,10 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(in.hudScreen == viewer::HudScreen::Map, "F4 must select map without repeat toggling");
             key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_F12, 0, GLFW_REPEAT, 0);
-            require(in.hudScreen == viewer::HudScreen::Graphics && in.capture,
-                    "F12 must open Graphics without changing mouse-capture preference");
+            require(in.hudScreen == viewer::HudScreen::Settings && in.capture,
+                    "F12 must open Settings without changing mouse-capture preference");
             key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
-            require(in.hudScreen == viewer::HudScreen::Gameplay && in.capture, "F12 must close Graphics");
+            require(in.hudScreen == viewer::HudScreen::Gameplay && in.capture, "F12 must close Settings");
             key(window, GLFW_KEY_F4, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_ENTER, 0, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);

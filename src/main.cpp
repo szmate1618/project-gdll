@@ -1,7 +1,7 @@
 #include "fire_effects.hpp"
 #include "zombie_update_profile.hpp"
 #include "renderer.hpp"
-#include "graphics_settings_file.hpp"
+#include "settings_file.hpp"
 #include "boid/bird_flock.hpp"
 #include "boid/bird_renderer.hpp"
 #include "frame_profile.hpp"
@@ -98,7 +98,7 @@ struct Options {
     int width = 1280, height = 720;
     bool fullscreen = false;
     viewer::GraphicsSettings graphics;
-    std::filesystem::path graphicsSettingsFile;
+    std::filesystem::path settingsFile;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
@@ -144,17 +144,18 @@ struct Options {
     std::optional<glm::vec2> spawn;
 };
 
-Options parseOptions(int argc, char** argv, const std::optional<viewer::GraphicsSettings>& saved = {}) {
+Options parseOptions(int argc, char** argv, const std::optional<viewer::Settings>& saved = {}) {
     Options options;
     if (saved) {
-        options.graphics = *saved;
-        options.fullscreen = saved->fullscreen;
-        const auto size = viewer::renderResolutions[saved->resolution];
+        options.graphics = saved->graphics;
+        options.audio.gain = saved->audio.volume;
+        options.fullscreen = saved->graphics.fullscreen;
+        const auto size = viewer::renderResolutions[saved->graphics.resolution];
         options.width = size.x; options.height = size.y;
-        options.distantSceneCache = saved->distantScenery != 3;
-        options.shadows = saved->shadowCasters != viewer::ShadowCasters::None;
-        options.treeShadows = saved->shadowCasters >= viewer::ShadowCasters::Trees;
-        options.zombieShadows = saved->shadowCasters >= viewer::ShadowCasters::Npcs;
+        options.distantSceneCache = saved->graphics.distantScenery != 3;
+        options.shadows = saved->graphics.shadowCasters != viewer::ShadowCasters::None;
+        options.treeShadows = saved->graphics.shadowCasters >= viewer::ShadowCasters::Trees;
+        options.zombieShadows = saved->graphics.shadowCasters >= viewer::ShadowCasters::Npcs;
         options.flashlightShadows = options.shadows;
     }
     bool hasModel = false;
@@ -187,8 +188,8 @@ Options parseOptions(int argc, char** argv, const std::optional<viewer::Graphics
             else if (screen == "skills") options.hudScreen = viewer::HudScreen::Skills;
             else if (screen == "health") options.hudScreen = viewer::HudScreen::Health;
             else if (screen == "map") options.hudScreen = viewer::HudScreen::Map;
-            else if (screen == "graphics") options.hudScreen = viewer::HudScreen::Graphics;
-            else throw std::runtime_error("--hud-screen requires inventory, skills, health, map or graphics");
+            else if (screen == "settings" || screen == "graphics") options.hudScreen = viewer::HudScreen::Settings;
+            else throw std::runtime_error("--hud-screen requires inventory, skills, health, map or settings");
         }
         else if (argument == "--frame-profile") options.frameProfile = value();
         else if (argument == "--sun-shadow-resolution") {
@@ -396,7 +397,7 @@ void printHelp() {
               << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov, 8 Sword, 9 Axe; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape mission menu\n\n"
-              << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
+              << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Settings, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
               << "  --resolution WxH    960x540, 1280x720 (default) or 1920x1080\n"
@@ -470,7 +471,7 @@ void printHelp() {
               << "  --self-test-fps     Exercise mode-switch and jump callbacks\n"
               << "  --frames N          Render N frames, then exit\n"
               << "  --screenshot FILE   Save a PPM image; defaults to 3 frames\n"
-              << "  --hud-screen NAME   Start with inventory, skills, health, map or graphics visible\n"
+              << "  --hud-screen NAME   Start with inventory, skills, health, map or settings visible\n"
               << "  --hidden            Hide the window for capture (display still required)\n"
               << "  --allow-software    Permit a CPU OpenGL driver for diagnostics\n"
               << "  --self-test-input   Exercise registered input/resize callbacks\n"
@@ -613,7 +614,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
             viewer::HudScreen::Health, viewer::HudScreen::Map};
         const auto requested = key == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay :
-            key == GLFW_KEY_F12 ? viewer::HudScreen::Graphics : screens[key - GLFW_KEY_F1];
+            key == GLFW_KEY_F12 ? viewer::HudScreen::Settings : screens[key - GLFW_KEY_F1];
         app.hudScreen = app.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
         app.keys.fill(false); app.proneToggleQueued = false; app.firstMouse = true;
         app.actionSelection.close();
@@ -1286,11 +1287,11 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_HOME, 0, GLFW_RELEASE, 0);
     key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_F12, 0, GLFW_REPEAT, 0);
-    if (app.hudScreen != viewer::HudScreen::Graphics || !app.capture)
-        throw std::runtime_error("F12 must open Graphics without changing the capture preference");
+    if (app.hudScreen != viewer::HudScreen::Settings || !app.capture)
+        throw std::runtime_error("F12 must open Settings without changing the capture preference");
     key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture)
-        throw std::runtime_error("F12 must close Graphics and retain mouse capture");
+        throw std::runtime_error("F12 must close Settings and retain mouse capture");
     resize(window, 800, 600);
     if (app.width != 800 || app.height != 600) throw std::runtime_error("Resize callback self-test failed");
     glfwSetWindowSize(window, originalWidth, originalHeight);
@@ -1807,7 +1808,7 @@ int run(const Options& options) {
     if (!options.hidden) viewer::enableRawMouseMotion(window.get());
     const char* proneKeyName = glfwGetKeyName(GLFW_KEY_C, 0);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
-              << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
+              << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Settings, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "C")
               << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, End frame scene, Alt handling / vehicle camera, Home cursor, Escape mission menu\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
@@ -1918,7 +1919,8 @@ int run(const Options& options) {
         viewer::Renderer::checkErrors("resized render target and reticle modes");
     }
     viewer::RuntimeGraphicsSettings graphics(window.get(), renderer, options.fullscreen,
-        glm::ivec2(options.width, options.height), options.graphicsSettingsFile);
+        glm::ivec2(options.width, options.height));
+    viewer::Settings preferences{graphics.settings(), {options.audio.gain}};
     renderer.resize(graphics.renderSize().x, graphics.renderSize().y);
     viewer::GpuTimer gpuTimer;
     std::unique_ptr<viewer::FrameProfile> frameProfile;
@@ -1939,15 +1941,23 @@ int run(const Options& options) {
     double nextDoodadSave = glfwGetTime()+5;
     while (!glfwWindowShouldClose(window.get())) {
         // Commit last frame's UI edits before newer keyboard shortcuts.
-        if (const auto settings = hud.takeGraphicsSettingsRequest()) {
-            graphics.apply(*settings);
-            app.distantSceneCache = settings->distantScenery != 3;
+        bool settingsChanged = false;
+        if (const auto settings = hud.takeSettingsRequest()) {
+            graphics.apply(settings->graphics);
+            audio.setGain(settings->audio.volume);
+            preferences = *settings;
+            settingsChanged = true;
+            app.distantSceneCache = settings->graphics.distantScenery != 3;
             app.firstMouse = true;
             glfwGetFramebufferSize(window.get(), &app.width, &app.height);
         }
         glfwPollEvents();
+        const auto previousDistance = graphics.settings().distantScenery;
         graphics.syncDistantScenery(app.distantSceneCache);
-        hud.setGraphicsSettings(graphics.settings());
+        preferences.graphics = graphics.settings();
+        if (settingsChanged || previousDistance != preferences.graphics.distantScenery)
+            viewer::writeSettings(options.settingsFile, preferences);
+        hud.setSettings(preferences);
         renderer.setFlashlight(app.flashlight);
         const double now = glfwGetTime();
         const float dt = options.fixedStep?1.f/60:static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
@@ -2475,9 +2485,9 @@ int run(const Options& options) {
 int main(int argc, char** argv) {
     std::cout << std::unitbuf;
     try {
-        const auto settingsFile = viewer::graphicsSettingsPath();
-        auto options = parseOptions(argc, argv, viewer::readGraphicsSettings(settingsFile));
-        options.graphicsSettingsFile = settingsFile;
+        const auto settingsFile = viewer::settingsPath();
+        auto options = parseOptions(argc, argv, viewer::readSettings(settingsFile));
+        options.settingsFile = settingsFile;
         if (options.help) { printHelp(); return 0; }
         return run(options);
     } catch (const std::exception& error) {

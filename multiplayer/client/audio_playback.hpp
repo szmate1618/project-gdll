@@ -13,6 +13,7 @@ namespace multiplayer {
 class ClientAudio {
 public:
     explicit ClientAudio(const viewer::AudioOptions& options) : system_(options) {}
+    void setGain(float gain) { system_.setGain(gain); }
     bool enabled() const { return system_.enabled(); }
     void queueRemote(const std::vector<viewer::AudioCue>& cues);
     void playWeapon(const std::vector<viewer::AudioEffect>& sounds);

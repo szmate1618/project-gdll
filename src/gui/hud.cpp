@@ -9,7 +9,7 @@
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
 #include "loadout_navigation.hpp"
-#include "graphics_view.hpp"
+#include "settings_view.hpp"
 #include "health_view.hpp"
 #include "gui/map_view.hpp"
 #include "map_markers.hpp"
@@ -38,7 +38,7 @@ constexpr std::array<BackdropGroup, 24> backdropGroups{{
     {"command-title", true}, {"command-hint", true}, {"command-cancel-hint", true},
     {"command-danger", false}, {"command-move", false}, {"command-mark", false}, {"command-backup", false},
     {"command-page-inventory", false}, {"command-page-skills", false}, {"command-page-health", false},
-    {"command-page-map", false}, {"command-page-graphics", false}
+    {"command-page-map", false}, {"command-page-settings", false}
 }};
 static_assert(backdropGroups.size() == HudBackdrop::maxGroups);
 
@@ -119,8 +119,8 @@ struct Hud::Impl {
     std::array<Rml::ElementDocument*, 6> screens{};
     std::unique_ptr<MissionMenu> missionMenu;
     std::vector<MissionMenuKey> missionKeys;
-    GraphicsSettings graphicsSettings;
-    std::unique_ptr<GraphicsView> graphicsView;
+    Settings settings;
+    std::unique_ptr<SettingsView> settingsView;
     std::unique_ptr<HealthView> healthView;
     PlayerInventory& inventory;
     GroundItems* ground = nullptr;
@@ -197,7 +197,7 @@ struct Hud::Impl {
     ~Impl() { shutdown(); }
     void shutdown() {
         missionMenu.reset();
-        graphicsView.reset();
+        settingsView.reset();
         healthView.reset();
         navigation.reset();
         commandWheel.reset();
@@ -243,7 +243,7 @@ struct Hud::Impl {
         if (screen == next) return;
         const auto screenDocument = [&](HudScreen selected) {
             if (selected == HudScreen::Gameplay) return document;
-            constexpr std::array<const char*, 6> files{"inventory.rml", "skills.rml", "health.rml", "map.rml", "graphics.rml", "mission-menu.rml"};
+            constexpr std::array<const char*, 6> files{"inventory.rml", "skills.rml", "health.rml", "map.rml", "settings.rml", "mission-menu.rml"};
             const auto index = static_cast<std::size_t>(selected) - 1;
             auto*& page = screens.at(index);
             if (!page) {
@@ -260,7 +260,7 @@ struct Hud::Impl {
                 if (selected == HudScreen::Skills)
                     populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
                 if (selected == HudScreen::MissionMenu) missionMenu = std::make_unique<MissionMenu>(*page);
-                if (selected == HudScreen::Graphics) graphicsView = std::make_unique<GraphicsView>(*page, graphicsSettings);
+                if (selected == HudScreen::Settings) settingsView = std::make_unique<SettingsView>(*page, settings);
                 if (selected == HudScreen::Health) healthView = std::make_unique<HealthView>(*page);
                 if (selected == HudScreen::Map) {
                     mapView = std::make_unique<MapViewUi>(*page, renderer);
@@ -447,12 +447,12 @@ void Hud::mouseWheel(float notches) {
 void Hud::cancelInventoryDrag() { cancelPointerInteraction(); }
 void Hud::cancelPointerInteraction() { impl_->pointerEvents.push_back({HudPointerAction::Cancel}); }
 std::optional<HudScreen> Hud::takeScreenRequest() { return impl_->navigation->takeRequest(); }
-void Hud::setGraphicsSettings(const GraphicsSettings& settings) {
-    impl_->graphicsSettings = settings;
-    if (impl_->graphicsView) impl_->graphicsView->setSettings(settings);
+void Hud::setSettings(const Settings& settings) {
+    impl_->settings = settings;
+    if (impl_->settingsView) impl_->settingsView->setSettings(settings);
 }
-std::optional<GraphicsSettings> Hud::takeGraphicsSettingsRequest() {
-    return impl_->graphicsView ? impl_->graphicsView->takeRequest() : std::nullopt;
+std::optional<Settings> Hud::takeSettingsRequest() {
+    return impl_->settingsView ? impl_->settingsView->takeRequest() : std::nullopt;
 }
 std::optional<std::uint64_t> Hud::takeMapMarkRemoval() {
     return impl_->mapView ? impl_->mapView->takeMarkRemoval() : std::nullopt;

@@ -59,7 +59,7 @@
         <command-sector id="command-page-skills" class="command-choice command-page" page="true" sector="1"><div class="page-caption"><div class="page-label">SKILLS</div><div class="page-key">F2</div></div></command-sector>
         <command-sector id="command-page-health" class="command-choice command-page" page="true" sector="2"><div class="page-caption"><div class="page-label">HEALTH</div><div class="page-key">F3</div></div></command-sector>
         <command-sector id="command-page-map" class="command-choice command-page" page="true" sector="3"><div class="page-caption"><div class="page-label">MAP</div><div class="page-key">F4</div></div></command-sector>
-        <command-sector id="command-page-graphics" class="command-choice command-page" page="true" sector="4"><div class="page-caption"><div class="page-label">GRAPHICS</div><div class="page-key">F12</div></div></command-sector>
+        <command-sector id="command-page-settings" class="command-choice command-page" page="true" sector="4"><div class="page-caption"><div class="page-label">SETTINGS</div><div class="page-key">F12</div></div></command-sector>
         <command-sector id="command-danger" class="command-choice" sector="0"><div class="command-caption"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div></command-sector>
         <command-sector id="command-move" class="command-choice" sector="1"><div class="command-caption"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div></command-sector>
         <command-sector id="command-backup" class="command-choice" sector="3"><div class="command-caption"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div></command-sector>

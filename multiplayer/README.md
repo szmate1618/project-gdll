@@ -207,7 +207,7 @@ open the command wheel. Move toward **Danger**, **Move there**, **Backup**,
 or **Mark location**,
 then release to send. Return to the center or press **Escape** to cancel.
 Move farther out to select the outer ring's **Inventory**, **Skills**, **Health**,
-**Map**, or **Graphics** button, then release middle mouse to open that page.
+**Map**, or **Settings** button, then release middle mouse to open that page.
 Page selections create no team ping; **Escape** returns to gameplay.
 Opening a loadout screen, releasing mouse capture, or losing focus also cancels.
 While the wheel is open, mouse movement selects a command and firing, scope,
@@ -290,14 +290,16 @@ different aspect ratios have black bars. The HUD, inventory/map screens and
 crosshair are drawn at the window framebuffer resolution. Mouse input stays in
 window coordinates. Screenshots include the final native-resolution GUI.
 The 3D target defaults to 1280x720 in both display modes and stays fixed when
-the window is resized. F12 opens the shared [Graphics page](../docs/VIEWER.md#graphics-settings)
-for live display, render resolution, distant scenery, shadow-caster and LoD controls. An explicit resolution also works in
+the window is resized. F12 opens the shared [Settings page](../docs/VIEWER.md#settings)
+with Graphics and Audio tabs for live display, render resolution, distant scenery,
+shadow-caster, LoD and master game-volume controls. An explicit resolution also works in
 a resizable window. These are local settings and do not need to match the server.
 `--hidden --fullscreen` uses a hidden desktop-sized window without occupying the
 monitor, for captures and checks.
-Graphics changes save automatically to `userdata/graphics.toml` beside the client
+Graphics and audio changes save automatically to `userdata/settings.toml` beside the client
 executable and load on the next launch. Explicit CLI display options override the
-save for that launch. **Reset to defaults** applies and saves the default values.
+save for that launch. **Reset Graphics** and **Reset Audio** apply and save defaults for their respective tabs.
+Existing `userdata/graphics.toml` preferences are imported when the shared save is missing.
 
 ## Linux client package
 
@@ -713,7 +715,7 @@ these authoritative checks; replicas never infer gameplay noise from poses.
 Wake notices show a short story reason above **Sleep ended**
 for eight seconds, with distinct radio announcements for arrivals and departures.
 
-F12 opens/closes the Graphics page; Home releases/recaptures the mouse.
+F12 opens/closes Settings; Home releases/recaptures the mouse.
 Escape opens the in-game mission menu with **Resume** and **Abandon mission**.
 Abandon requires a second confirmation before leaving the session; Escape from
 the confirmation returns to the mission menu, and Escape there resumes play. Losing focus releases
@@ -807,7 +809,7 @@ four clients share one car in distinct seats; the front-left seat drives. The
 window title shows the car name and available seat inside its configured radius.
 WASD drives, Space brakes, Enter
 exits below 1.5 m/s when there is a clear standing position, and Alt toggles
-first/third person for any occupied seat. Home releases/recaptures the mouse; F12 opens/closes Graphics.
+first/third person for any occupied seat. Home releases/recaptures the mouse; F12 opens/closes Settings.
 Passengers can mouse-look, toggle the chase camera with Alt, and leave with
 Enter; they cannot drive, select weapons, scope or grab. Remote occupants are hidden
 inside the prototype chassis. The server owns seat reservations and releases

@@ -56,6 +56,7 @@ public:
     AudioSystem& operator=(const AudioSystem&) = delete;
     bool enabled() const;
     bool hrtfEnabled() const;
+    void setGain(float gain); // Master gain in [0, 1]; applies to all current and future playback.
     void setListener(glm::vec3 eye, glm::vec3 forward, glm::vec3 up = {0, 1, 0});
     void play(AudioEffect effect, glm::vec3 position, float gain = 1, float pitch = 1);
     void impact(const ImpactSound& sound);

@@ -10,7 +10,7 @@
 #command-page-skills .page-caption { left: 350.7dp; top: 145.3dp; }
 #command-page-health .page-caption { left: 281.7dp; top: 357.7dp; }
 #command-page-map .page-caption { left: 58.3dp; top: 357.7dp; }
-#command-page-graphics .page-caption { left: -10.7dp; top: 145.3dp; }
+#command-page-settings .page-caption { left: -10.7dp; top: 145.3dp; }
 /* Move each action sector 3dp outward along its center direction. */
 #command-danger { top: -3dp; }
 #command-move { left: 3dp; }

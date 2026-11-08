@@ -19,15 +19,16 @@
 #include <cctype>
 
 namespace multiplayer {
-void applyGraphicsDefaults(Options& options, const viewer::GraphicsSettings& settings) {
-    options.graphics = settings;
-    options.display.fullscreen = settings.fullscreen;
-    options.display.resolution = viewer::renderResolutions.at(settings.resolution);
-    options.distantSceneCache = settings.distantScenery != 3;
+void applySettingsDefaults(Options& options, const viewer::Settings& settings) {
+    options.graphics = settings.graphics;
+    options.audioSettings = settings.audio;
+    options.display.fullscreen = settings.graphics.fullscreen;
+    options.display.resolution = viewer::renderResolutions.at(settings.graphics.resolution);
+    options.distantSceneCache = settings.graphics.distantScenery != 3;
 }
-Options parseOptions(int argc, char** argv, bool server, const std::optional<viewer::GraphicsSettings>& graphicsDefaults) {
+Options parseOptions(int argc, char** argv, bool server, const std::optional<viewer::Settings>& settingsDefaults) {
     Options o;
-    if (!server && graphicsDefaults) applyGraphicsDefaults(o, *graphicsDefaults);
+    if (!server && settingsDefaults) applySettingsDefaults(o, *settingsDefaults);
     auto next = [&](int& i) -> std::string {
         if (++i >= argc) throw std::runtime_error("Missing option value");
         return argv[i];

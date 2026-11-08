@@ -2,7 +2,7 @@
 #include <iostream>
 #include <stdexcept>
 namespace multiplayer {
-GameOptions parseGameOptions(int argc, char** argv, const std::optional<viewer::GraphicsSettings>& graphicsDefaults) {
+GameOptions parseGameOptions(int argc, char** argv, const std::optional<viewer::Settings>& settingsDefaults) {
     GameOptions result;
     std::vector<char*> shared;
     shared.push_back(argv[0]);
@@ -30,7 +30,7 @@ GameOptions parseGameOptions(int argc, char** argv, const std::optional<viewer::
             for (int j = 0; j < 2 && i + 1 < argc; ++j) shared.push_back(argv[++i]);
         }
     }
-    result.scene = parseOptions(static_cast<int>(shared.size()), shared.data(), false, graphicsDefaults);
+    result.scene = parseOptions(static_cast<int>(shared.size()), shared.data(), false, settingsDefaults);
     if (result.scene.headless && result.mode == GameMode::Menu) result.mode = GameMode::Join;
     return result;
 }
