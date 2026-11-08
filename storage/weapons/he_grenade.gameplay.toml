@@ -12,5 +12,5 @@ magazine_capacity = 1
 ammo_per_shot = 1
 muzzle_position = [0.0, 0.0, 0.0]
 fuse_seconds = 3.0
-blast_radius = 8.0
+blast_radius = 3.0
 throw_speed = 14.0
