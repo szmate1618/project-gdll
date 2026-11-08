@@ -7,6 +7,7 @@
 #include "prefab_floorplan.hpp"
 #include "building_footprints.hpp"
 #include "house_navigation.hpp"
+#include "authored_floorplan.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -109,6 +110,13 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
     for (auto& entry : data.sources) {
         auto& source = entry.second;
         if (source.doors.empty()) continue;
+        const auto authored = model.authoredFloorplans.find(source.name);
+        if (authored != model.authoredFloorplans.end()) {
+            std::size_t count = 0;
+            for (const auto& wall : authored->second->layout.partitions) count += wall.openings.size();
+            source.firstDoor = doors.reserveRuntimeDoors(count);
+            continue;
+        }
         if (auto block = classifyPrefabBlock(model, source)) {
             source.firstDoor = doors.reserveRuntimeDoors(prefabDoorCapacity(*block, source.doors.size()));
             data.blocks.emplace(source.name, std::move(*block));
@@ -153,7 +161,10 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
     for (const auto& name : candidates) {
         if (data.resident.count(name) || data.rejected.count(name)) continue;
         const auto block = data.blocks.find(name);
-        auto plan = block == data.blocks.end() ? generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances) :
+        const auto authored = data.source->authoredFloorplans.find(name);
+        auto plan = authored != data.source->authoredFloorplans.end() ?
+            generateAuthoredFloorplan(*authored->second, data.sources.at(name), data.entrances) :
+            block == data.blocks.end() ? generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances) :
             generatePrefabFloorplan(*data.source, data.sources.at(name), data.entrances, block->second);
         if (!plan) { data.rejected.insert(name); continue; }
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);

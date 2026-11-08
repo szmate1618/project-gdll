@@ -19,6 +19,7 @@ struct Opening {
     glm::vec2 outward;
     std::optional<std::size_t> entrance;
     bool inward = true; // False swings toward outward (out of a small room).
+    float height = 2.1f; // Palace doorways can be taller than domestic doors.
 };
 struct Partition {
     int axis;

@@ -5,6 +5,7 @@
 namespace viewer {
 void appendStaticModel(Model& destination, Model&& source) {
     if (source.draws.empty()) return;
+    destination.authoredFloorplans.insert(source.authoredFloorplans.begin(), source.authoredFloorplans.end());
     const auto imageOffset = static_cast<int>(destination.images.size());
     const auto textureOffset = static_cast<int>(destination.textures.size());
     const auto materialOffset = static_cast<int>(destination.materials.size());

@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <glm/glm.hpp>
 
 namespace viewer {
+struct AuthoredFloorplan;
 
 struct Vertex {
     glm::vec3 position{0.0f};
@@ -70,6 +73,7 @@ struct DrawInstance {
 };
 
 struct Model {
+    std::map<std::string, std::shared_ptr<const AuthoredFloorplan>> authoredFloorplans;
     std::vector<ImageData> images;
     std::vector<Texture> textures;
     std::vector<Material> materials;

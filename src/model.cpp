@@ -1,4 +1,5 @@
 #include "model.hpp"
+#include "authored_floorplan.hpp"
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -509,6 +510,15 @@ Model convert(const tinygltf::Model& source) {
         }
         if (node.mesh >= 0) {
             const auto& mesh = at(source.meshes, node.mesh, "node mesh");
+            if (mesh.extras.IsObject() && mesh.extras.Has("authored_floorplan")) {
+                const auto name = node.name.empty() ? mesh.name : node.name;
+                const std::string suffix = "_walls";
+                if (name.size() <= suffix.size() || name.compare(name.size() - suffix.size(), suffix.size(), suffix))
+                    fail("Authored floorplan must belong to its original building wall mesh");
+                const auto building = name.substr(0, name.size() - suffix.size());
+                if (!output.authoredFloorplans.emplace(building, readAuthoredFloorplan(mesh.extras.Get("authored_floorplan"), transform)).second)
+                    fail("Duplicate authored building floorplan");
+            }
             const bool fence = (mesh.extras.IsObject() && mesh.extras.Has("kind") &&
                                 mesh.extras.Get("kind").IsString() &&
                                 mesh.extras.Get("kind").Get<std::string>() == "fence") ||

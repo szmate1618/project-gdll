@@ -16,6 +16,7 @@ from trimesh.visual.material import PBRMaterial
 
 from .building_details import CRAWL_OPENING_MATERIAL, DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
 from .building_basement_terrain import carve_basement_terrain
+from .palace_floorplan import palace_frame, palace_tags, palace_facade_details
 
 LOG = logging.getLogger(__name__)
 
@@ -210,13 +211,16 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
             if not isinstance(polygon, Polygon) or polygon.area < options.get("minimum_area_m2", 2.0):
                 continue
             try:
-                wall, roof, shape = _mesh_for_polygon(polygon, feature.get("tags", {}), elevation, options)
+                palace = palace_frame(feature, polygon, config)
+                tags = palace_tags(feature.get("tags", {})) if palace else feature.get("tags", {})
+                wall, roof, shape = _mesh_for_polygon(polygon, tags, elevation, options)
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
             try:
-                detailed_wall, doors, windows, entrances, crawl_openings, railings, basement_floor, detail_counts = facade_details(
+                details = palace_facade_details(polygon, wall, roof, elevation, palace) if palace else facade_details(
                     polygon, wall, roof, elevation, options, road_index.nearest(polygon))
+                detailed_wall, doors, windows, entrances, crawl_openings, railings, basement_floor, detail_counts = details
                 if basement_floor is not None:
                     wall, roof, shape = _mesh_for_polygon(polygon, feature.get("tags", {}), elevation, options, basement_floor)
                     detailed_wall, doors, windows, entrances, crawl_openings, railings, _, detail_counts = facade_details(

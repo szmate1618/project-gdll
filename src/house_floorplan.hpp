@@ -6,8 +6,9 @@
 #include <limits>
 
 namespace viewer {
-// Draw IDs refer to the immutable, already-loaded map. No generated-map metadata
-// or saved floorplans are needed. All output coordinates are runtime X/Y/Z metres.
+// Draw IDs refer to the immutable, already-loaded map. Procedural houses need
+// no saved floorplan; authored interiors use embedded map metadata. All output
+// coordinates are runtime X/Y/Z metres.
 struct HouseSource {
     std::string name;
     std::vector<std::size_t> walls, roofs, windows, doors;
@@ -20,6 +21,7 @@ struct HouseRoom {
     std::vector<std::size_t> entrances; // Exterior door IDs opening into this room.
     bool staircase = false;
     std::size_t storey = 0; // Ground = 0; upper levels = 1..N; basement uses basementStorey.
+    std::string label{}; // Optional evidence-based room name for authored layouts.
     const char* name() const {
         return kind == Kind::Anteroom ? "anteroom" : kind == Kind::SmallRoom ? "small_rooms" :
             kind == Kind::StairArea ? "stair_area" : kind == Kind::Apartment ? "apartment" :
@@ -40,7 +42,7 @@ struct HouseStaircase {
 };
 struct HouseFloorplan {
     static constexpr std::size_t basementStorey = std::numeric_limits<std::size_t>::max();
-    enum class Kind { FamilyHouse, PrefabApartmentBlock };
+    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace };
     Kind kind = Kind::FamilyHouse;
     std::string name;
     glm::vec3 minimum{0}, maximum{0};

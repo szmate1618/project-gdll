@@ -18,9 +18,12 @@ def publish_files(pending: dict[Path, Path]) -> None:
     retain_backups = False
     try:
         backups = {}
-        for path in pending:
-            backup = scratch / path.name if path.exists() else None
+        for index, path in enumerate(pending):
+            # Prepared layers can have the same basename in different folders
+            # (e.g. the active and OSM tree manifests). Keep originals distinct.
+            backup = scratch / str(index) / path.name if path.exists() else None
             if backup is not None:
+                backup.parent.mkdir()
                 shutil.copy2(path, backup)
             backups[path] = backup
         published = []

@@ -111,7 +111,7 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
             for (const auto& opening : openings) {
                 if (opening.high <= span.first || opening.low >= span.second) continue;
                 if (opening.low < cursor || opening.high > span.second) throw std::logic_error("Overlapping or clipped house doorways");
-                const float head = floor + 2.1f;
+                const float head = std::min(floor + opening.height, ceiling);
                 quad(walls, point(cursor, floor), point(opening.low, floor), point(opening.low, ceiling), point(cursor, ceiling));
                 quad(walls, point(opening.low, head), point(opening.high, head), point(opening.high, ceiling), point(opening.low, ceiling));
                 const auto normal = u * opening.outward.x + v * opening.outward.y;
@@ -120,8 +120,8 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
                 DoorPanel panel;
                 panel.draw = std::numeric_limits<std::size_t>::max(); panel.inward = opening.inward;
                 panel.center = (point(opening.low, floor) + point(opening.high, head)) * .5f;
-                panel.center.y = floor + 1.065f;
-                panel.halfExtents = {(opening.high - opening.low) * .5f, 1.035f, .02f};
+                panel.center.y = (floor + .03f + head) * .5f;
+                panel.halfExtents = {(opening.high - opening.low) * .5f, (head - floor - .03f) * .5f, .02f};
                 panel.hinge = panel.center - right * panel.halfExtents.x; panel.outward = outward;
                 panel.rotation = glm::quat_cast(glm::mat3(right, up, outward));
                 Primitive mesh; mesh.material = 2;
@@ -148,6 +148,15 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         top[stair.axis] = stair.ascending ? stair.ramp.high[stair.axis] : stair.ramp.low[stair.axis];
         result.stairs.push_back({stair.room, polygon(stair.ramp), polygon(stair.opening), world(bottom, stair.bottom), world(top, stair.top)});
         result.rooms.at(stair.room).staircase = true;
+    }
+    // A reflected authored frame reverses local X/Z winding. Walking support
+    // still needs upward-facing floors/ramps, independently of wall materials.
+    if (u.x * v.y - u.y * v.x < 0) {
+        for (auto* mesh : {&floors, &ramps}) {
+            for (std::size_t i = 0; i < mesh->indices.size(); i += 3)
+                std::swap(mesh->indices[i + 1], mesh->indices[i + 2]);
+            for (auto& vertex : mesh->vertices) if (vertex.normal.y < 0) vertex.normal = -vertex.normal;
+        }
     }
     for (auto* primitive : {&walls, &floors, &ramps}) {
         if (primitive->indices.empty()) continue;

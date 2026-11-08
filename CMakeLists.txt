@@ -160,7 +160,7 @@ if(BUILD_TESTING)
     add_test(NAME viewer_graphics_settings_file COMMAND test_graphics_settings_file)
 endif()
 
-add_library(viewer_model STATIC src/model.cpp src/model_merge.cpp)
+add_library(viewer_model STATIC src/model.cpp src/model_merge.cpp src/authored_floorplan_io.cpp)
 target_include_directories(viewer_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(viewer_model SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(viewer_model PUBLIC glm::glm)
@@ -434,7 +434,7 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/hand_inventory.cpp)
+add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/authored_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/hand_inventory.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)
@@ -936,6 +936,21 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_floorplans PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_floorplans)
     add_test(NAME viewer_floorplans COMMAND test_floorplans)
+    set(PALACE_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/palace-fixture.glb")
+    add_custom_command(OUTPUT "${PALACE_FIXTURE}"
+        COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
+            "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/palace_fixture.py" "${PALACE_FIXTURE}"
+        DEPENDS tests/palace_fixture.py assets/buildings/godollo-palace/layout.json
+            src/palace_floorplan.py src/buildings.py src/building_details.py src/wall_openings.py
+            src/building_caps.py src/facade_surface.py src/building_entrances.py
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_custom_target(palace_fixture DEPENDS "${PALACE_FIXTURE}")
+    add_executable(test_authored_floorplan tests/test_authored_floorplan.cpp)
+    target_link_libraries(test_authored_floorplan PRIVATE viewer_objects viewer_fps)
+    target_compile_definitions(test_authored_floorplan PRIVATE PALACE_FIXTURE="${PALACE_FIXTURE}")
+    add_dependencies(test_authored_floorplan palace_fixture)
+    viewer_warnings(test_authored_floorplan)
+    add_test(NAME viewer_authored_floorplan COMMAND test_authored_floorplan)
     add_executable(test_interior_objects tests/test_interior_objects.cpp)
     target_link_libraries(test_interior_objects PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_interior_objects)

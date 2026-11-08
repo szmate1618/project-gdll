@@ -25,7 +25,7 @@ class MapPublicationTests(unittest.TestCase):
             def fail_publication_and_one_restore(path, destination):
                 if destination == root / "report.json":
                     raise OSError("publication failure")
-                if path.parent.name.startswith(".map-backup-") and destination == root / "map.navmesh":
+                if path.parent.parent.name.startswith(".map-backup-") and destination == root / "map.navmesh":
                     raise OSError("rollback failure")
                 return replace(path, destination)
 
@@ -36,4 +36,29 @@ class MapPublicationTests(unittest.TestCase):
             self.assertEqual((root / "report.json").read_bytes(), b"previous report.json")
             backups = list(root.glob(".map-backup-*"))
             self.assertEqual(len(backups), 1)
-            self.assertEqual((backups[0] / "map.navmesh").read_bytes(), b"previous map.navmesh")
+            self.assertEqual((backups[0] / "1/map.navmesh").read_bytes(), b"previous map.navmesh")
+
+    def test_rollback_preserves_companions_with_same_basename(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "osm").mkdir()
+            first, second, last = root / "trees.json", root / "osm/trees.json", root / "last.json"
+            for path, content in [(first, b"first"), (second, b"second"), (last, b"last")]:
+                path.write_bytes(content)
+            pending = {}
+            for i, path in enumerate([first, second, last]):
+                source = root / f"pending-{i}"
+                source.write_bytes(b"replacement")
+                pending[path] = source
+            replace = Path.replace
+
+            def fail_last(path, destination):
+                if destination == last:
+                    raise OSError("publication failure")
+                return replace(path, destination)
+
+            with patch.object(Path, "replace", fail_last):
+                with self.assertRaises(OSError):
+                    publish_files(pending)
+            self.assertEqual(first.read_bytes(), b"first")
+            self.assertEqual(second.read_bytes(), b"second")

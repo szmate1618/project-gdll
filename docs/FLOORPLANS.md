@@ -1,8 +1,10 @@
 # Runtime building floorplans
 
 The standalone viewer, multiplayer client and server generate these interiors
-from the map geometry they already load. No town regeneration, sidecar,
-serialized floorplan, network geometry payload or random seed is required.
+from the map geometry they already load. Procedural houses need no town
+regeneration, sidecar, serialized floorplan, network geometry payload or random
+seed. The Gödöllő palace instead carries an authored layout inside its map GLB;
+see [the palace source and approximations](../assets/buildings/godollo-palace/README.md).
 `building_shell` reads the shared wall axes, footprint and roof heights.
 `house_floorplan` handles family houses; `prefab_floorplan` classifies apartment
 blocks and fits their storeys, and `apartment_layout` builds their common areas
