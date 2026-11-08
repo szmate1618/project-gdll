@@ -2,8 +2,8 @@
   "schema": "godollo.authored-floorplan-snapshot",
   "version": 1,
   "building": "building_way_107918884_0",
-  "map_sha256": "2958633c6fda417aaad3cf232f136c18f52372a0db64f59a321408a50a76383c",
-  "definition_sha256": "85409de0770681dfcb5ab819c6efdbd62b8f164f07be145456f56543556c1a38",
+  "map_sha256": "42ae57b900f8da9e577ede46b70cebec82496c9efb6cebcdc3ec75175317f1ac",
+  "definition_sha256": "a97e7dd638ed61bab4c6b6a66206fe340e73663e8a18918eea54b5979f41092d",
   "geographic_frame": {
     "crs": "EPSG:32634",
     "origin_projected_m": [
@@ -8063,5 +8063,6 @@
         "top": 4.6
       }
     ]
-  }
+  },
+  "roof_definition_sha256": "f128d3403cb377eb0959995dd772a907056432b8e7814acdc069ea1fd1254587"
 }

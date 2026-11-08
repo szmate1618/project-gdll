@@ -20,6 +20,7 @@ from .building_details import _facades, _rectangle
 from .building_entrances import ENTRANCE_MATERIAL
 from .config import coordinate_frame
 from .wall_openings import cut_wall_openings
+from .palace_roof import roof_definition
 
 LAYOUT_PATH = Path(__file__).resolve().parents[1] / "assets/buildings/godollo-palace/layout.json"
 COMMON = {"corridor", "lobby", "stair_area"}
@@ -62,8 +63,10 @@ def palace_frame(feature, polygon, config):
 
 def palace_tags(tags):
     data = definition()
-    return {**tags, "height": str(data["ceiling_m"] + data["roof_height_m"]),
-            "roof:height": str(data["roof_height_m"]), "roof:shape": "hipped"}
+    roof_height = max(sum(c[key] for key in ("drum_base_m", "drum_height_m", "dome_height_m", "lantern_height_m", "finial_height_m"))
+                      for c in roof_definition()["cupolas"])
+    return {**tags, "height": str(data["ceiling_m"] + roof_height),
+            "roof:height": str(roof_height), "roof:shape": "hipped"}
 
 
 def _rooms(outline, requested):

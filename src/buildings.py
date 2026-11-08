@@ -17,6 +17,7 @@ from trimesh.visual.material import PBRMaterial
 from .building_details import CRAWL_OPENING_MATERIAL, DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
 from .building_basement_terrain import carve_basement_terrain
 from .palace_floorplan import palace_frame, palace_tags, palace_facade_details
+from .palace_roof import roof_surface as palace_roof_surface, roof_details as palace_roof_details
 
 LOG = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ def _roof_surface(polygon: Polygon, shape: str, base_z: float, roof_height: floa
     return roof
 
 
-def _mesh_for_polygon(polygon, tags, elevation, config, basement_floor=None):
+def _mesh_for_polygon(polygon, tags, elevation, config, basement_floor=None, roof_builder=None):
     total_height = building_height(tags, config)
     shape = str(tags.get("roof:shape", "gabled" if tags.get("building") in PITCHED_TYPES else "flat")).lower()
     if shape not in ("flat", "gabled", "hipped"):
@@ -169,7 +170,7 @@ def _mesh_for_polygon(polygon, tags, elevation, config, basement_floor=None):
         roof_height = parse_length(tags.get("roof:height")) or min(3.0, width * 0.25, total_height * 0.3)
         roof_height = min(roof_height, max(0.0, total_height - 0.5))
     roof_base = foundation_z + total_height - roof_height
-    roof = _roof_surface(polygon, shape, roof_base, roof_height)
+    roof = roof_builder(polygon, roof_base) if roof_builder else _roof_surface(polygon, shape, roof_base, roof_height)
     count = len(roof.vertices)
     lower = roof.vertices.copy()
     lower[:, 2] = np.asarray(elevation(lower[:, 0], lower[:, 1]), dtype=float) - 0.08
@@ -191,7 +192,8 @@ def _mesh_for_polygon(polygon, tags, elevation, config, basement_floor=None):
     if basement_floor is not None:
         # Local ENU point: the runtime transforms this datum with the mesh.
         wall.metadata["building_floor"] = [polygon.centroid.x, polygon.centroid.y, foundation_z]
-    roof.visual = trimesh.visual.TextureVisuals(material=ROOF_MATERIAL)
+    if roof_builder is None:
+        roof.visual = trimesh.visual.TextureVisuals(material=ROOF_MATERIAL)
     return wall, roof, shape
 
 
@@ -213,7 +215,8 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
             try:
                 palace = palace_frame(feature, polygon, config)
                 tags = palace_tags(feature.get("tags", {})) if palace else feature.get("tags", {})
-                wall, roof, shape = _mesh_for_polygon(polygon, tags, elevation, options)
+                builder = (lambda outline, eaves: palace_roof_surface(outline, eaves, palace)) if palace else None
+                wall, roof, shape = _mesh_for_polygon(polygon, tags, elevation, options, roof_builder=builder)
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
@@ -243,6 +246,10 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                                                              "group": name, "level": "near"}
             scene.add_geometry(wall, node_name=f"{name}_walls", geom_name=f"{name}_walls")
             scene.add_geometry(roof, node_name=f"{name}_roof", geom_name=f"{name}_roof")
+            if palace:
+                for suffix, mesh in palace_roof_details(float(roof.vertices[:, 2].min()), palace).items():
+                    scene.add_geometry(mesh, node_name=f"{name}_roof_{suffix}", geom_name=f"{name}_roof_{suffix}")
+                    stats["building_detail_meshes"] += 1
             if entrances is not None:
                 # Permanent collision/render geometry, independent of wall LoD.
                 scene.add_geometry(entrances, node_name=f"{name}_entrances", geom_name=f"{name}_entrances")

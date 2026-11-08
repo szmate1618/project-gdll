@@ -7,7 +7,6 @@
   ],
   "floor_heights_m": [0, 4.6],
   "ceiling_m": 9.4,
-  "roof_height_m": 3.0,
   "ground_rooms": [
     ["37 - exhibition", "living", 0, 0, 8.6, 7.6],
     ["36 - exhibition", "living", 8.6, 0, 14.9, 7.6],

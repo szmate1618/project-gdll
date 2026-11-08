@@ -16,6 +16,7 @@ from .glb import read_glb, pack_glb
 from .map_publication import publish_files
 from .navmesh_preparation import prepare_navmesh
 from .palace_floorplan import definition
+from .palace_roof import roof_definition
 from .road_scene_update import _refresh_map_hash
 from .scene_mesh_update import replace_scene_meshes
 from .tree_map import load_tree_map
@@ -48,7 +49,10 @@ def prepare_palace_patch(original, terrain, config):
     updated, binary = replace_scene_meshes(original, scene, (name + "_",))
     metadata = updated["scenes"][updated.get("scene", 0)].setdefault("extras", {})
     metadata["palace_interior"] = {"version": 1, "source": data["sources"],
-                                   "storeys": 2, "exterior_doors": stats["doors"], "windows": stats["windows"]}
+                                   "storeys": 2, "exterior_doors": stats["doors"], "windows": stats["windows"],
+                                   "roof": {"version": 1, "source": roof_definition()["sources"],
+                                            "hips": len(roof_definition()["hips"]),
+                                            "cupolas": len(roof_definition()["cupolas"])}}
     updated["buffers"][0]["byteLength"] = len(binary)
     return pack_glb(updated, binary), metadata["palace_interior"]
 

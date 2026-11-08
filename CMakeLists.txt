@@ -951,6 +951,7 @@ if(BUILD_TESTING AND GD_VIEWER)
         COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
             "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/palace_fixture.py" "${PALACE_FIXTURE}"
         DEPENDS tests/palace_fixture.py assets/buildings/godollo-palace/layout.json
+            assets/buildings/godollo-palace/roof.json src/palace_roof.py
             src/palace_floorplan.py src/buildings.py src/building_details.py src/wall_openings.py
             src/building_caps.py src/facade_surface.py src/building_entrances.py
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -9,6 +9,8 @@ structures and the bunker are outside this shell and are not changed.
 
 - `layout.json` is the editable source for room groups, levels, stairs and
   exterior opening positions. Change this file to refine the reconstruction.
+- `roof.json` supplies the separate photo-derived roof sections, cupolas,
+  dormers and chimneys. Roof edits retain the floorplan's eave datum.
 - `prepared-floorplan.json` saves the exact prepared interior extracted from
   the published map: two storeys, 155 rooms/circulation spaces, 275 interior
   doorways and two stair ramps. It includes the projection, frame, map fingerprint
@@ -16,6 +18,7 @@ structures and the bunker are outside this shell and are not changed.
   or resuming work; runtime reads the same layout embedded in the GLB.
 - [Preview of the published result](preview.png) shows the entrance hall,
   ornamental stair, ceremonial hall, Sisi salon, courtyard and town context.
+- [Roof overview](roof-preview.png) shows the photo-derived roof in the town.
 - `references/` preserves the five user-supplied museum photographs, so future
   work does not depend on the conversation's attachment directory.
 
@@ -78,14 +81,15 @@ groups where readable; otherwise it repeats the ground-floor organization.
 Rear wings repeat on both storeys. Named rooms indicate the source's function,
 not a furnished museum exhibition.
 
-Vertical measurements are inferred: first floor +4.6 m, eaves +9.4 m and roof
-height 3 m above the terrain-derived main-floor datum. The old two-level OSM
+Vertical measurements are inferred: first floor +4.6 m and eaves +9.4 m above
+the terrain-derived main-floor datum. Wing ridges and cupola profiles are
+specified separately in `roof.json`. The old two-level OSM
 shell was only 6 m tall including its roof; the palace override corrects that
 height. Both ornamental staircases use 2.2 m wide walkable straight ramps with
 matching upper-floor cutouts, rather than a detailed reproduction of each
 historic flight. Secret/service spiral stairs, vaults, furnishings, painted
-decoration, double-height church/theatre spaces and precise roof towers are
-not modeled. No unsupported third storey is invented.
+decoration and double-height church/theatre spaces are not modeled. Roof towers
+are approximations described below. No unsupported third storey is invented.
 
 Main-body opening positions follow the ground plan's facade bays, with inferred
 vertical dimensions and repeated first-floor rows. Rear-wing windows repeat
@@ -93,6 +97,64 @@ the visible bay rhythm where individual openings cannot be resolved. Panels
 are cut out of the masonry, replacing the original generated doors/windows;
 glass retains the viewer's existing solid walking collision. Door approaches
 are walkable ramps fitted against the published terrain.
+
+## Approximate roof
+
+The roof is reconstructed from these exterior views:
+
+- [Civertan aerial photograph 1](https://commons.wikimedia.org/wiki/File:Godollocivertanlegifoto1.jpg)
+  ([saved reference](references/roof-civertan-aerial-1.jpg)) shows the street
+  facade, paired central cupolas, main wing ridges and corner domes.
+- [Civertan aerial photograph 2](https://commons.wikimedia.org/wiki/File:Godollocivertanlegifoto2.jpg)
+  ([saved reference](references/roof-civertan-aerial-2.jpg)) shows the garden
+  side, perpendicular wings and the central roof from the opposite direction.
+- [Civertan aerial photograph 4](https://commons.wikimedia.org/wiki/File:Godollocivertanlegifoto4.jpg)
+  provides another garden-side view of the roof junctions.
+- [The national memorial site's facade photograph](https://nekb.gov.hu/public/tortenelmi-emlekhelyek/godollo/godollo-grassalkovich-kastely)
+  resolves the central cupola's curved profile, raised ribs, lantern, finial
+  and the small dormers beside it.
+
+The two saved aerial JPEGs are unchanged photographs by **Civertan / Civertan
+Grafikai Stúdió**, from Wikimedia Commons. They are used under
+[CC BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/); attribution and
+source links are retained here. They are visual references rather than textures.
+The photographs date from the earlier restoration period; their shapes guide
+the model, without reproducing temporary roof weathering or construction works.
+
+Nine independent hipped sections follow the connected OSM wings, with inferred
+ridge rises of 4.1–5.2 m. Two rounded rectangular tile cupolas sit over the street
+and courtyard pavilions; two smaller circular metal domes sit at the courtyard
+corners. Closed lofts approximate their plaster drums, curved caps, raised
+meridian ribs, lanterns and finials. Four simple dormers and thirteen chimneys
+provide the smaller roof silhouettes. All dimensions are estimated from photos;
+sculpture, clock faces, precise pediments, individual tiles and detailed leadwork
+remain outside this approximation. Detached buildings retain their existing roofs.
+
+The published roof contains **9,500 triangles**: 3,852 for the pitched surface,
+888 for tiled cupolas, 3,996 for metal domes/ribs/lanterns/finials, 716 for plaster
+drums/dormers/chimneys, and 48 for dormer panes. The earlier generic roof had
+138 triangles, so the increase is 9,362 triangles.
+
+`src/palace_roof.py` generates the roof independently of room planning. A 2 m
+clipped surface grid approximates hip junctions and valleys, retaining principal
+ridge lines. The roof covers the actual footprint, including its boundary
+vertices, and meets the existing eaves. The connected body remains closed with
+outward winding after float32 export; the cupolas and furniture are separately
+closed, material-batched meshes. No roof geometry fills the courtyards or changes
+the saved room/door/stair layout. This is visible roof geometry, not an extra
+walkable attic or an added storey.
+
+The palace updater below also applies the roof to an existing town, retaining
+the usual map backup and companion-fingerprint validation. The saved floorplan
+snapshot and preview are refreshed after publication so future work can compare
+the roof and interior together.
+
+Roof validation passed: nine focused palace Python checks, 37 building-generation
+checks, the rebuilt authored-floorplan C++ check and exact-town walking/navigation.
+The complete town retained 9,981 closed building solids; all seven active prepared
+companions matched the new map fingerprint. GPU captures verified the published
+roof, and its embedded interior was byte-for-byte equivalent as parsed JSON to
+the saved interior before the roof change.
 
 ## Preparation and runtime
 
@@ -122,6 +184,7 @@ Focused checks:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -p 'test_palace_floorplan.py' -v
+.venv/bin/python -m unittest discover -s tests -p 'test_palace_roof.py' -v
 cmake --build build --target test_authored_floorplan -j4
 ctest --test-dir build -R '^viewer_authored_floorplan$' --output-on-failure
 ```

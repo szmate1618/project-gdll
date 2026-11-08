@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "surface_grid_m": 2.0,
+  "hips": [
+    {"name": "main block", "center": [27.8, 12.35], "size": [55.6, 24.7], "angle_degrees": 0, "rise_m": 5.2},
+    {"name": "entrance projection", "center": [28.1, -0.5], "size": [13.7, 12.6], "angle_degrees": 90, "rise_m": 4.5},
+    {"name": "west royal wing", "center": [5.25, 34.4], "size": [41.2, 10.5], "angle_degrees": 90, "rise_m": 4.3},
+    {"name": "east royal wing", "center": [49.7, 35.6], "size": [40.8, 11.3], "angle_degrees": 90, "rise_m": 4.3},
+    {"name": "Gizella wing", "center": [-14, 47.9], "size": [48.2, 14.2], "angle_degrees": 0, "rise_m": 4.4},
+    {"name": "chapel wing", "center": [68.2, 49.6], "size": [47.8, 13.0], "angle_degrees": 0, "rise_m": 4.4},
+    {"name": "Rudolf wing", "center": [-32.8, 86.5], "size": [65, 11.6], "angle_degrees": 90, "rise_m": 4.1},
+    {"name": "north service wing", "center": [86.5, 87.5], "size": [64, 11.8], "angle_degrees": 90, "rise_m": 4.1},
+    {"name": "stables approach", "center": [-61.4, 113.7], "size": [49.7, 13.6], "angle_degrees": -6.2, "rise_m": 4.2}
+  ],
+  "cupolas": [
+    {"name": "street pavilion", "center": [28.0, 0.2], "radius": [5.8, 5.6], "drum_base_m": 0.0, "drum_height_m": 4.2, "dome_height_m": 5.8, "lantern_height_m": 1.7, "finial_height_m": 1.6, "metal": false},
+    {"name": "courtyard pavilion", "center": [27.8, 19.0], "radius": [5.0, 5.5], "drum_base_m": 0.0, "drum_height_m": 4.4, "dome_height_m": 5.6, "lantern_height_m": 1.5, "finial_height_m": 1.5, "metal": false},
+    {"name": "west corner watchtower", "center": [5.1, 46.8], "radius": [4.7, 5.0], "drum_base_m": 2.5, "drum_height_m": 1.9, "dome_height_m": 3.7, "lantern_height_m": 0.5, "finial_height_m": 1.0, "metal": true},
+    {"name": "east corner watchtower", "center": [49.6, 49.7], "radius": [4.8, 5.0], "drum_base_m": 2.5, "drum_height_m": 1.9, "dome_height_m": 3.7, "lantern_height_m": 0.5, "finial_height_m": 1.0, "metal": true}
+  ],
+  "dormers": [[10.5, 3.5, 0], [44.8, 3.5, 0], [5.2, 26, 90], [49.7, 26, -90]],
+  "chimneys": [[8, 11], [16, 13], [40, 13], [48, 11], [5, 32], [50, 32], [-14, 48], [69, 49], [-33, 66], [-33, 92], [86, 68], [86, 98], [-59, 114]],
+  "sources": [
+    "https://commons.wikimedia.org/wiki/File:Godollocivertanlegifoto1.jpg",
+    "https://commons.wikimedia.org/wiki/File:Godollocivertanlegifoto2.jpg",
+    "https://commons.wikimedia.org/wiki/File:Godollocivertanlegifoto4.jpg",
+    "https://nekb.gov.hu/public/tortenelmi-emlekhelyek/godollo/godollo-grassalkovich-kastely"
+  ]
+}
