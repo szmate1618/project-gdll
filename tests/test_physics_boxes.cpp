@@ -64,11 +64,17 @@ void supportAndJump() {
     viewer::FPSController player;
     require(player.startFalling({0, 1.7f, 1.3f}, f.world), "Player must enter walking beside the crate");
     for (int i = 0; i < 60; ++i) f.tick(player);
-    // Jump from a moving approach, then brake to a stop over the crate.
+    // Keep walking through the jump until above the crate, then brake. Releasing
+    // at takeoff stops the player short of it with the current braking strength.
     auto approach = player.movementState();
     approach.horizontalVelocity = {0, -2.4f};
     player.restoreMovement(approach);
-    f.tick(player, {0, 0, -90, false, true});
+    f.tick(player, {1, 0, -90, false, true});
+    for (int i = 0; i < 23; ++i) f.tick(player, {1, 0, -90});
+    const auto crate = f.boxes.pose(index);
+    require(player.feet().y > crate.center.y + crate.halfExtents.y &&
+            std::abs(player.feet().z - crate.center.z) < crate.halfExtents.z,
+            "The jump fixture must reach above the crate before braking");
     for (int i = 0; i < 120; ++i) f.tick(player);
     require(player.grounded() && player.feet().y > .40f && player.feet().y < .50f, "Jumping onto a crate must land on its live top face");
     require(glm::distance(glm::vec2(f.boxes.pose(index).center.x, f.boxes.pose(index).center.z), glm::vec2(0)) < .03f,
