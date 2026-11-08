@@ -58,8 +58,9 @@ int main(int argc, char** argv) {
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
         for (const auto* directory : {"storage", "vehicles", "skills"})
             std::filesystem::copy(std::filesystem::path(MP_ROOT) / directory, resources / directory, copy);
-        std::filesystem::copy_file(std::filesystem::path(MP_ROOT) / "skills.toml", resources / "skills.toml",
-                                   std::filesystem::copy_options::overwrite_existing);
+        for (const auto* file : {"skills.toml", "doors.toml"})
+            std::filesystem::copy_file(std::filesystem::path(MP_ROOT) / file, resources / file,
+                                       std::filesystem::copy_options::overwrite_existing);
         {
             std::ofstream inventory(resources / "inventory.toml");
             inventory << "equipped = 'sniper'\n[weapons]\npistol = 12\nsniper = 5\n"
