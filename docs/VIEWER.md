@@ -2269,10 +2269,13 @@ across your front. Right, up, down and diagonal drags work the same way. A
 12-pixel threshold filters jitter. Each press allows one cut with a 0.09 s
 windup, 0.26 s cut and recovery finishing at 0.55 s. Release and press again
 to repeat. Mouse look pauses during a held sword drag. Damage follows the
-blade within its physical reach, cannot pass through walls, and applies once
-per actor per cut. The skill uses no ammunition or storage; switching away
-removes the sword and cancels its attack. Multiplayer uses server-owned damage
-and publishes the sword pose to other players.
+blade within its physical reach and cannot pass through walls. Each cut applies
+ordinary damage once per actor, then continues checking severable joints. A
+later joint contact can sever one joint even if the first body hit was fatal;
+the existing corpse rig keeps its pose and wounds. Only corpses created by that
+same cut remain eligible. The skill uses no ammunition or storage. Switching
+away removes the sword; switching or cancelling stops further joint checks.
+Multiplayer uses server-owned damage and publishes the sword pose to other players.
 
 
 Switching shows a progress bar without a draw/put-away animation. Its duration is

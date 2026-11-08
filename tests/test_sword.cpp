@@ -3,6 +3,7 @@
 #include "inventory/item_config.hpp"
 #include "zombie_layer.hpp"
 #include "collision_world.hpp"
+#include "sword_fixture.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -94,8 +95,118 @@ void contacts() {
     };
     run(false, false, false); run(true, false, false); run(false, true, false); run(false, false, true);
 }
+
+void bodyThenJoint() {
+    const viewer::CollisionWorld world(viewer::Model{});
+    for (const bool back : {false, true}) for (const bool fatal : {false, true}) {
+        auto zombies = sword_fixture::population(back ? 180.f : 0.f);
+        if (fatal) sword_fixture::weaken(zombies);
+        viewer::Camera camera; camera.setPosition({0, 1.5f, 0}); camera.setOrientation(-90, 0);
+        viewer::SwordMelee sword; viewer::SwordCombat combat;
+        sword.trigger(true); sword.drag({back ? 40.f : -40.f, 0}); sword.update(1);
+        combat.update(sword, camera, 1.22, 1.22, world, &zombies, nullptr);
+        const auto& instance = zombies.instances[0];
+        require(instance.severedJoint == -1 && instance.ragdoll == fatal,
+                "First torso contact must damage immediately, before the joint reaches the blade");
+        if (!fatal) require(zombies.damage().injury(0) && std::abs(zombies.damage().injury(0)->health - .8f) < 1e-6f,
+                            "A sword cut must apply ordinary torso damage only once");
+        const auto handle = instance.ragdollHandle, version = instance.ragdollPoseVersion;
+        const auto bursts = zombies.bloodMist().recent(1.22).size();
+        if (fatal) zombies.update(1.f / 120);
+        combat.update(sword, camera, 1.35, 1.35, world, &zombies, nullptr);
+        require(instance.ragdoll && instance.severedJoint == 0,
+                "A later shoulder contact must sever after a torso hit from either side");
+        require(!zombies.damage().injury(0) && zombies.bloodMist().recent(1.35).size() == bursts + 1 &&
+                zombies.bloodMist().recent(1.35).back().size == viewer::BloodMistSize::medium,
+                "Severing must create blood feedback without another ordinary hit");
+        if (fatal) require(instance.ragdollHandle == handle && instance.ragdollPoseVersion > version && zombies.ragdollCount() == 1,
+                           "A fatal first hit must retain its corpse rig and publish the later sever");
+        const auto severedVersion = instance.ragdollPoseVersion;
+        combat.update(sword, camera, 2, 2, world, &zombies, nullptr);
+        require(instance.severedJoint == 0 && instance.ragdollPoseVersion == severedVersion,
+                "The later elbow must not sever a second joint during the same cut");
+        sword.trigger(false); sword.trigger(true); sword.drag({40, 0}); sword.update(3);
+        combat.update(sword, camera, 3.4, 3.4, world, &zombies, nullptr);
+        require(instance.ragdollPoseVersion == severedVersion, "A fresh cut must not acquire an existing corpse");
+    }
+}
+
+void cancelAfterBody() {
+    auto zombies = sword_fixture::population();
+    const viewer::CollisionWorld world(viewer::Model{});
+    viewer::Camera camera; camera.setPosition({0, 1.5f, 0}); camera.setOrientation(-90, 0);
+    viewer::SwordMelee sword; viewer::SwordCombat combat;
+    sword.trigger(true); sword.drag({-40, 0}); sword.update(1);
+    combat.update(sword, camera, 1.22, 1.22, world, &zombies, nullptr);
+    sword.cancel();
+    combat.update(sword, camera, 1.4, 1.4, world, &zombies, nullptr);
+    require(!zombies.instances[0].ragdoll && zombies.instances[0].severedJoint == -1,
+            "Cancelling after body damage must stop further joint checks");
+}
+
+void finiteBladeQueries() {
+    auto zombies = sword_fixture::population();
+    auto& joints = zombies.dismembermentAssets[0].joints;
+    joints.resize(1);
+    joints[0].bone = 1; joints[0].part = viewer::RagdollPart::torso;
+    joints[0].center = {0, .39f, -1};
+    zombies.rebuildSpatialIndex();
+    const glm::vec3 start(0, 1.44f, 0), end(0, 1.44f, -1.1f);
+    const auto bullet = zombies.traceShot(0, zombies.instances[0], start, {0, 0, -1}, 1);
+    const auto blade = zombies.traceMeleeBody(0, start, end, 1);
+    require(bullet && bullet->claim.joint == 0 && bullet->distance > glm::distance(start, end),
+            "Bullet tracing must retain its existing joint precedence");
+    require(blade && blade->claim.joint == -1 && !zombies.traceMeleeJoint(0, start, end, 1),
+            "A joint beyond the blade must neither sever nor hide an in-range body hit");
+    const glm::vec3 center(0, 1.44f, -2.25f);
+    const auto inside = zombies.traceMeleeJoint(0, center, center + glm::vec3(.001f, 0, 0), 1);
+    require(inside && inside->distance == 0, "A short blade segment inside a joint must count as contact");
+    require(!zombies.traceMeleeJoint(0, start, start, 1), "A zero-length blade query must be ignored");
+}
+
+void wallAfterBody() {
+    auto zombies = sword_fixture::population();
+    viewer::Model model; viewer::Primitive wall;
+    for (const glm::vec3 point : {glm::vec3(-.1f, 0, 0), {-.1f, 3, 0}, {-.1f, 3, -3}, {-.1f, 0, -3}}) {
+        viewer::Vertex vertex; vertex.position = point; wall.vertices.push_back(vertex);
+    }
+    wall.indices = {0, 1, 2, 0, 2, 3}; model.primitives.push_back(wall); model.draws.emplace_back();
+    const viewer::CollisionWorld world(model);
+    viewer::Camera camera; camera.setPosition({0, 1.5f, 0}); camera.setOrientation(-90, 0);
+    viewer::SwordMelee sword; viewer::SwordCombat combat;
+    sword.trigger(true); sword.drag({-40, 0}); sword.update(1);
+    combat.update(sword, camera, 1.4, 1.4, world, &zombies, nullptr);
+    require(!zombies.instances[0].ragdoll && zombies.damage().injury(0) &&
+            std::abs(zombies.damage().injury(0)->health - .8f) < 1e-6f,
+            "An exposed torso hit must not allow severing a joint behind a wall");
+}
+
+void corpseMovementAndLifetime() {
+    const viewer::CollisionWorld world(viewer::Model{});
+    for (const bool cancel : {false, true}) {
+        auto zombies = sword_fixture::population(); sword_fixture::weaken(zombies);
+        viewer::Camera camera; camera.setPosition({0, 1.5f, 0}); camera.setOrientation(-90, 0);
+        viewer::SwordMelee sword; viewer::SwordCombat combat;
+        sword.trigger(true); sword.drag({-40, 0}); sword.update(1);
+        combat.update(sword, camera, 1.22, 1.22, world, &zombies, nullptr);
+        require(zombies.instances[0].ragdoll && zombies.instances[0].severedJoint == -1,
+                "The initial body hit must create an intact corpse");
+        if (cancel) {
+            sword.cancel(); combat.update(sword, camera, 1.4, 1.4, world, &zombies, nullptr);
+            sword.trigger(false); sword.trigger(true); sword.drag({-40, 0}); sword.update(2);
+            combat.update(sword, camera, 2.4, 2.4, world, &zombies, nullptr);
+        } else {
+            zombies.translateRagdoll(0, {3, 0, 0});
+            combat.update(sword, camera, 1.4, 1.4, world, &zombies, nullptr);
+        }
+        require(zombies.instances[0].severedJoint == -1,
+                "Joint checks must follow the physical corpse and expire with the owning cut");
+    }
+}
 }
 int main() {
-    try { gestures(); geometryAndItem(); contacts(); std::cout << "Sword gesture, geometry and contact checks passed\n"; }
+    try { gestures(); geometryAndItem(); contacts(); bodyThenJoint(); cancelAfterBody();
+        finiteBladeQueries(); wallAfterBody(); corpseMovementAndLifetime();
+        std::cout << "Sword gesture, geometry and contact checks passed\n"; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

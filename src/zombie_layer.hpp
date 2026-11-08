@@ -132,6 +132,15 @@ struct ZombieLayer {
     // its ray against the newer authoritative pose or current occluders.
     bool applyReportedShot(const ZombieHitClaim& claim, glm::vec3 origin, glm::vec3 direction,
         double seconds, const CollisionWorld& world, ShotCaliber caliber, std::uint32_t excludedMistObserver = 0);
+    // Finite blade queries. Body hits exclude joint precedence used by bullets;
+    // joint queries also accept a corpse's current physical pose.
+    std::optional<ZombieShotTrace> traceMeleeBody(std::size_t id, glm::vec3 start, glm::vec3 end, double seconds) const;
+    std::optional<ZombieJointContact> traceMeleeJoint(std::size_t id, glm::vec3 start, glm::vec3 end, double seconds) const;
+    // Server-owned contact, already checked against the blade and scene by its
+    // caller. Severs one joint without applying another ordinary damage hit.
+    // A corpse keeps its existing rig, pose and wounds. Repeated severing fails.
+    bool severJoint(std::size_t id, int joint, glm::vec3 point, glm::vec3 direction,
+                    double seconds, const CollisionWorld& world);
     const ZombieDamage& damage() const { return damage_; }
     const ZombieWounds& wounds() const { return wounds_; }
     const BloodMist& bloodMist() const { return bloodMist_; }
@@ -271,6 +280,7 @@ private:
                             double seconds, const CollisionWorld* world);
     void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity, double animationSeconds,
                          int severedJoint = -1, ShotCaliber caliber = ShotCaliber::low);
+    void severRagdollJoint(std::size_t id, int joint, glm::vec3 direction, ShotCaliber caliber);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);
     bool applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> pose, glm::vec3 point,
@@ -321,7 +331,9 @@ private:
                                               std::vector<glm::mat4>& selectedPose);
     std::optional<ZombieShotHit> traceShotInstance(std::size_t id, const ZombieInstance& instance,
         glm::vec3 origin, glm::vec3 direction, double seconds, std::vector<glm::mat4>& pose,
-        int& bone, const ZombieWound* wound, ZombieShootingStats* stats) const;
+        int& bone, const ZombieWound* wound, ZombieShootingStats* stats, bool includeJoints = true) const;
+    std::optional<ZombieShotTrace> traceShot(std::size_t id, const ZombieInstance& displayed,
+        glm::vec3 origin, glm::vec3 direction, double seconds, const ZombieWound* wound, bool includeJoints) const;
     ZombieSpatialIndex spatialIndex_;
     ZombieSpatialIndex springRagdollIndex_;
     ZombieSpatialIndex replicationIndex_;

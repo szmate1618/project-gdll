@@ -131,4 +131,17 @@ bool zombieJointRay(glm::vec3 origin, glm::vec3 direction, const glm::mat4& inst
     return std::isfinite(distance) && distance >= 0;
 }
 
+bool zombieJointSegment(glm::vec3 start, glm::vec3 end, const glm::mat4& instance,
+                        const ZombieJointCollider& joint, const std::vector<glm::mat4>& pose, float& distance) {
+    const float length = glm::distance(start, end);
+    if (!std::isfinite(length) || length < 1e-6f) return false;
+    const auto inverse = glm::inverse(instance * zombieJointTransform(joint, pose));
+    const auto offset = glm::dvec3(inverse * glm::vec4(start, 1)) - glm::dvec3(joint.center);
+    if (glm::dot(offset, offset) <= double(joint.radius) * joint.radius) {
+        distance = 0;
+        return true;
+    }
+    return zombieJointRay(start, (end - start) / length, instance, joint, pose, distance) && distance <= length;
+}
+
 } // namespace viewer

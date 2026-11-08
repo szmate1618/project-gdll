@@ -3,6 +3,7 @@
 #include "player_body_pose.hpp"
 #include "box_layer.hpp"
 #include "zombie_replication_fixture.hpp"
+#include "../../tests/sword_fixture.hpp"
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -313,6 +314,52 @@ void swordAuthority(const Options& options) {
     world.submit(id, Commands{{command}}); world.step();
     require(wire(world.snapshot(id)).players[0].sword.elapsed == -1, "Cancelling interaction retained the sword attack");
 }
+void swordCorpseUpgrade(const Options& options) {
+    Scene scene(options); openScene(scene);
+    // The shoulder starts above the blade and falls through its plane after the fatal torso hit.
+    scene.zombies = sword_fixture::population(0, .3f);
+    scene.zombies.setPerceptionEnabled(false); scene.zombies.attachPhysics(scene.physics);
+    World world(scene); const auto id = world.join();
+    auto command = fists(1); command.slot = static_cast<std::uint8_t>(viewer::swordSlot);
+    world.submit(id, Commands{{command}});
+    for (int tick = 0; tick < 600 && world.players().at(id).weapons.slot() != viewer::swordSlot; ++tick) world.step();
+    require(world.players().at(id).weapons.slot() == viewer::swordSlot, "Sword upgrade fixture failed to equip");
+    // The torso hit must be fatal before the later shoulder contact.
+    for (int hit = 0; hit < 4; ++hit)
+        require(scene.zombies.shoot({0, 1.5f, 0}, {0, 0, -1}, 1, viewer::ShotCaliber::high),
+                "Sword upgrade fixture failed to injure torso");
+    Scene replica(options); openScene(replica); replica.zombies = sword_fixture::population(0, .3f);
+    Snapshots playback; test_replication::installSetups(playback, replica, scene);
+    bool publishedIntact = false, publishedSevered = false;
+    std::size_t handle = 0; std::uint64_t intactVersion = 0;
+    for (std::uint64_t sequence = 2; sequence < 40; ++sequence) {
+        command.sequence = sequence; command.left = true; command.drag = sequence == 2 ? glm::vec2(-40, 0) : glm::vec2(0);
+        world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}}); world.step();
+        const double now = double(world.tick()) / 60;
+        playback.push(wire(test_replication::readySnapshot(world, id)), now);
+        while (const auto pose = world.nextPose(id)) {
+            const auto bytes = encode(*pose);
+            const auto copy = std::get<CorpsePose>(decode(bytes.data(), bytes.size()));
+            playback.pushPose(replica, copy, now);
+            world.poseSent(id, *pose); world.acknowledgePose(id, {pose->id, pose->version});
+            if (pose->severedJoint < 0) {
+                publishedIntact = true; handle = scene.zombies.instances[0].ragdollHandle; intactVersion = pose->version;
+            } else {
+                require(publishedIntact && pose->version > intactVersion && pose->severedJoint == 0 &&
+                        scene.zombies.instances[0].ragdollHandle == handle,
+                        "A sever after fatal damage must update the acknowledged corpse, without replacing its rig");
+                publishedSevered = true;
+            }
+        }
+        playback.apply(replica, now);
+    }
+    require(publishedIntact, "The fatal sword body hit did not publish an intact corpse");
+    require(publishedSevered, "The later sword contact did not publish a severed corpse");
+    require(replica.zombies.instances[0].severedJoint == 0, "The replica did not apply the later severed joint");
+    require(world.players().at(id).shots == 1 && scene.zombies.ragdollCount() == 1,
+            "Sword corpse upgrade repeated the attack or allocated another rig");
+}
+
 void interpolation(const Options& options) {
     Scene scene(options);
     auto physics=std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics,1.7f);
@@ -339,7 +386,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==2,"Expected test map");
         Options options; options.map=argv[1]; options.zombieCount=0; options.trees=options.forests=false;
-        poseProtocol(); swordAuthority(options); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
+        poseProtocol(); swordAuthority(options); swordCorpseUpgrade(options); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
         runningPunchStartsAtSolvedEye(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
         std::cout<<"Multiplayer melee authority, shared contacts, replication and cleanup passed\n";
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}

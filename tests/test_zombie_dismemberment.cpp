@@ -59,6 +59,11 @@ void animatedAffineColliders() {
     require(viewer::zombieJointRay(center + glm::vec3(0, 0, 3), {0, 0, -1}, layer.instances[0].transform,
                                  joint, pose, distance) && std::abs(distance - 2.85f) < .001f,
             "Joint rays must preserve world distances through affine transforms");
+    require(!viewer::zombieJointSegment(center + glm::vec3(0, 0, 3), center + glm::vec3(0, 0, .2f),
+                                       layer.instances[0].transform, joint, pose, distance) &&
+            viewer::zombieJointSegment(center + glm::vec3(0, 0, 3), center, layer.instances[0].transform, joint, pose, distance) &&
+            std::abs(distance - 2.85f) < .001f,
+            "Blade segments must preserve affine joint distances and enforce their finite reach");
     require(layer.shoot(center + glm::vec3(0, 0, 3), {0, 0, -1}),
             "Prepared broad bounds must enclose animated joint colliders");
     auto blocked = fixture();

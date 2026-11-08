@@ -44,7 +44,7 @@ void ZombieLayer::ensureHitGeometry() const {
 
 std::optional<ZombieShotHit> ZombieLayer::traceShotInstance(std::size_t id, const ZombieInstance& instance,
         glm::vec3 origin, glm::vec3 direction, double seconds, std::vector<glm::mat4>& pose,
-        int& bone, const ZombieWound* wound, ZombieShootingStats* stats) const {
+        int& bone, const ZombieWound* wound, ZombieShootingStats* stats, bool includeJoints) const {
     if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) return std::nullopt;
     const auto& asset = assets[instance.asset];
     const auto& geometry = hitGeometry_[instance.asset];
@@ -98,7 +98,7 @@ std::optional<ZombieShotHit> ZombieLayer::traceShotInstance(std::size_t id, cons
     }
     int jointHit = -1;
     float jointDistance = std::numeric_limits<float>::max();
-    for (std::size_t j = 0; j < geometry.joints.size(); ++j) {
+    for (std::size_t j = 0; includeJoints && j < geometry.joints.size(); ++j) {
         float d = 0;
         if (zombieJointRay(origin, direction, instance.transform, geometry.joints[j], pose, d) && d < jointDistance) {
             jointHit = static_cast<int>(j); jointDistance = d;
@@ -118,6 +118,18 @@ std::optional<ZombieShotTrace> ZombieLayer::traceShot(std::size_t id, const Zomb
 
 std::optional<ZombieShotTrace> ZombieLayer::traceShot(std::size_t id, const ZombieInstance& displayed,
         glm::vec3 origin, glm::vec3 direction, double seconds, const ZombieWound* displayedWound) const {
+    return traceShot(id, displayed, origin, direction, seconds, displayedWound, true);
+}
+
+std::optional<ZombieShotTrace> ZombieLayer::traceMeleeBody(std::size_t id, glm::vec3 start, glm::vec3 end, double seconds) const {
+    const float length = glm::distance(start, end);
+    if (id >= instances.size() || !std::isfinite(length) || length < 1e-6f) return std::nullopt;
+    auto hit = traceShot(id, instances[id], start, (end - start) / length, seconds, wounds_.find(id), false);
+    return hit && hit->distance <= length ? hit : std::nullopt;
+}
+
+std::optional<ZombieShotTrace> ZombieLayer::traceShot(std::size_t id, const ZombieInstance& displayed,
+        glm::vec3 origin, glm::vec3 direction, double seconds, const ZombieWound* displayedWound, bool includeJoints) const {
     const auto finite = [](glm::vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); };
     if (id >= instances.size() || id > UINT32_MAX || displayed.asset != instances[id].asset ||
         !finite(origin) || !finite(direction) || !std::isfinite(seconds)) return std::nullopt;
@@ -130,7 +142,7 @@ std::optional<ZombieShotTrace> ZombieLayer::traceShot(std::size_t id, const Zomb
         return std::nullopt;
     std::vector<glm::mat4> pose;
     int bone = -1;
-    const auto hit = traceShotInstance(id, displayed, origin, direction, seconds, pose, bone, displayedWound, nullptr);
+    const auto hit = traceShotInstance(id, displayed, origin, direction, seconds, pose, bone, displayedWound, nullptr, includeJoints);
     if (!hit || bone > INT16_MAX || hit->joint > INT16_MAX) return std::nullopt;
     const auto frame = bone < 0 ? glm::dmat4(displayed.restRoot) :
         glm::dmat4(displayed.transform) * glm::dmat4(pose.at(std::size_t(bone)));

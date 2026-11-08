@@ -25,6 +25,11 @@ struct ZombieDismembermentAsset {
     std::vector<std::filesystem::path> resources;
 };
 
+struct ZombieJointContact {
+    int joint = -1;
+    float distance = 0; // World metres from the start of a finite blade segment.
+};
+
 // Optional BASE.hitboxes.json beside the original asset. Present but stale or
 // malformed definitions fail loading rather than combining incompatible rigs.
 ZombieDismembermentAsset loadZombieDismemberment(const std::filesystem::path& basePath,
@@ -32,6 +37,9 @@ ZombieDismembermentAsset loadZombieDismemberment(const std::filesystem::path& ba
 glm::mat4 zombieJointTransform(const ZombieJointCollider& joint, const std::vector<glm::mat4>& pose);
 bool zombieJointRay(glm::vec3 origin, glm::vec3 direction, const glm::mat4& instance,
                     const ZombieJointCollider& joint, const std::vector<glm::mat4>& pose, float& distance);
+// Includes a segment starting inside the collider (distance zero).
+bool zombieJointSegment(glm::vec3 start, glm::vec3 end, const glm::mat4& instance,
+                        const ZombieJointCollider& joint, const std::vector<glm::mat4>& pose, float& distance);
 // Shot impulse: low caliber 4..8 N s, high caliber 10..16 N s. Non-head
 // parts also receive the same magnitude along their world-space center offset.
 glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 normalizedShotDirection,

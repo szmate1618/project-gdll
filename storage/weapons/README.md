@@ -238,7 +238,13 @@ including diagonals. The sword snaps to the opposite side for a 0.09-second
 windup, cuts for 0.26 seconds, and returns to guard by 0.55 seconds. Each press
 permits one cut; release and press again after recovery to repeat. Dragging
 controls the sword while the button is held; releasing restores mouse look.
-Damage follows the finite swept blade, checks scene occlusion, and applies at
-most once per actor per cut. Zombies receive high-calibre-equivalent damage;
+Damage follows the finite swept blade and checks scene occlusion. Each cut can
+apply ordinary damage once and sever one joint per zombie. Joint checks continue
+after ordinary damage, so a later shoulder or neck contact can still sever.
+A fatal first hit keeps its physical corpse eligible for the remainder of that
+cut, preserving its rig, pose and wounds. Existing corpses are not acquired by
+new cuts, and cancellation stops pending contacts. Joint tests use finite blade
+segments independently of the bullet query's joint precedence.
+Zombies receive high-calibre-equivalent damage;
 dogs receive 20 damage. The standalone viewer and multiplayer server share
 these checks, while clients predict the local sword motion.
