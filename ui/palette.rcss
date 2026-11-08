@@ -110,3 +110,5 @@ body.loadout { background-color: #2b2d2fed; }
 .modern #join-address, .modern #setup-port { font-family: plex-mono; }
 
 .loadout .molotov { background-color: #e3a36b; }
+
+.loadout .sword { background-color: #b9c8d5; }

@@ -1,5 +1,6 @@
 #include "remote_weapon_playback.hpp"
 #include "camera.hpp"
+#include "weapons.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -32,7 +33,7 @@ void RemoteWeaponPlayback::receiveShots(const std::vector<SoundEvent>& shots,
 }
 
 std::optional<RemoteWeaponSample> RemoteWeaponPlayback::sample(const PlayerState& player, double seconds) const {
-    if (player.vehicle != noVehicle || player.slot >= 4 || player.weaponSwitchRemaining > 0) return {};
+    if (player.vehicle != noVehicle || (player.slot >= 4 && player.slot != viewer::swordSlot) || player.weaponSwitchRemaining > 0) return {};
     viewer::FPSController body;
     body.restoreMovement(player.movement);
     viewer::Camera eye;
@@ -41,6 +42,13 @@ std::optional<RemoteWeaponSample> RemoteWeaponPlayback::sample(const PlayerState
     RemoteWeaponSample result;
     result.slot = player.slot;
     result.eyeToWorld = glm::inverse(eye.view());
+    if (player.slot == viewer::swordSlot) {
+        auto pose = player.sword;
+        if (pose.elapsed >= 0) pose.elapsed += static_cast<float>(std::max(0.0, seconds - player.swordSampleSeconds));
+        if (pose.elapsed >= viewer::swordDurationSeconds) pose.elapsed = -1;
+        result.motion = viewer::swordMotion(pose);
+        return result;
+    }
     const auto playback = players_.find(player.id);
     if (playback != players_.end()) {
         result.motion = playback->second.motion.pose(player.slot, seconds);

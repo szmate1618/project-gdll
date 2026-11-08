@@ -17,6 +17,7 @@ struct WeaponMotionPose {
     glm::vec3 offset{0}; // Eye-local meters: X right, Y up, +Z rearward.
     glm::vec3 angles{0}; // Model-local pitch, yaw, roll in degrees, about the receiver.
     float pumpTravel = 0; // Model-local meters toward +Z; only the shotgun pump moves.
+    glm::mat4 localTransform{1}; // Rigid local motion, used by directional melee.
 };
 
 // Client-local presentation, sampled from absolute seconds rather than integrated

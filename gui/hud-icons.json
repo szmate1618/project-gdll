@@ -107,6 +107,11 @@
       "source": "delapouite/plain-arrow.png",
       "author": "Delapouite",
       "page": "https://game-icons.net/1x1/delapouite/plain-arrow.html"
+    },
+    "sword": {
+      "source": "lorc/broadsword.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/broadsword.html"
     }
   }
 }

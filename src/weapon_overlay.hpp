@@ -30,8 +30,8 @@ private:
     void drawGeometry(std::size_t slot, const glm::mat4& projection, const glm::mat4& modelToEye,
                       const MuzzleFlashLight& flash, float pumpTravel);
     struct Range { GLint first = 0; GLsizei count = 0; };
-    std::array<Range, weaponIds.size()> ranges_{};
-    std::array<glm::mat4, weaponIds.size()> poses_{};
+    std::array<Range, equipmentSlotCount> ranges_{};
+    std::array<glm::mat4, equipmentSlotCount> poses_{};
     GLuint program_ = 0, vao_ = 0, buffer_ = 0;
     GLint transform_ = -1;
     GLint pose_ = -1, flashPosition_ = -1, flashColor_ = -1, flashRange_ = -1;

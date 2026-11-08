@@ -30,6 +30,7 @@
 #include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "weapons.hpp"
+#include "sword_combat.hpp"
 #include "weapon_accuracy.hpp"
 #include "action_selection.hpp"
 #include "weapon_switch.hpp"
@@ -390,7 +391,7 @@ void printHelp() {
               << "Slot 0 or held Alt: Object handling; hold left to drag, release to drop; hold right to charge throw/push\n"
               << "Object handling: mouse moves the held object; WASD moves the grip; right click also pushes objects within reach\n"
               << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov; R reload; hold left mouse for automatic fire\n"
+              << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov, 8 Sword; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
@@ -498,6 +499,7 @@ struct AppState {
     viewer::WeaponSwitch weaponSwitch;
     viewer::WeaponReload weaponReload;
     viewer::WeaponMotion weaponMotion;
+    viewer::SwordCombat swordCombat;
     viewer::ShotInaccuracy shotInaccuracy;
     viewer::PlayerVitals vitals;
     double lastDamageSeconds = -1;
@@ -694,8 +696,15 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
         app.lastX = x; app.lastY = y; app.firstMouse = false; return;
     }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
-    if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
-        app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y));
+    if (!app.firstMouse && std::isfinite(x) && std::isfinite(y)) {
+        const glm::vec2 drag(static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y));
+        if (app.weapons.slot() == viewer::swordSlot && !app.handling() && !app.driver.occupied() &&
+            !app.actionSelection.open() && !app.weaponSwitch.pending() &&
+            glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+            app.weapons.sword().drag(drag);
+            app.weapons.sword().update(viewer::SimulationClock::instance().seconds());
+        } else app.interaction.look(app.rig.camera(), drag.x, drag.y);
+    }
     app.lastX = x;
     app.lastY = y;
     app.firstMouse = false;
@@ -802,6 +811,12 @@ bool updateWeapons(AppState& app, double seconds) {
     const auto& config = app.weapons.equipped().config;
     if (config.grenade && (!app.grenades || !app.grenades->canThrow(app.rig.camera().position(), app.world, config.grenade->kind))) {
         app.weapons.cancelTrigger();
+        return false;
+    }
+    if (app.weapons.slot() == viewer::swordSlot) {
+        app.weapons.sword().update(seconds);
+        app.swordCombat.update(app.weapons.sword(), app.rig.camera(), seconds, app.displayedAnimationSeconds,
+            app.world, app.zombies, app.dogs);
         return false;
     }
     if (app.weapons.slot() == viewer::punchSlot) {
@@ -2163,7 +2178,9 @@ int run(const Options& options) {
                 app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
                 viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
                 weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
-                                   app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds(), app.temporaryHandling()));
+                                   app.weapons.slot() == viewer::swordSlot && !app.temporaryHandling() ?
+                                       viewer::swordMotion(app.weapons.sword().pose(simulationClock.seconds())) :
+                                       app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds(), app.temporaryHandling()));
             const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
             const float sigma = viewer::hipFireInaccuracy(heldWeapon.config,
                 glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z)),

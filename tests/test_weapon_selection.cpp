@@ -23,12 +23,14 @@ void selection() {
     require(!selection.confirm(actions, 0), "Confirming the current equipment must do nothing");
     selection.highlight(0);
     require(selection.confirm(actions, 0) == viewer::handlingSlot, "Slot 0 must select the object-handling skill");
+    selection.highlight(8);
+    require(selection.confirm(actions, 0) == viewer::swordSlot, "Slot 8 must select Sword");
     selection.highlight(9);
     require(!selection.confirm(actions, 0), "An unassigned slot must not equip anything");
     selection.cycle(-1, actions, viewer::handlingSlot);
-    require(selection.selected() == 7, "Wheel must wrap past empty slots to the Molotov");
+    require(selection.selected() == 8, "Wheel must wrap past empty slots to the sword");
     selection.cycle(1, actions, 0);
-    require(selection.selected() == 0, "Wheel must wrap from the Molotov to object handling");
+    require(selection.selected() == 0, "Wheel must wrap from the sword to object handling");
     selection.close(); selection.cycle(1, {}, 0);
     require(!selection.open(), "An empty hotbar must not create a selection");
 }
@@ -61,6 +63,11 @@ void transitions() {
     require(switching.update(weapons, 200) && weapons.slot() == viewer::handlingSlot, "Switching must finish equipping object handling");
     weapons.trigger(true);
     require(!weapons.fire(201) && !weapons.discard(), "Object handling must never fire or become a dropped equippable");
+    require(switching.begin(weapons, inventory, viewer::swordSlot, 202) && switching.update(weapons, 203),
+            "Sword must equip without a stored item or ammo");
+    weapons.trigger(true);
+    require(!weapons.fire(204) && !weapons.discard() && weapons.equipped().config.melee,
+            "Sword must use gesture melee and must not become a dropped firearm");
     const auto separate = viewer::weaponSwitchTiming(inventory, weapons.state(0).config, weapons.state(4).config);
     near(separate->storageAccess, 1.0, "Holster and vest pouch must each charge their access time");
 }

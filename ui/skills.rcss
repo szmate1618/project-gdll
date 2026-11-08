@@ -31,3 +31,5 @@
 #add-combo-action { left: 20dp; right: 20dp; }
 
 .skill-symbol.handling { decorator: image(../data/assets/game-icons/hud/interact.png contain); }
+
+.skill-symbol.sword { decorator: image(../data/assets/game-icons/hud/sword.png contain); }

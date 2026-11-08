@@ -9,7 +9,7 @@ std::optional<WeaponSwitchTiming> weaponSwitchTiming(const PlayerInventory& inve
     if (oldWeapon.id == newWeapon.id) return WeaponSwitchTiming{};
     struct Access { const StorageGrid* grid = nullptr; InventoryAccessScores scores; };
     const auto access = [&](const WeaponConfig& weapon, const std::string& partner) -> std::optional<Access> {
-        if (weapon.id == "punch" || weapon.id == "object_handling") return Access{};
+        if (weapon.id == "punch" || weapon.id == "object_handling" || weapon.id == "sword") return Access{};
         const auto location = inventory.locationOf(weapon.id);
         if (!location || !location->placement) return {};
         const auto& container = inventory.layout().at(location->placement->storage);
@@ -23,7 +23,7 @@ std::optional<WeaponSwitchTiming> weaponSwitchTiming(const PlayerInventory& inve
         newWeapon.drawTimeSeconds};
 }
 bool WeaponSwitch::begin(Weapons& weapons, const PlayerInventory& inventory, std::size_t target, double seconds) {
-    if (pending_ || weapons.reloading() || target > handlingSlot || target == weapons.slot() || !std::isfinite(seconds) ||
+    if (pending_ || weapons.reloading() || target >= equipmentSlotCount || target == weapons.slot() || !std::isfinite(seconds) ||
         !weapons.state(target).owned) return false;
     const auto timing = weaponSwitchTiming(inventory, weapons.equipped().config, weapons.state(target).config);
     if (!timing || !std::isfinite(seconds + timing->total())) return false;

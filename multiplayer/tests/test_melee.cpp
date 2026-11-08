@@ -284,6 +284,35 @@ void seatedFists(const Options& options) {
     require(state.vehicle==0 && state.seat==1 && !state.melee.enabled && state.shots==0 && !scene.vehicles->simulating(0),
             "A seated passenger punched, rendered hands, or activated parked physics");
 }
+void swordAuthority(const Options& options) {
+    Scene scene(options); openScene(scene); World world(scene);
+    const auto id = world.join();
+    auto command = fists(1); command.slot = static_cast<std::uint8_t>(viewer::swordSlot);
+    world.submit(id, Commands{{command}});
+    for (int tick = 0; tick < 600 && world.players().at(id).weapons.slot() != viewer::swordSlot; ++tick) world.step();
+    require(world.players().at(id).weapons.slot() == viewer::swordSlot, "Sword skill failed to equip on server");
+    command.sequence = 2; command.left = true; command.drag = {-40, 0};
+    world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}}); world.step();
+    const auto state = wire(world.snapshot(id)).players[0];
+    require(state.slot == viewer::swordSlot && state.sword.direction == glm::vec2(-1, 0) && state.sword.elapsed >= 0,
+            "Sword direction and animation did not survive snapshot round trip");
+    auto invalid = world.snapshot(id); invalid.players[0].sword.direction = {0, 0};
+    rejects([&] { encode(invalid); }, "Invalid sword direction was accepted");
+    for (std::uint64_t sequence = 3; sequence < 40; ++sequence) {
+        command.sequence = sequence; command.drag = {-40, 0};
+        world.submit(id, Commands{{command}}); world.step();
+    }
+    require(world.players().at(id).shots == 1, "Held or duplicate sword commands repeated the cut");
+    require(scene.zombies.damage().injury(0) != nullptr, "Authoritative sword cut missed the nearby zombie");
+    command.sequence = 40; command.left = false; command.drag = {};
+    world.submit(id, Commands{{command}}); world.step();
+    command.sequence = 41; command.left = true; command.drag = {30, 30};
+    world.submit(id, Commands{{command}}); world.step();
+    require(world.players().at(id).shots == 2, "Release and a fresh diagonal drag did not start a second cut");
+    command.sequence = 42; command.cancelInteraction = true;
+    world.submit(id, Commands{{command}}); world.step();
+    require(wire(world.snapshot(id)).players[0].sword.elapsed == -1, "Cancelling interaction retained the sword attack");
+}
 void interpolation(const Options& options) {
     Scene scene(options);
     auto physics=std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics,1.7f);
@@ -310,7 +339,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==2,"Expected test map");
         Options options; options.map=argv[1]; options.zombieCount=0; options.trees=options.forests=false;
-        poseProtocol(); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
+        poseProtocol(); swordAuthority(options); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
         runningPunchStartsAtSolvedEye(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
         std::cout<<"Multiplayer melee authority, shared contacts, replication and cleanup passed\n";
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}

@@ -6,7 +6,7 @@ Licensed under Creative Commons Attribution 3.0 Unported:
 https://creativecommons.org/licenses/by/3.0/
 
 sbed: hand.
-Lorc: run, grenade, punch. http://lorcblog.blogspot.com
+Lorc: run, grenade, punch, broadsword. http://lorcblog.blogspot.com
 Delapouite: rod-of-asclepius, heart-beats, tired-eye, crosshair, person, kneeling, half-body-crawling,
 steering-wheel, car-seat, video-camera, speedometer, plain-circle,
 sawed-off-shotgun, plain-arrow. https://delapouite.com

@@ -1,6 +1,7 @@
 #include "scene_depth.hpp"
 #include "weapon_overlay.hpp"
 #include "model.hpp"
+#include "sword_geometry.hpp"
 #include "shader_program.hpp"
 #include <array>
 #include <cmath>
@@ -75,6 +76,10 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
         appendModel(model, slot == 2, vertices);
         ranges_[slot].count = static_cast<GLsizei>(vertices.size()) - ranges_[slot].first;
     }
+    ranges_[swordSlot].first = static_cast<GLint>(vertices.size());
+    poses_[swordSlot] = swordRestPose();
+    appendModel(makeSwordModel(), false, vertices);
+    ranges_[swordSlot].count = static_cast<GLsizei>(vertices.size()) - ranges_[swordSlot].first;
     program_ = createShaderProgram(shaders / "weapon.vert", shaders / "weapon.frag");
     transform_ = glGetUniformLocation(program_, "uTransform");
     pose_ = glGetUniformLocation(program_, "uPose");
@@ -107,7 +112,7 @@ glm::vec3 WeaponOverlay::muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle,
 
 void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash,
                          const WeaponMotionPose& motion) {
-    if (slot >= ranges_.size() || width <= 0 || height <= 0) return;
+    if (slot >= ranges_.size() || ranges_[slot].count == 0 || width <= 0 || height <= 0) return;
     const WeaponDrawState restore(true);
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
     const auto pose = animatedWeaponPose(poses_[slot], motion);
@@ -116,7 +121,7 @@ void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFl
 
 void WeaponOverlay::drawWorld(std::size_t slot, const Camera& camera, float aspect, const glm::mat4& eyeToWorld,
                               const MuzzleFlashLight& worldFlash, const WeaponMotionPose& motion) {
-    if (slot >= ranges_.size() || !std::isfinite(aspect) || aspect <= 0) return;
+    if (slot >= ranges_.size() || ranges_[slot].count == 0 || !std::isfinite(aspect) || aspect <= 0) return;
     const WeaponDrawState restore(false);
     const auto view = camera.view();
     const auto pose = view * eyeToWorld * animatedWeaponPose(poses_[slot], motion);

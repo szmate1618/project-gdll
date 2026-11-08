@@ -35,6 +35,12 @@ void eyeMount() {
                 std::abs(glm::determinant(glm::mat3(pose->eyeToWorld)) - 1) < .00001f,
             "Remote gun mount reflected or scaled the shared local geometry");
     }
+    player.slot = static_cast<std::uint8_t>(viewer::swordSlot);
+    player.sword = {{-1, 0}, 0}; player.swordSampleSeconds = 10;
+    const auto swordWindup = playback.sample(player, 10), swordCut = playback.sample(player, 10.22);
+    require(swordWindup && swordCut && swordWindup->motion.localTransform != swordCut->motion.localTransform,
+        "Remote sword must continue its directional animation between snapshots");
+    player.slot = 0;
     player.vehicle = 0;
     require(!playback.sample(player, 0), "Seated player retained an on-foot weapon");
     player.vehicle = noVehicle; player.slot = 4;

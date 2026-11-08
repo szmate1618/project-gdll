@@ -11,7 +11,8 @@ ActionShortcuts actionShortcuts(const PlayerInventory& inventory) {
             const auto skill = id.substr(6);
             actions[i] = {inventory.skills().at(skill), true, skill == "punch" ?
                 std::optional<std::size_t>(punchSlot) : skill == "object_handling" ?
-                std::optional<std::size_t>(handlingSlot) : std::nullopt};
+                std::optional<std::size_t>(handlingSlot) : skill == "sword" ?
+                std::optional<std::size_t>(swordSlot) : std::nullopt};
         } else if (const auto* item = inventory.find(id)) {
             const auto weapon = std::find(weaponIds.begin(), weaponIds.end(), id);
             actions[i] = {item->inventory().name, false, weapon == weaponIds.end() ? std::nullopt :

@@ -9,7 +9,7 @@
 
 namespace viewer {
 const char* equipmentIconClass(std::size_t equipment) {
-    constexpr std::array<const char*,handlingSlot+1> icons{"pistol","smg","shotgun","sniper","grenade","molotov","fists","handling"};
+    constexpr std::array<const char*,equipmentSlotCount> icons{"pistol","smg","shotgun","sniper","grenade","molotov","fists","handling","sword"};
     return equipment<icons.size() ? icons[equipment] : "unconfirmed";
 }
 void populateActionHotbar(Rml::ElementDocument& document, const PlayerInventory& inventory) {
@@ -25,7 +25,7 @@ void populateActionHotbar(Rml::ElementDocument& document, const PlayerInventory&
             const auto* itemStyle = item && item->hasTag("incendiary") ? "molotov" :
                 item && item->hasTag("grenade") ? "grenade" : "pistol";
             contents += "<span class='assignment-type'>" + std::string(action.skill ? "SKILL" : "ITEM") +
-                "</span><div class='assignment-square " + std::string(action.skill ? (action.equipment == handlingSlot ? "handling" : "punch") : itemStyle) +
+                "</span><div class='assignment-square " + std::string(action.skill ? (action.equipment == handlingSlot ? "handling" : action.equipment == swordSlot ? "sword" : "punch") : itemStyle) +
                 "'></div><div class='assignment-name'>" + Rml::StringUtilities::EncodeRml(action.name) + "</div>";
         }
         contents += "</div>";

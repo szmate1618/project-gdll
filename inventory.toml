@@ -68,6 +68,7 @@ quantity = 2
 5 = "sniper"
 6 = "he_grenade"
 7 = "molotov"
+8 = "skill:sword"
 
 # Item top-left positions in storage cells. References must name equipped gear.
 [placements.pistol]

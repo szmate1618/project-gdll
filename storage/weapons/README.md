@@ -200,7 +200,7 @@ grenade automatically retrieves another of the same ammo type.
 ```
 
 The starter hotbar uses 0 for Object handling, 1 for Punch, 2–6 for the five
-existing weapons and 7 for Molotov. Slots 8–9 are empty.
+existing weapons, 7 for Molotov and 8 for the Sword skill. Slot 9 is empty.
 Shortcuts are references, so they add no ownership or storage capacity. Unknown
 or unowned IDs and invalid slot numbers are rejected. Inventory and Skills use
 the same player-owned model, loaded once at startup. Restart to apply
@@ -223,3 +223,22 @@ Molotov gameplay uses `kind = "molotov"` and `throw_speed`; impact ignition is
 fixed at ten rays in a 60° full cone, two metres of reach and ten seconds of
 client-side fire. It has no explosive fuse or blast radius. Bottle and spare
 1×2 stacks start in the backpack; ammo uses the separate `molotovs` type.
+
+## Prototype sword
+
+The `skill:sword` shortcut creates the sword while equipped; it needs no stored
+instance, ammunition or reload. Its item definition is `sword.inventory.toml`
+(1×5 cells, tags `sword, melee, bladed, one_handed`); gameplay uses `kind = "melee"`
+with zero magazine capacity and zero ammo per shot. It cannot be discarded.
+The runtime model has a one-metre blade with a narrow six-sided outline,
+a guard, a grip and a pommel. Geometry is generated once by `sword_geometry.cpp`.
+
+Hold left click and drag at least 12 pixels to choose any cut direction,
+including diagonals. The sword snaps to the opposite side for a 0.09-second
+windup, cuts for 0.26 seconds, and returns to guard by 0.55 seconds. Each press
+permits one cut; release and press again after recovery to repeat. Dragging
+controls the sword while the button is held; releasing restores mouse look.
+Damage follows the finite swept blade, checks scene occlusion, and applies at
+most once per actor per cut. Zombies receive high-calibre-equivalent damage;
+dogs receive 20 damage. The standalone viewer and multiplayer server share
+these checks, while clients predict the local sword motion.

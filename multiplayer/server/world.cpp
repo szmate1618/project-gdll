@@ -410,6 +410,12 @@ void World::step() {
                 player.weapons.cancelTrigger();
                 player.triggerNeedsRelease |= command.left;
             }
+            if (player.weapons.slot() == viewer::swordSlot) {
+                if (consumed) player.weapons.sword().drag(command.drag);
+                if (player.weapons.sword().update(now)) ++player.shots;
+                player.swordCombat.update(player.weapons.sword(), player.camera, now, now,
+                    *scene_.collision, &scene_.zombies, &scene_.dogs);
+            }
             if (canThrow && player.weapons.fireAttempt(now, [&] {
                     if (player.weapons.slot() != viewer::punchSlot)
                         return config.grenade || (consumed && validFirearmReport(scene_, player, command));
@@ -561,6 +567,8 @@ Snapshot World::snapshot(std::uint32_t id) {
             player.weaponSwitch.timing() ? static_cast<float>(player.weaponSwitch.timing()->total()) : 0.f,
             static_cast<float>(player.weaponReload.remaining(viewer::SimulationClock::instance().seconds())),
             static_cast<float>(player.weaponReload.duration()), {}, bool(player.inventory.held()) || !player.pendingInventoryActions.empty(), {}});
+        s.players.back().sword = player.weapons.sword().pose(viewer::SimulationClock::instance().seconds());
+        s.players.back().swordSampleSeconds = static_cast<float>(viewer::SimulationClock::instance().seconds());
         s.players.back().flashlight = player.held.flashlight;
         s.players.back().handInventoryActive = player.handInventory.active();
         s.players.back().handAccessRemaining = static_cast<float>(player.handInventory.remaining());

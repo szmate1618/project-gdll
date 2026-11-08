@@ -40,6 +40,9 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
     punch.config.id = "punch"; punch.config.name = "Fists";
     punch.config.ammoPerShot = 0; punch.config.magazineCapacity = 0;
     punch.config.shotIntervalSeconds = .5;
+    auto& sword = weapons_[swordSlot];
+    sword.owned = enableMelee;
+    sword.config = loadItem(definitions, "sword").gameplay();
     const auto table = toml::parse_file(inventory.string());
     const auto* guns = table["weapons"].as_table();
     const auto* ammo = table["ammo"].as_table();
@@ -93,6 +96,7 @@ bool Weapons::equip(std::size_t slot) {
     return true;
 }
 void Weapons::trigger(bool held) {
+    sword_.trigger(slot_ == swordSlot && held);
     if (held && !held_) pressed_ = true;
     if (!held) emptyClicked_ = false;
     held_ = held;
@@ -114,6 +118,7 @@ void Weapons::secondaryTrigger(bool held, double seconds) {
 }
 void Weapons::cancelPrimaryTrigger() {
     held_ = pressed_ = emptyClicked_ = false;
+    sword_.cancel();
 }
 void Weapons::cancelTrigger() {
     cancelPrimaryTrigger();
@@ -135,7 +140,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     pendingGrenadePower_.reset();
     if (primary) grenadeChargeAt_.reset();
     pressed_ = false;
-    if (slot_ == handlingSlot || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (slot_ == handlingSlot || slot_ == swordSlot || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
         if (emptyClicked_) return WeaponFireResult::none;
         emptyClicked_ = true;
@@ -187,6 +192,7 @@ bool Weapons::pickUp(const WeaponItem& item) {
     return equip(item.slot);
 }
 std::string Weapons::status() const {
+    if (slot_ == swordSlot) return "Sword | left click + drag to cut";
     if (slot_ == handlingSlot) return "Object handling";
     if (slot_ == punchSlot) return "Fists";
     const auto& weapon = equipped();
@@ -200,7 +206,7 @@ bool weaponViewVisible(const WeaponConfig& config, std::uint32_t loaded, bool co
 }
 
 std::vector<glm::vec3> weaponShotDirections(const WeaponConfig& config, glm::vec3 forward) {
-    if (config.grenade || config.id == "punch" || config.id == "object_handling") return {};
+    if (config.grenade || config.melee || config.id == "punch" || config.id == "object_handling") return {};
     forward = glm::normalize(forward);
     std::vector<glm::vec3> result{forward};
     const auto reference = std::abs(forward.y) > .99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);

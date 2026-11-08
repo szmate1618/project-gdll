@@ -230,7 +230,7 @@ void command(Wire& w, Command& c) {
         if (!c.left) throw std::runtime_error("Firearm report without firing input");
     } else c.firearmShot.reset();
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
-        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::handlingSlot ||
+        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot >= viewer::equipmentSlotCount ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
         throw std::runtime_error("Invalid multiplayer command");
 }
@@ -485,6 +485,14 @@ void payload(Wire& w, Snapshot& s) {
         movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
         w.flag(p.weaponCoolingDown); w.flag(p.flashlight);
+        if (p.slot == viewer::swordSlot) {
+            w.number(p.sword.direction.x); w.number(p.sword.direction.y);
+            w.number(p.sword.elapsed); w.number(p.swordSampleSeconds);
+            if (std::abs(glm::length(p.sword.direction) - 1) > .001f ||
+                (p.sword.elapsed != -1 && (p.sword.elapsed < 0 || p.sword.elapsed >= viewer::swordDurationSeconds)) ||
+                p.swordSampleSeconds < 0)
+                throw std::runtime_error("Invalid sword pose");
+        } else if (w.reading) { p.sword = {}; p.swordSampleSeconds = 0; }
         w.integer(p.vehicle); w.integer(p.seat);
         w.flag(p.melee.enabled);
         if (p.melee.enabled) {
@@ -526,7 +534,7 @@ void payload(Wire& w, Snapshot& s) {
         }
         if (p.inventoryDragging && hasInventory) throw std::runtime_error("Held complete inventory snapshot");
         if (p.inventoryDragging && !p.inventoryPlacements.empty()) throw std::runtime_error("Invalid held inventory snapshot");
-        if (!p.id || p.slot > viewer::handlingSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
+        if (!p.id || p.slot >= viewer::equipmentSlotCount || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
             (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))
             throw std::runtime_error("Invalid player snapshot");

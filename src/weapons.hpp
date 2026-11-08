@@ -9,6 +9,7 @@
 #include <optional>
 #include <cstdint>
 #include "weapon_config.hpp"
+#include "sword_melee.hpp"
 
 namespace viewer {
 class PlayerInventory;
@@ -16,6 +17,8 @@ class WeaponReload;
 inline constexpr std::array<const char*, 6> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
 constexpr std::size_t handlingSlot = weaponIds.size() + 1;
 constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
+constexpr std::size_t swordSlot = weaponIds.size() + 2;
+constexpr std::size_t equipmentSlotCount = swordSlot + 1;
 // Slots 0..5 are fixed weapon IDs. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponState {
@@ -41,6 +44,8 @@ public:
     const WeaponState& equipped() const { return weapons_[slot_]; }
     const WeaponState& state(std::size_t slot) const { return weapons_.at(slot); }
     void trigger(bool held);
+    SwordMelee& sword() { return sword_; }
+    const SwordMelee& sword() const { return sword_; }
     // Grenades: tap (<= 0.2 s) drops; hold charges linearly to an automatic
     // full-power throw at 2 s. Uses the same simulation clock as fireAttempt.
     void secondaryTrigger(bool held, double seconds);
@@ -66,7 +71,8 @@ public:
     std::string status() const;
 private:
     friend class WeaponReload;
-    std::array<WeaponState, weaponIds.size() + 2> weapons_;
+    std::array<WeaponState, equipmentSlotCount> weapons_;
+    SwordMelee sword_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;

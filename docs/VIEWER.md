@@ -2242,9 +2242,22 @@ the selector opens and requires a fresh press after cancellation. Right-click
 continues to operate the equipped action, including scope zoom and grenade charging,
 while the selector stays open. Selecting the equipped action does nothing;
 Escape cancels the preview. The initial slots are 0 Object handling, 1 Punch, 2 pistol, 3 SMG,
-4 shotgun, 5 sniper, 6 HE grenade, and 7 Molotov cocktail. `inventory.toml` accepts owned item IDs and
+4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov cocktail, and 8 Sword. `inventory.toml` accepts owned item IDs and
 `skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
 is not implemented. Punch equips the existing fists, which use no ammunition.
+
+**8**, then **left click** to confirm, equips the Sword melee skill and creates
+its weapon. The silver blade has a narrow hexagonal outline. Hold **left click**
+and drag in any direction: dragging left snaps the sword right, then cuts left
+across your front. Right, up, down and diagonal drags work the same way. A
+12-pixel threshold filters jitter. Each press allows one cut with a 0.09 s
+windup, 0.26 s cut and recovery finishing at 0.55 s. Release and press again
+to repeat. Mouse look pauses during a held sword drag. Damage follows the
+blade within its physical reach, cannot pass through walls, and applies once
+per actor per cut. The skill uses no ammunition or storage; switching away
+removes the sword and cancels its attack. Multiplayer uses server-owned damage
+and publishes the sword pose to other players.
+
 
 Switching shows a progress bar without a draw/put-away animation. Its duration is
 old weapon `draw_time_seconds` + combined storage access + new weapon

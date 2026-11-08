@@ -91,7 +91,7 @@ glm::mat4 animatedWeaponPose(const glm::mat4& rest, const WeaponMotionPose& moti
     auto result = glm::translate(glm::mat4(1), motion.offset) * rest;
     result = glm::rotate(result, glm::radians(motion.angles.x), {1,0,0});
     result = glm::rotate(result, glm::radians(motion.angles.y), {0,1,0});
-    return glm::rotate(result, glm::radians(motion.angles.z), {0,0,1});
+    return glm::rotate(result, glm::radians(motion.angles.z), {0,0,1}) * motion.localTransform;
 }
 
 } // namespace viewer

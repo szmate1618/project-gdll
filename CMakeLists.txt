@@ -429,7 +429,7 @@ target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus:
 viewer_warnings(viewer_weapon_config)
 include(cmake/Inventory.cmake)
 
-add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_accuracy.cpp src/weapon_switch.cpp src/action_selection.cpp)
+add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_accuracy.cpp src/weapon_switch.cpp src/action_selection.cpp src/sword_melee.cpp src/sword_geometry.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
@@ -484,6 +484,10 @@ target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera viewer_day_night_clock)
 viewer_warnings(viewer_sun_lighting)
 
+add_library(viewer_sword_combat STATIC src/sword_combat.cpp)
+target_link_libraries(viewer_sword_combat PUBLIC viewer_weapons viewer_zombies viewer_dogs)
+viewer_warnings(viewer_sword_combat)
+
 add_library(viewer_grenades STATIC src/grenades.cpp src/fire_effects.cpp src/fire_surfaces.cpp)
 target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewer_dogs viewer_objects viewer_sun_lighting)
 viewer_warnings(viewer_grenades)
@@ -530,7 +534,7 @@ viewer_warnings(viewer_scene_audio)
 
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp src/frame_profile.cpp
     src/reticle_overlay.cpp)
-target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
+target_link_libraries(godollo_viewer PRIVATE viewer_sword_combat viewer_vegetation
     viewer_renderer viewer_hud viewer_fps viewer_interaction viewer_objects viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
@@ -770,6 +774,12 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(test_weapon_reload PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
     viewer_warnings(test_weapon_reload)
     add_test(NAME viewer_weapon_reload COMMAND test_weapon_reload)
+    add_executable(test_sword tests/test_sword.cpp)
+    target_link_libraries(test_sword PRIVATE viewer_sword_combat)
+    target_compile_definitions(test_sword PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_sword)
+    add_test(NAME viewer_sword COMMAND test_sword)
+
     add_executable(test_weapon_selection tests/test_weapon_selection.cpp)
     target_link_libraries(test_weapon_selection PRIVATE viewer_weapons)
     target_compile_definitions(test_weapon_selection PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")

@@ -1,0 +1,1 @@
+sword, melee, bladed, one_handed

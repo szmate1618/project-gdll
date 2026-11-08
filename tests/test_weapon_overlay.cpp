@@ -98,6 +98,12 @@ int main(int argc, char** argv) {
             }
             return std::make_pair(result,triangles);
         };
+        const auto swordRest = render(viewer::swordSlot, {}, "rest");
+        const auto swordWindup = render(viewer::swordSlot, viewer::swordMotion({{-1, 0}, 0}), "windup");
+        const auto swordCut = render(viewer::swordSlot, viewer::swordMotion({{-1, 0}, .22f}), "cut");
+        if (swordRest.second != 56 || swordRest.second != swordWindup.second ||
+            swordRest.first == swordWindup.first || swordWindup.first == swordCut.first)
+            throw std::runtime_error("Sword must render a closed hexagonal blade and animate its directional cut");
         for (std::size_t slot=0;slot<4;++slot) {
             const auto rest = render(slot, {}, "rest");
             motion.fire(slot,10);
@@ -199,7 +205,7 @@ int main(int argc, char** argv) {
             }
         }
         viewer::Renderer::checkErrors("weapon overlays and melee body");
-        std::cout << "All five weapon silhouettes and GL state checks passed\n";
+        std::cout << "Weapon silhouettes, sword animation and GL state checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();
     return result;

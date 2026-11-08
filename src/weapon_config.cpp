@@ -25,6 +25,7 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
     const auto table = toml::parse_file(path.string());
     WeaponConfig config;
     config.id = id;
+    config.melee = table["kind"].value_or(std::string("firearm")) == "melee";
     config.name = required<std::string>(table, "name", path);
     config.ammoType = required<std::string>(table, "ammo_type", path);
     config.shotIntervalSeconds = required<double>(table, "shot_interval_seconds", path);
@@ -51,7 +52,7 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
     }
     if (config.name.empty() || config.ammoType.empty() ||
         !std::isfinite(config.shotIntervalSeconds) || config.shotIntervalSeconds <= 0 ||
-        config.pellets < 1 || config.pellets > 64 || config.ammoPerShot < 1 ||
+        config.pellets < 1 || config.pellets > 64 || config.ammoPerShot < (config.melee ? 0 : 1) ||
         config.magazineCapacity < config.ammoPerShot || !std::isfinite(spread) || spread < 0 || spread >= 90)
         throw std::runtime_error(path.string() + ": invalid weapon configuration (check counts, interval, and spread)");
     config.spreadDegrees = static_cast<float>(spread);
@@ -81,6 +82,9 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
             GrenadeConfig{30,0,positive("throw_speed",30),GrenadeKind::molotov};
         if (config.automatic || config.pellets != 1 || config.hasScope)
             throw std::runtime_error(path.string() + ": grenades must be single-click, unscoped throws");
+    } else if (kind == "melee") {
+        if (config.ammoPerShot != 0 || config.magazineCapacity != 0 || config.automatic || config.hasScope || config.pellets != 1)
+            throw std::runtime_error(path.string() + ": melee must be unscoped, single-gesture and use no ammunition");
     } else if (kind != "firearm") throw std::runtime_error(path.string() + ": unknown weapon kind");
     else {
         const auto caliber = required<std::string>(table, "caliber", path);
