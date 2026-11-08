@@ -73,6 +73,23 @@ void presentedLights() {
             "Switching off or leaving must remove the remote beam");
 }
 
+void vehicleLights() {
+    using namespace multiplayer;
+    PlayerState self, driver, passenger, walking;
+    self.id = 1; self.vehicle = 0; self.seat = 0;
+    driver.id = 2; driver.vehicle = 3; driver.seat = 0; driver.flashlight = false;
+    passenger.id = 3; passenger.vehicle = 4; passenger.seat = 1;
+    walking.id = 4;
+    const auto lights = remoteHeadlightVehicles({self, driver, passenger, walking}, self.id);
+    require(lights == std::vector<std::size_t>{3},
+            "Only remote drivers must add headlights, even with their held flashlight off");
+    driver.vehicle = noVehicle; driver.seat = noVehicleSeat;
+    require(remoteHeadlightVehicles({self, driver, passenger, walking}, self.id).empty(),
+            "Leaving the driver seat must remove the remote headlights");
+    require(remoteHeadlightVehicles({}, self.id).empty(),
+            "Disconnected drivers must not retain headlights");
+}
+
 void authoritativeState(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset;
@@ -102,7 +119,7 @@ void authoritativeState(const std::filesystem::path& asset) {
 int main(int argc, char** argv) {
     try {
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        wireState(); presentedLights(); authoritativeState(argv[1]);
+        wireState(); presentedLights(); vehicleLights(); authoritativeState(argv[1]);
         std::cout << "Multiplayer flashlight checks passed\n";
         return 0;
     } catch (const std::exception& error) {

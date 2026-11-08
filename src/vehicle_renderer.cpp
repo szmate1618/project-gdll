@@ -151,15 +151,17 @@ void Renderer::drawVehicles(const glm::mat4& projectionView, bool shadowPass) {
     glBindBuffer(GL_ARRAY_BUFFER,0); glFrontFace(GL_CCW);
 }
 void Renderer::applyVehicleLights() {
-    const bool active = vehicleSource_ && vehicleSource_->count() > 0;
-    glUniform1i(headlightsLocation_, active);
-    if (!active) return;
-    const auto box = vehicleSource_->pose(vehicleDriver_.value_or(0)).chassis;
-    const auto direction = box.rotation * glm::normalize(glm::vec3(0, -.055f, -1));
-    glUniform3fv(headlightDirectionLocation_, 1, glm::value_ptr(direction));
-    for (int i = 0; i < 2; ++i) {
-        const auto p = box.center + box.rotation * vehicleSource_->config(vehicleDriver_.value_or(0)).headlights[static_cast<std::size_t>(i)];
-        glUniform3fv(headlightPositions_[i], 1, glm::value_ptr(p));
+    glUniform1i(headlightCountLocation_, static_cast<GLint>(headlightVehicles_.size()));
+    for (std::size_t i = 0; i < headlightVehicles_.size(); ++i) {
+        const auto car = headlightVehicles_[i];
+        const auto box = vehicleSource_->pose(car).chassis;
+        const auto direction = box.rotation * glm::normalize(glm::vec3(0, -.055f, -1));
+        glUniform3fv(headlightDirections_[i], 1, glm::value_ptr(direction));
+        const auto& emitters = vehicleSource_->config(car).headlights;
+        for (std::size_t lamp = 0; lamp < emitters.size(); ++lamp) {
+            const auto p = box.center + box.rotation * emitters[lamp];
+            glUniform3fv(headlightPositions_[i * 2 + lamp], 1, glm::value_ptr(p));
+        }
     }
 }
 } // namespace viewer

@@ -963,7 +963,11 @@ remain server-authoritative, so their response still includes network and
 server-update delays. Mouse look remains local. Driving commands are
 retained/resubmitted normally but never replayed as walking movement. Lighting
 uses the shared server tick and matching day/night settings, including parked
-headlights at night.
+headlights at night. Other drivers' paired headlights illuminate the scene for
+on-foot observers, passengers and drivers alike. Beams follow each car's
+displayed chassis pose and configured lamp positions, independently of players'
+held-flashlight toggles. Driver-seat occupancy selects the additional remote
+lights.
 
 Zombie replication uses a persistent client population with partial updates.
 The server visits occupied 20 m spatial cells in approximate distance order,

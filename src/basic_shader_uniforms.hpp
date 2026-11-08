@@ -30,8 +30,10 @@ struct BasicShaderUniforms {
     GLint hazeColorLocation_ = -1, hazeDensityLocation_ = -1, hazeStartLocation_ = -1;
     GLint groundFogLocation_ = -1, forestVisibilityLocation_ = -1;
     GLint nightBlendLocation_ = -1, unlitLightLocation_ = -1;
-    GLint headlightsLocation_ = -1, headlightDirectionLocation_ = -1;
-    std::array<GLint, 2> headlightPositions_{};
+    static constexpr std::size_t maxHeadlightVehicles = 8; // Matches basic.frag; local car plus remote drivers.
+    GLint headlightCountLocation_ = -1;
+    std::array<GLint, maxHeadlightVehicles> headlightDirections_{};
+    std::array<GLint, maxHeadlightVehicles * 2> headlightPositions_{};
     GLint flashlightPositionLocation_ = -1, flashlightShadowsLocation_ = -1, flashlightShadowMapLocation_ = -1;
     GLint flashlightMatrixLocation_ = -1, flashlightShadowDistancesLocation_ = -1;
     GLint flashlightDirectionLocation_ = -1, flashlightColorLocation_ = -1, flashlightConeLocation_ = -1;

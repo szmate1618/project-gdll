@@ -11,11 +11,21 @@ void Renderer::resetVehicleVisibility() {
     vehicleVisibility_ = {};
     vehicleRangeCandidates_.clear(); visibleVehicles_.clear();
 }
-void Renderer::updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver) {
+void Renderer::updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver,
+                              const std::vector<std::size_t>& remoteDrivers) {
     if (vehicleSource_ != &vehicles || vehicleSourceIdentity_ != vehicles.instanceId()) resetVehicleVisibility();
     vehicleSource_ = &vehicles;
     vehicleSourceIdentity_ = vehicles.instanceId();
     vehicleDriver_ = driver;
+    headlightVehicles_.clear();
+    // Preserve the standalone parked-car light when the viewer is on foot.
+    const auto addHeadlights = [&](std::size_t car) {
+        if (car < vehicles.count() && headlightVehicles_.size() < maxHeadlightVehicles &&
+            std::find(headlightVehicles_.begin(), headlightVehicles_.end(), car) == headlightVehicles_.end())
+            headlightVehicles_.push_back(car);
+    };
+    addHeadlights(driver.value_or(0));
+    for (auto car : remoteDrivers) addHeadlights(car);
 }
 void Renderer::syncVehicleInstances() {
     const auto count = vehicleSource_->count(), oldCount = vehicleInstances_.size();

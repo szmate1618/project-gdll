@@ -1,6 +1,15 @@
 #include "flashlights.hpp"
 
 namespace multiplayer {
+std::vector<std::size_t> remoteHeadlightVehicles(const std::vector<PlayerState>& players,
+                                               std::uint32_t self) {
+    std::vector<std::size_t> result;
+    for (const auto& player : players)
+        if (player.id != self && player.vehicle != noVehicle && player.seat == 0)
+            result.push_back(player.vehicle);
+    return result;
+}
+
 std::vector<viewer::FlashlightView> remoteFlashlights(const std::vector<PlayerState>& players,
                                                     std::uint32_t self) {
     std::vector<viewer::FlashlightView> result;

@@ -8,4 +8,7 @@ namespace multiplayer {
 // Occupied vehicles suppress flashlights, as for the local player.
 std::vector<viewer::FlashlightView> remoteFlashlights(const std::vector<PlayerState>& players,
                                                     std::uint32_t self);
+// Driver seats emit paired headlights independently of the held-light toggle.
+std::vector<std::size_t> remoteHeadlightVehicles(const std::vector<PlayerState>& players,
+                                               std::uint32_t self);
 } // namespace multiplayer

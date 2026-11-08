@@ -130,7 +130,9 @@ public:
     void updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions);
     void setExplosionLights(const std::vector<MuzzleFlashLight>& lights);
 
-    void updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver = {});
+    // Remote driver IDs add headlights using the same live poses as the cars.
+    void updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver = {},
+                        const std::vector<std::size_t>& remoteDrivers = {});
     // Upscale the scene into a color-only target at window-framebuffer resolution.
     // Binds it for GUI drawing and fits the viewport to the scene for the reticle.
     // The HUD can reset the viewport to the full window; its input then uses
@@ -528,6 +530,7 @@ private:
     VehicleStats vehicleStats_;
     const VehicleLayer* vehicleSource_ = nullptr;
     std::optional<std::size_t> vehicleDriver_;
+    std::vector<std::size_t> headlightVehicles_;
     ModelGPU floorplanModel_;
     std::vector<DrawInstance> floorplanDraws_;
     const FloorplanLayer* floorplanSource_ = nullptr;

@@ -4,6 +4,7 @@
 #include "vehicle_player.hpp"
 #include "interior_fixture.hpp"
 #include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <array>
 #include <iostream>
 #include <stdexcept>
@@ -20,6 +21,50 @@ glm::vec3 pixel(const viewer::Camera& camera, glm::vec3 p) {
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     glReadPixels(int((ndc.x + 1) * width / 2), int((ndc.y + 1) * height / 2), 1, 1, GL_RGB, GL_UNSIGNED_BYTE, rgb.data());
     return {rgb[0], rgb[1], rgb[2]};
+}
+void remoteHeadlights(const viewer::Model& model) {
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(physics);
+    cars.add({-15, .8f, 0}); cars.add({15, .8f, 0});
+    viewer::Camera camera;
+    camera.setPosition({0, 24, 18}); camera.setOrientation(-90, -38);
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.resize(width, height); renderer.setNight(true); renderer.setShadows(false);
+    renderer.setHaze(false); renderer.setGroundFog(false); renderer.setFlashlight(false);
+    const glm::vec3 localRoad(-15, 0, -12), remoteRoad(15, 0, -12), turnedRoad(3, 0, -12);
+    renderer.updateVehicles(cars); renderer.render(camera);
+    const auto dark = pixel(camera, remoteRoad);
+    const auto local = pixel(camera, localRoad);
+    renderer.updateVehicles(cars, {}, {1}); renderer.render(camera);
+    const auto remote = pixel(camera, remoteRoad);
+    require(glm::length(remote) > glm::length(dark) + 30,
+            "On-foot observers must see headlights from another car besides the first parked car");
+    require(glm::length(pixel(camera, localRoad) - local) < 2,
+            "Remote headlights must retain the existing car's separate beam");
+    renderer.writeScreenshot("vehicle-remote-headlights.ppm");
+    renderer.updateVehicles(cars, 0, {1}); renderer.render(camera);
+    require(glm::length(pixel(camera, remoteRoad) - remote) < 2,
+            "Drivers must also see the other car's headlights");
+    renderer.updateVehicles(cars, 1, {1, 999}); renderer.render(camera);
+    require(glm::length(pixel(camera, remoteRoad) - remote) < 2,
+            "Sharing a car must not double its headlights; unavailable cars must be ignored");
+    renderer.updateVehicles(cars); renderer.render(camera);
+    require(glm::length(pixel(camera, remoteRoad) - dark) < 2,
+            "Removing a remote driver must clear its previous beam");
+    const auto beforeTurn = pixel(camera, turnedRoad);
+    auto pose = cars.pose(1);
+    const auto previousCenter = pose.chassis.center;
+    pose.chassis.center = {15, .8f, -12};
+    pose.chassis.rotation = glm::angleAxis(glm::radians(90.f), glm::vec3(0, 1, 0));
+    const auto turn = glm::translate(glm::mat4(1), pose.chassis.center) *
+        glm::mat4_cast(pose.chassis.rotation) * glm::translate(glm::mat4(1), -previousCenter);
+    for (auto& wheel : pose.wheels) wheel = turn * wheel;
+    cars.setPose(1, pose, {});
+    renderer.updateVehicles(cars, {}, {1}); renderer.render(camera);
+    require(glm::length(pixel(camera, turnedRoad)) > glm::length(beforeTurn) + 30,
+            "Remote beams must translate and rotate with the displayed car rather than the observer");
+    renderer.writeScreenshot("vehicle-remote-headlights-turned.ppm");
+    viewer::Renderer::checkErrors("remote vehicle headlights");
 }
 void run() {
     viewer::Model model; model.materials.push_back({});
@@ -94,6 +139,7 @@ void run() {
     GLboolean depth = GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK, &depth);
     require(depth == GL_TRUE, "Vehicle rendering must restore opaque depth writes");
     viewer::Renderer::checkErrors("vehicle box, tires, lights and shadow passes");
+    remoteHeadlights(model);
 }
 }
 int main() {

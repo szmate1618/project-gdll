@@ -55,10 +55,11 @@ BasicShaderUniforms::BasicShaderUniforms(GLuint program) {
     groundFogLocation_ = glGetUniformLocation(program, "uGroundFog");
     nightBlendLocation_ = glGetUniformLocation(program, "uNightBlend");
     unlitLightLocation_ = glGetUniformLocation(program, "uUnlitLight");
-    headlightsLocation_ = glGetUniformLocation(program, "uHeadlights");
-    headlightDirectionLocation_ = glGetUniformLocation(program, "uHeadlightDirection");
-    headlightPositions_[0] = glGetUniformLocation(program, "uHeadlightPosition[0]");
-    headlightPositions_[1] = glGetUniformLocation(program, "uHeadlightPosition[1]");
+    headlightCountLocation_ = glGetUniformLocation(program, "uHeadlightVehicleCount");
+    for (std::size_t i = 0; i < maxHeadlightVehicles; ++i)
+        headlightDirections_[i] = glGetUniformLocation(program, ("uHeadlightDirections[" + std::to_string(i) + "]").c_str());
+    for (std::size_t i = 0; i < headlightPositions_.size(); ++i)
+        headlightPositions_[i] = glGetUniformLocation(program, ("uHeadlightPositions[" + std::to_string(i) + "]").c_str());
     flashlightPositionLocation_ = glGetUniformLocation(program, "uFlashlightPosition");
     flashlightShadowsLocation_ = glGetUniformLocation(program, "uFlashlightShadows");
     flashlightShadowMapLocation_ = glGetUniformLocation(program, "uFlashlightShadowMap");

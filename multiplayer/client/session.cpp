@@ -912,7 +912,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.weaponMotion.pose(graphics.muzzleSlot, now, in.temporaryHandling()));
                 renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
                 renderer.resize(renderWidth, renderHeight); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
-                renderer.updateVehicles(*scene.vehicles, in.driver.car());
+                renderer.updateVehicles(*scene.vehicles, in.driver.car(),
+                    multiplayer::remoteHeadlightVehicles(snapshots.players(), self));
                 const auto lighting = viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds()));
                 const auto dayNightTint = viewer::dayNightDisplayTint(lighting);
                 renderer.setDayNightLighting(lighting);

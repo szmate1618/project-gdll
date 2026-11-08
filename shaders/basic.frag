@@ -54,9 +54,9 @@ uniform float uHazeStart;
 uniform vec4 uGroundFog; // Base Y, inverse layer height, base density, clear distance.
 uniform float uNightBlend;
 uniform vec3 uUnlitLight;
-uniform bool uHeadlights;
-uniform vec3 uHeadlightPosition[2];
-uniform vec3 uHeadlightDirection;
+uniform int uHeadlightVehicleCount;
+uniform vec3 uHeadlightPositions[16]; // Two emitters per car, at most eight cars.
+uniform vec3 uHeadlightDirections[8];
 uniform vec3 uFlashlightPosition;
 uniform vec3 uFlashlightDirection;
 uniform bool uFlashlightShadows;
@@ -204,13 +204,15 @@ vec3 pointLight(vec3 normal, vec3 position, vec3 color, float range) {
 }
 
 vec3 headlights(vec3 normal) {
-    if (!uHeadlights || uNightBlend <= 0.0) return vec3(0.0);
+    if (uHeadlightVehicleCount == 0 || uNightBlend <= 0.0) return vec3(0.0);
     vec3 light = vec3(0.0);
-    for (int i = 0; i < 2; ++i) {
-        vec3 offset = vWorldPosition - uHeadlightPosition[i];
-        float distance = length(offset);
+    for (int i = 0; i < uHeadlightVehicleCount * 2; ++i) {
+        vec3 offset = vWorldPosition - uHeadlightPositions[i];
+        float distanceSquared = dot(offset, offset);
+        if (distanceSquared >= 3600.0) continue; // Outside the 60 m beam range.
+        float distance = sqrt(distanceSquared);
         vec3 ray = offset / max(distance, 0.001);
-        float cone = smoothstep(0.9063, 0.9781, dot(ray, uHeadlightDirection));
+        float cone = smoothstep(0.9063, 0.9781, dot(ray, uHeadlightDirections[i / 2]));
         float facing = uUnlit ? 1.0 : max(dot(normal, -ray), 0.0);
         float fade = 1.0 - smoothstep(45.0, 60.0, distance);
         light += vec3(7.0, 6.7, 5.8) * (uNightBlend * cone * facing * fade / (1.0 + 0.012 * distance * distance));
