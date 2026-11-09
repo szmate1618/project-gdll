@@ -6,8 +6,8 @@ weapon gameplay file. `[equipment.<instance>]` in root `inventory.toml` referenc
 the definition with `item = "<id>"`; placements use the existing storage API.
 
 - `canopy`: 2×2 packed cells, unfolding into a 3×3 m sheet of 36 rigid panels.
-- `support_stake`: 1×6 cells, a second 1.5 m wooden support with the same point-first
-  flight and embedding as the equippable stake.
+- `support_stake`: 1×6 cells, a 1.5 m wooden support with the same point-first
+  flight and embedding as the equippable stake. Two start in the backpack.
 
 Use the Object handling equipment drawer to take these items into the hand.
 G stores them in the backpack. The ordinary stake remains equippable on slot 8.

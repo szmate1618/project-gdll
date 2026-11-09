@@ -2772,19 +2772,19 @@ read once at startup; gameplay changes live in memory and restart from the file.
 
 ### Tent canopy and support stakes
 
-The starter backpack contains a **3 × 3 m tent canopy** and a **spare wooden
-support stake**, alongside the equippable stake on shortcut **8**. In Object
+The starter backpack contains a **3 × 3 m tent canopy** and **two wooden
+support stakes**, alongside the equippable stake on shortcut **8**. In Object
 handling (**Alt** or **0**), release the cursor with **Home**, open the equipment
 drawer, and drag either shelter item out. Hold left to move the item and use
 right-drag to rotate the gripped part. Release left to leave it in the world.
 
 Plant the two stakes point-down, roughly **1.5 m apart**, by aiming down and
-throwing them with **F**. The spare support stake uses the same point-first
+throwing them with **F**. The support stakes use the same point-first
 flight and ground embedding as the equippable stake. Take the canopy from the
 equipment drawer, raise it over the stake ends, and release it. Its panels bend
 at their shared edges and drape over the supports; contact and friction carry
 the fabric. You can grab any panel to adjust it. **G** retrieves the whole canopy
-or the spare support stake into free backpack space.
+or either support stake into free backpack space.
 
 The canopy consists of **36 rigid 0.5 × 0.5 m panels**, joined by **60 spring
 hinges** along shared sides. Corners and diagonal neighbours have no joints.

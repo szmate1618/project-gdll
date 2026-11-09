@@ -44,7 +44,7 @@ void placements() {
     }
     const auto& backpack = layout.at("backpack/tactical_backpack/main");
     const auto sniper = std::find_if(backpack.items.begin(),backpack.items.end(),[](const auto& item) { return item.item=="sniper"; });
-    require(backpack.items.size() == 7 && sniper!=backpack.items.end() &&
+    require(backpack.items.size() == 8 && sniper!=backpack.items.end() &&
         sniper->width == 2 && sniper->height == 5 && inventory.placements.at("sniper").rotation == 90,
         "Sniper must start vertically in the backpack");
     auto changed = inventory;
