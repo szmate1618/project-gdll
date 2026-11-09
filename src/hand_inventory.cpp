@@ -73,18 +73,79 @@ bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, W
     const auto prop = interaction.heldProp();
     const auto id = prop ? ground.idOf(*prop) : std::nullopt;
     if (!id) { interaction.cancel(); return false; }
-    if (!inventory_.storage().backpack) {
-        ++rejectedStores_; interaction.cancel(); return false;
-    }
-    const auto reference = backpackStorageReference(inventory_.storage().backpack->id);
-    const auto& grid = inventory_.layout().at(reference).grid;
     // The existing grip establishes reach even when cursor motion has lifted
     // the item beyond the ground query radius measured from the player feet.
     const auto reachOrigin = prop->center();
-    interaction.cancel();
-    for (int rotation : {0,90}) for (int y = 0; y < grid.height; ++y) for (int x = 0; x < grid.width; ++x)
-        if (ground.take(*id, inventory_, weapons, {reference,x,y,rotation}, reachOrigin)) return true;
+    if (ground.store(*id, inventory_, weapons, reachOrigin, true)) {
+        interaction.cancel();
+        return true;
+    }
     ++rejectedStores_;
-    return false; // The released physical item stays on the ground when full.
+    interaction.cancel();
+    return false;
+}
+bool HandInventory::pickUp(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
+    const Camera& camera, const CollisionWorld& collision) {
+    if (active()) {
+        const auto prop = interaction.heldProp();
+        if (!groundId_ || !prop || !(ground.prop(*groundId_) == prop)) return false;
+        auto candidateInventory = inventory_;
+        auto candidateWeapons = weapons;
+        InventoryDrag candidateDrag(candidateInventory);
+        if (!candidateDrag.release()) return false;
+        const auto slot = std::find(weaponIds.begin(), weaponIds.end(), item_);
+        if (slot != weaponIds.end()) candidateWeapons.discard(std::size_t(slot - weaponIds.begin()));
+        if (!ground.store(*groundId_, candidateInventory, candidateWeapons, prop->center(), true, true)) {
+            ++rejectedStores_;
+            return false;
+        }
+        candidateWeapons.equip(weapons.slot());
+        drag_.release();
+        inventory_ = std::move(candidateInventory);
+        weapons = std::move(candidateWeapons);
+        interaction.cancel();
+        item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+        return true;
+    }
+    if (interaction.grabbing()) {
+        const auto prop = interaction.heldProp();
+        const auto id = prop ? ground.idOf(*prop) : std::nullopt;
+        if (!id) return false;
+        if (!ground.store(*id, inventory_, weapons, prop->center(), true)) {
+            ++rejectedStores_;
+            return false;
+        }
+        interaction.cancel();
+        return true;
+    }
+    return ground.pickUp(weapons, inventory_, camera, collision);
+}
+bool HandInventory::equip(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
+    const Camera& camera, const CollisionWorld& collision, glm::vec3 velocity) {
+    const auto prop = interaction.heldProp();
+    if (!active()) {
+        if (interaction.grabbing() && !prop) return false;
+        if (!ground.equip(weapons, inventory_, camera, collision, velocity, prop)) return false;
+        interaction.cancel();
+        return true;
+    }
+    if (!groundId_ || !prop || !(ground.prop(*groundId_) == prop)) return false;
+    const auto slot = std::find(weaponIds.begin(), weaponIds.end(), item_);
+    if (slot == weaponIds.end()) return false;
+    const auto target = std::size_t(slot - weaponIds.begin());
+    // Preview ownership stays reserved until a complete equip/swap can succeed.
+    // Release only the copied inventory's item while checking the transaction.
+    auto candidateInventory = inventory_;
+    auto candidateWeapons = weapons;
+    InventoryDrag candidateDrag(candidateInventory);
+    if (!candidateDrag.release() || !candidateWeapons.discard(target)) return false;
+    if (weapons.slot() == target) candidateWeapons.equip(handlingSlot);
+    if (!ground.equipImpl(candidateWeapons, candidateInventory, camera, collision, velocity, prop, true)) return false;
+    drag_.release();
+    inventory_ = std::move(candidateInventory);
+    weapons = std::move(candidateWeapons);
+    interaction.cancel();
+    item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+    return true;
 }
 } // namespace viewer

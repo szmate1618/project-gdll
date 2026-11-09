@@ -88,19 +88,19 @@ glm::vec3 throwOrPush(double duration, bool held, float massKg = 10, bool cancel
         require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, 1), "Left click must grab");
         require(input.heldBox() == 0, "Holding left must keep the grip attached");
     }
-    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 2);
-    require(input.charging() && input.heldProp().has_value() == held, "Right press charges without grabbing");
+    input.press(Hand::Throw, f.camera, doors, f.boxes, f.world, 2);
+    require(input.charging() && input.heldProp().has_value() == held, "Throw press charges without grabbing");
     require(glm::length(f.boxes.velocity(0)) < .001f, "Charge must wait for release before applying momentum");
     if (cancel) input.cancel();
-    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 2 + duration);
-    require(!input.grabbing() && !input.charging(), "Right release must detach and consume the charge");
+    input.release(Hand::Throw, f.camera, doors, f.boxes, f.world, 2 + duration);
+    require(!input.grabbing() && !input.charging(), "Throw release must detach and consume the charge");
     const auto velocity = f.boxes.velocity(0);
-    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 5);
+    input.release(Hand::Throw, f.camera, doors, f.boxes, f.world, 5);
     require(glm::distance(velocity, f.boxes.velocity(0)) < .001f, "Release cannot replay a charge");
     return velocity;
 }
 void throws() {
-    require(glm::length(throwOrPush(.05, true)) < .001f, "Quick right click must drop a held object without a boost");
+    require(glm::length(throwOrPush(.05, true)) < .001f, "Quick throw tap must drop a held object without a boost");
     require(glm::length(throwOrPush(.19, true)) < .001f, "The grenade tap allowance must also drop held objects");
     const auto full = throwOrPush(2, true), partial = throwOrPush(1, true);
     const auto push = throwOrPush(.05, false), chargedPush = throwOrPush(2, false);
@@ -134,7 +134,7 @@ void automaticThrows() {
         // Start with existing momentum to detect replacing velocity instead of adding an impulse.
         prop.applyImpulse({2, 1, 3}, prop.center());
         const auto before = f.boxes.velocity(0);
-        input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 10);
+        input.press(Hand::Throw, f.camera, doors, f.boxes, f.world, 10);
         input.update(f.camera, 0, doors, f.boxes, f.world, 11.999);
         require(input.charging() && glm::distance(before, f.boxes.velocity(0)) < .001f,
                 "Holding must not apply throw momentum before the two-second cap");
@@ -146,10 +146,10 @@ void automaticThrows() {
         require(glm::distance(momentumAdded, expectedGain * mass) < .001f,
                 "Automatic throws and pushes must match release momentum while preserving existing motion");
         input.update(f.camera, 0, doors, f.boxes, f.world, 15);
-        input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 15);
+        input.release(Hand::Throw, f.camera, doors, f.boxes, f.world, 15);
         require(glm::distance(velocity, f.boxes.velocity(0)) < .001f,
                 "Continued holding and final release must not repeat an automatic throw or push");
-        input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 16);
+        input.press(Hand::Throw, f.camera, doors, f.boxes, f.world, 16);
         input.cancel();
         input.update(f.camera, 0, doors, f.boxes, f.world, 18);
         require(glm::distance(velocity, f.boxes.velocity(0)) < .001f, "Cancellation must prevent automatic impulses");
@@ -172,10 +172,67 @@ void heldGripAndLook() {
             "Releasing left must detach without adding a throw impulse");
     f.camera = cameraAt(f.boxes.pose(0).center);
     require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, .6), "Left must allow a fresh grab after release");
-    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 1);
+    input.press(Hand::Throw, f.camera, doors, f.boxes, f.world, 1);
     input.cancel();
-    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 2);
+    input.release(Hand::Throw, f.camera, doors, f.boxes, f.world, 2);
     require(!input.grabbing() && glm::distance(before, f.boxes.velocity(0)) < .001f, "Unequipping or suspending input must cancel without a throw");
+}
+void heldRotation() {
+    Fixture f;
+    f.boxes.add({0, 1.5f, 0}, glm::vec3(.4f));
+    f.camera.setPosition({0, 1.5f, 1.2f}); f.camera.setOrientation(-90, 0);
+    viewer::DoorLayer doors({}, f.physics);
+    viewer::PlayerInteraction input;
+    require(!input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0) && !input.charging(),
+            "Right click without a held prop must not charge a throw or push");
+    const auto prop = viewer::raycastPhysicsProp(f.physics, f.camera.position(), f.camera.direction(), 2)->prop;
+    require(input.grip(f.camera, f.boxes, prop), "Rotation fixture must grip the prop");
+    require(input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0) && input.rotating(),
+            "Right press must begin rotating a held prop");
+    const auto camera = f.camera;
+    const auto before = f.boxes.pose(0);
+    input.look(f.camera, 120, 0);
+    require(f.camera.yawDegrees() == camera.yawDegrees() && f.camera.pitchDegrees() == camera.pitchDegrees(),
+            "Right drag must rotate the object without moving the camera");
+    require(glm::distance(f.boxes.pose(0).rotation * glm::vec3(0, 0, 1), glm::vec3(0, 0, 1)) < .001f,
+            "Rotation input must use a physics constraint rather than teleporting the prop");
+    const auto advance = [&](int frames, double start = 0) {
+        for (int i = 0; i < frames; ++i) {
+            input.update(f.camera, 1.f / 60, doors, f.boxes, f.world, start + i / 60.0);
+            f.scene.prepare(f.boxes); f.physics->step(1.f / 60);
+        }
+    };
+    advance(90);
+    const auto turned = f.boxes.pose(0);
+    const auto forward = turned.rotation * glm::vec3(0, 0, 1);
+    require(forward.x > .4f && forward.z > .7f && glm::distance(turned.center, before.center) < .08f,
+            "Dragging right must turn the prop like the editor while preserving the grip position");
+    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 1.5);
+    require(!input.rotating() && input.grabbing() && !input.charging(),
+            "Releasing right must stop rotation input and retain the grip without a throw");
+    advance(90, 1.5);
+    require(glm::distance(f.boxes.pose(0).rotation * glm::vec3(0, 0, 1), forward) < .04f,
+            "The chosen orientation must remain supported while the prop is held");
+    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 3);
+    input.moveGrip(0, -120);
+    advance(90, 3);
+    const auto up = f.boxes.pose(0).rotation * glm::vec3(0, 1, 0);
+    require(up.z > .4f && up.y > .7f,
+            "Dragging down must tip the top toward the camera, including through moveGrip");
+    input.release(Hand::Left, f.camera, doors, f.boxes, f.world, 4.5);
+    require(!input.grabbing() && !input.rotating(), "Releasing the grip must also end rotation");
+
+    Fixture heavy;
+    viewer::BoxSpawnMotion motion; motion.mass = 1000;
+    heavy.boxes.add({0, 1.5f, 0}, glm::vec3(.4f), motion);
+    const auto heavyProp = viewer::raycastPhysicsProp(heavy.physics, f.camera.position(), f.camera.direction(), 2)->prop;
+    require(heavy.input.grip(f.camera, heavy.boxes, heavyProp) && heavy.input.beginRotation(f.camera),
+            "A heavy prop must allow a bounded rotation attempt");
+    heavy.input.rotateMouse(120, 0);
+    heavy.camera = f.camera;
+    heavy.advance(6);
+    require(std::abs((heavy.boxes.pose(0).rotation * glm::vec3(0, 0, 1)).x) < .05f,
+            "Hand rotation torque must not instantly turn a very heavy prop");
 }
 void pushReachAndOcclusion() {
     for (const bool blocked : {false, true}) {
@@ -184,16 +241,16 @@ void pushReachAndOcclusion() {
         f.camera.setOrientation(0, 0); f.camera.setPosition({0, 1, 0});
         viewer::DoorLayer doors({}, f.physics);
         viewer::PlayerInteraction input;
-        input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0);
-        input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 2);
+        input.press(Hand::Throw, f.camera, doors, f.boxes, f.world, 0);
+        input.release(Hand::Throw, f.camera, doors, f.boxes, f.world, 2);
         require(blocked ? glm::length(f.boxes.velocity(0)) < .001f : f.boxes.velocity(0).x > .5f,
                 "Unheld pushes must respect wall occlusion");
     }
     Fixture f; f.boxes.add({0, 1, 0}, glm::vec3(.4f)); f.camera = cameraAt({0, 1, 0});
     viewer::DoorLayer doors({}, f.physics); viewer::PlayerInteraction input;
-    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0);
+    input.press(Hand::Throw, f.camera, doors, f.boxes, f.world, 0);
     f.camera.setPosition({0, 1, 5});
-    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 1);
+    input.release(Hand::Throw, f.camera, doors, f.boxes, f.world, 1);
     require(glm::length(f.boxes.velocity(0)) < .001f, "Moving out of reach during a charge must not push a remote object");
 }
 float lift(float size, float dt = 1.0f / 60) {
@@ -263,8 +320,8 @@ void liftingDraggingAndCollisions() {
     thrown.camera.setOrientation(0, 0); thrown.camera.setPosition({-1.2f, 1, 0});
     viewer::DoorLayer doors({}, thrown.physics); viewer::PlayerInteraction input;
     require(input.press(Hand::Left, thrown.camera, doors, thrown.boxes, thrown.world, 0), "Throw collision fixture must be reachable");
-    input.press(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 0);
-    input.release(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 2);
+    input.press(Hand::Throw, thrown.camera, doors, thrown.boxes, thrown.world, 0);
+    input.release(Hand::Throw, thrown.camera, doors, thrown.boxes, thrown.world, 2);
     require(thrown.boxes.velocity(0).x > .5f, "Charged throw must start toward the wall");
     thrown.advance();
     require(thrown.boxes.pose(0).center.x < .65f, "A charged throw must collide with a thin static wall");
@@ -294,7 +351,7 @@ void routingAndCancellation() {
 } // namespace
 int main() {
     try {
-        picking(); throws(); automaticThrows(); heldGripAndLook(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
+        picking(); throws(); automaticThrows(); heldGripAndLook(); heldRotation(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
         std::cout << "Object picking, hands, throw directions, strength, movement and collision tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

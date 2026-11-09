@@ -4,8 +4,8 @@ The standalone viewer streams the original [branch, stone and beer-bottle
 meshes](../assets/doodads/README.md) around the player when a runtime forest layer
 is loaded. Run the normal town viewer, walk into woodland, and select
 **Object handling** in hotbar slot **0**. Hold left mouse to drag a nearby doodad; release left to drop it;
-movement and mouse motion manipulate it. Tap right mouse to drop, or hold
-right and release to throw. Right click also pushes reachable props without
+movement and mouse motion manipulate it. Hold right mouse and drag to rotate
+the held prop. Tap **F** to drop, or hold **F** and release to throw. **F** also pushes reachable props without
 grabbing first. Doodads use the shared grabbable-prop physics.
 
 ```bash

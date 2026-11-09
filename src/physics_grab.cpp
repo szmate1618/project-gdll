@@ -7,7 +7,7 @@
 
 namespace viewer {
 PhysicsGrab::PhysicsGrab(const PhysicsProp& prop, glm::vec3 localPoint, float maxForce)
-    : world_(prop.world_), prop_(prop.body()) {
+    : world_(prop.world_), prop_(prop.body()), maxTorque_(maxForce * .2f) {
     const auto point = prop.pointState(localPoint).point;
     if (!std::isfinite(maxForce) || maxForce <= 0) throw std::invalid_argument("Invalid grab force");
     auto anchor = b3DefaultBodyDef();
@@ -41,7 +41,25 @@ void PhysicsGrab::setTarget(glm::vec3 point) {
     if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z))
         throw std::invalid_argument("Invalid grab target");
     if (!valid()) return;
-    b3Body_SetTransform(anchor_,{point.x,point.y,point.z},b3Quat_identity);
+    b3Body_SetTransform(anchor_,{point.x,point.y,point.z},{{rotation_.x,rotation_.y,rotation_.z},rotation_.w});
+    b3Joint_WakeBodies(joint_);
+}
+glm::quat PhysicsGrab::rotation() const {
+    if (!valid()) return glm::quat(1, 0, 0, 0);
+    const auto rotation = b3Body_GetRotation(prop_);
+    return {rotation.s, rotation.v.x, rotation.v.y, rotation.v.z};
+}
+void PhysicsGrab::setRotationTarget(glm::quat rotation) {
+    if (!std::isfinite(rotation.x) || !std::isfinite(rotation.y) || !std::isfinite(rotation.z) ||
+        !std::isfinite(rotation.w) || glm::length(rotation) < 1e-6f)
+        throw std::invalid_argument("Invalid grab rotation");
+    if (!valid()) return;
+    rotation_ = glm::normalize(rotation);
+    b3MotorJoint_SetAngularHertz(joint_, 4);
+    b3MotorJoint_SetAngularDampingRatio(joint_, 1);
+    b3MotorJoint_SetMaxSpringTorque(joint_, maxTorque_);
+    const auto point = b3Body_GetPosition(anchor_);
+    b3Body_SetTransform(anchor_, point, {{rotation_.x,rotation_.y,rotation_.z},rotation_.w});
     b3Joint_WakeBodies(joint_);
 }
 } // namespace viewer

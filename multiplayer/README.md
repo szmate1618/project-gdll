@@ -652,7 +652,7 @@ Other players' flashlights illuminate the scene at night, following their aim an
 stance. Each player's L toggle is replicated independently; switching off your own
 light leaves theirs visible. Remote beams use the same 40 m range and night fade
 as the local light, without additional shadow maps. Flashlights are suppressed
-while seated in a vehicle. Protocol 44 requires matching client and server builds.
+while seated in a vehicle. Protocol 63 requires matching client and server builds.
 Holding **Alt** on foot temporarily enables Object handling without changing the
 equipped weapon. The weapon lowers while Alt is held. Releasing Alt cancels the
 grip/charge and restores weapon controls; held mouse buttons must be released
@@ -660,11 +660,16 @@ before firing again. In any vehicle seat, Alt toggles first/third-person view.
 
 **Object handling** is the default skill in hotbar slot **0**. Hold left mouse to grab
 one nearby door or prop; mouse motion and walking manipulate it. The grip
-ends when left mouse is released. Tap right mouse to drop, or keep left held and hold right
-and release to throw (full charge after one second, about a default grenade's
-launch momentum). Without grabbing first, right click pushes the object under
-the crosshair within reach; holding right charges a stronger push. Switching
+ends when left mouse is released. Hold right mouse and drag to turn or tilt a
+held prop like the character editor; the camera stays still during rotation.
+Tap **F** to drop, or keep left held and hold **F** and release to throw (full
+charge and automatic release after two seconds). Without grabbing first, **F**
+pushes the object under the crosshair within reach; holding **F** charges a stronger push. Switching
 actions, opening menus or releasing input cancels grips and charges.
+**G** picks up a held or targeted equippable item into the backpack if it fits,
+without changing the equipped weapon. **H** picks up and equips a weapon,
+dropping the current weapon. Failed transfers preserve both items. Outside
+Object handling, **F** discards the equipped weapon.
 With Object handling selected or Alt held, **Tab** frees/recaptures the cursor
 without releasing the grip. Hover over the vertical **Inventory** tab on the
 right to open the scrollable equipment list. Hold left mouse on an item to

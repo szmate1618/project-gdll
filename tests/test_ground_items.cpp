@@ -2,6 +2,7 @@
 #include "inventory/inventory_config.hpp"
 #include "collision_world.hpp"
 #include "physics_scene.hpp"
+#include "camera.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -68,6 +69,41 @@ int main() {
         const auto predictedId = predicted.nearby({0,0,0})[0].id;
         require(predicted.pending(predictedId) && !predicted.take(predictedId,predictedInventory,predictedWeapons,placement,{0,0,0}),
             "A predicted drop must wait for its authoritative ID before another pickup can address it");
+        {
+            auto quickInventory = viewer::loadPlayerInventory(root);
+            viewer::Weapons quickWeapons(root / "storage/weapons", root / "inventory.toml", true);
+            viewer::GroundItems quick(physics);
+            viewer::Camera camera; camera.setPosition({0,1.65f,0}); camera.setOrientation(-90,0);
+            viewer::CollisionWorld clear(viewer::Model{});
+            quick.add(*quickInventory.find("pistol_rounds_1"), 7, {}, {0,1.65f,-1});
+            require(quick.pickUp(quickWeapons, quickInventory, camera, clear), "Quick pickup must acquire nearby ammo");
+            require(quickInventory.ammoCount("pistol_rounds") == 127 && quickWeapons.slot() == 0,
+                "Backpack pickup must preserve quantity and the selected weapon");
+            bool backpack = false;
+            for (const auto& [itemId, item] : quickInventory.items())
+                if (itemId.compare(0,7,"ground_") == 0)
+                    backpack = quickInventory.placements().at(itemId).storage == "backpack/tactical_backpack/main";
+            require(backpack, "Quick pickup must use backpack space rather than a body compartment");
+            quick.add(*quickInventory.find("pistol"), 0, viewer::WeaponItem{0,3,4}, {0,1.65f,-1});
+            require(quick.equip(quickWeapons, quickInventory, camera, clear, {}), "Equip pickup must swap an already-owned selected weapon type");
+            require(quickWeapons.slot() == 0 && quickWeapons.state(0).loaded == 3 && quickWeapons.state(0).readyAt == 4 &&
+                quickInventory.owns("pistol") && quick.count() == 1, "Equip swap must preserve the incoming magazine and ownership");
+            const auto outgoing = quick.poses()[0].entry;
+            require(outgoing.weapon && outgoing.weapon->slot == 0 && outgoing.weapon->loaded == 12,
+                "Equip swap must leave the former weapon and its magazine on the ground");
+            quick.erase(outgoing.id);
+            quick.add(*quickInventory.find("submachine_gun"), 0, viewer::WeaponItem{1,7,0}, {0,1.65f,-1});
+            require(!quick.equip(quickWeapons, quickInventory, camera, clear, {}) && quickWeapons.slot() == 0 &&
+                quickWeapons.state(0).loaded == 3 && quick.count() == 1,
+                "A rejected duplicate weapon must leave the selected weapon and ground ownership unchanged");
+            auto wallModel = viewer::BoxLayer::unitCube();
+            wallModel.draws.push_back({0,glm::translate(glm::mat4(1),glm::vec3(0,1.65f,-.5f)) *
+                glm::scale(glm::mat4(1),glm::vec3(2,2,.1f)),"wall"});
+            viewer::CollisionWorld wallCollision(wallModel);
+            require(!quick.pickUp(quickWeapons, quickInventory, camera, wallCollision) &&
+                !quick.equip(quickWeapons, quickInventory, camera, wallCollision, {}) && quick.count() == 1,
+                "Quick pickup and equip must reject an occluded item");
+        }
         std::cout << "Ground item checks passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

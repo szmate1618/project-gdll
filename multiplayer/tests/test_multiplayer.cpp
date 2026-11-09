@@ -53,7 +53,7 @@ void protocol() {
     player.movement.movementIntent = {-1, 0};
     player.movement.injuryMovement = {.8f, .6f, .7f, .6f};
     player.movement.posture = 1.375f; player.movement.stance = viewer::PlayerStance::Prone;
-    player.weaponCoolingDown = true;
+    player.weaponCoolingDown = true; player.holdingProp = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
     player.reloadRemaining = 2.25f; player.reloadDuration = 4.5f;
     player.ammoQuantities = {0, 5, 60};
@@ -65,6 +65,7 @@ void protocol() {
     s.explosions.push_back({6, {4, 5, 6}, .08f});
     const auto bytes = encode(s);
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+    require(copy.players[0].holdingProp, "Snapshot lost held-prop camera lock state");
     require(copy.boxes.at(0).removed, "Snapshot round trip lost retired box state");
     require(copy.players[0].movement.bodyYawDegrees == 37.f, "Snapshot lost prone collision orientation");
     require(copy.players[0].movement.posture == 1.375f, "Snapshot lost partial posture progress");
@@ -110,19 +111,28 @@ void protocol() {
     require(copy.players[0].inventoryPlacements.at(0).rotation == 90 &&
             copy.players[0].inventoryPlacements[0].storage == "backpack/tactical_backpack/main",
             "Snapshot lost authoritative storage placements");
-    Command inventoryCommand; inventoryCommand.sequence = 1; inventoryCommand.objectHandling = true;
+    Command inventoryCommand; inventoryCommand.sequence = 1; inventoryCommand.objectHandling = true; inventoryCommand.throwHeld = true;
+    inventoryCommand.preserveEquippedSlot = true;
     inventoryCommand.inventoryActions = {
         {viewer::InventoryDragActionKind::PickUp, "pistol_rounds_1", "", 0, 0, 0},
         {viewer::InventoryDragActionKind::Rotate, "", "", 0, 0, -1},
         {viewer::InventoryDragActionKind::Drop, "", "body/chest_pouch/pouch", 1, 0, 0},
-        {viewer::InventoryDragActionKind::Cancel, "pistol_rounds_1", "", 0, 0, 0}};
+        {viewer::InventoryDragActionKind::Cancel, "pistol_rounds_1", "", 0, 0, 0},
+        {viewer::InventoryDragActionKind::PickUpBackpack, "", ""},
+        {viewer::InventoryDragActionKind::EquipGround, "", ""},
+        {viewer::InventoryDragActionKind::DiscardEquipped, "", ""}};
     const auto commandBytes = encode(Commands{{inventoryCommand}});
     const auto inventoryCommands = std::get<Commands>(decode(commandBytes.data(), commandBytes.size()));
-    require(inventoryCommands.commands[0].objectHandling && inventoryCommands.commands[0].inventoryActions.size() == 4 &&
+    require(inventoryCommands.commands[0].objectHandling && inventoryCommands.commands[0].throwHeld &&
+            inventoryCommands.commands[0].preserveEquippedSlot &&
+            inventoryCommands.commands[0].inventoryActions.size() == 7 &&
             inventoryCommands.commands[0].inventoryActions[0].item == "pistol_rounds_1" &&
             inventoryCommands.commands[0].inventoryActions[1].turns == 3 &&
             inventoryCommands.commands[0].inventoryActions[2].x == 1 &&
-            inventoryCommands.commands[0].inventoryActions[3].item == "pistol_rounds_1",
+            inventoryCommands.commands[0].inventoryActions[3].item == "pistol_rounds_1" &&
+            inventoryCommands.commands[0].inventoryActions[4].kind == viewer::InventoryDragActionKind::PickUpBackpack &&
+            inventoryCommands.commands[0].inventoryActions[5].kind == viewer::InventoryDragActionKind::EquipGround &&
+            inventoryCommands.commands[0].inventoryActions[6].kind == viewer::InventoryDragActionKind::DiscardEquipped,
             "Command lost inventory action order or values");
     auto invalidReload = s; invalidReload.players[0].reloadRemaining = 5;
     rejects([&] { encode(invalidReload); }, "Reload progress beyond duration accepted");
@@ -843,9 +853,9 @@ void serverObjectHandling(const std::filesystem::path& asset) {
         World world(scene); const auto id = world.join();
         for (int i = 0; i < 5; ++i) world.step();
         std::uint64_t sequence = 0;
-        const auto send = [&](bool left = false, bool right = false, bool suspended = false) {
+        const auto send = [&](bool left = false, bool throwHeld = false, bool suspended = false) {
             Command c; c.sequence = ++sequence; c.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
-            c.movement.yawDegrees = -90; c.pitch = 0; c.left = left; c.right = right;
+            c.movement.yawDegrees = -90; c.pitch = 0; c.left = left; c.throwHeld = throwHeld;
             c.cancelInteraction = suspended;
             world.submit(id, Commands{{c}}); world.step();
         };
@@ -858,8 +868,17 @@ void serverObjectHandling(const std::filesystem::path& asset) {
             require(!world.players().at(id).interaction.grabbing(), "Server must drop the grip on left release");
             send(true);
             require(world.players().at(id).interaction.heldBox() == 0, "Server must grab while left is held");
+            Command rotate; rotate.sequence = ++sequence; rotate.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
+            rotate.movement.yawDegrees = -90; rotate.left = rotate.right = true; rotate.drag = {100, 40};
+            world.submit(id, Commands{{rotate}}); world.step();
+            require(world.players().at(id).interaction.rotating() &&
+                !world.players().at(id).interaction.charging() && world.snapshot(id).players[0].holdingProp,
+                "Server right-drag must rotate the held prop without charging a throw");
+            send(true);
+            require(world.players().at(id).interaction.grabbing() && !world.players().at(id).interaction.rotating(),
+                "Releasing right rotation must preserve the left grip");
             send(true, true); send(true);
-            require(!world.players().at(id).interaction.grabbing(), "Server right tap did not drop the grip");
+            require(!world.players().at(id).interaction.grabbing(), "Server F tap did not drop the grip");
             send(); send(true);
             require(world.players().at(id).interaction.heldBox() == 0, "Server failed to regrab after dropping");
         }
@@ -886,8 +905,8 @@ void serverAutomaticObjectThrows(const std::filesystem::path& asset) {
         for (int i = 0; i < 5; ++i) world.step();
         Command c; c.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
         c.movement.yawDegrees = -90;
-        const auto send = [&](bool right = false) {
-            ++c.sequence; c.left = grab; c.right = right;
+        const auto send = [&](bool throwHeld = false) {
+            ++c.sequence; c.left = grab; c.throwHeld = throwHeld;
             world.submit(id, Commands{{c}}); world.step();
         };
         send();
@@ -1235,6 +1254,68 @@ void serverGroundInventory(const std::filesystem::path& asset) {
     require(player.weapons.state(0).owned && player.weapons.state(0).loaded==12 && player.inventory.hotbar()[2]=="pistol",
         "Weapon pickup must restore its magazine and configured hotbar binding");
 }
+void serverGroundShortcuts(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    using Action = viewer::InventoryDragActionKind;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); scene.model = ground();
+    scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model);
+    scene.spawnEye = {0, 1.7f, 0};
+    World world(scene); const auto id = world.join();
+    const auto& player = world.players().at(id);
+    for (int i = 0; i < 5; ++i) world.step();
+    std::uint64_t sequence = 0;
+    const auto submit = [&](std::vector<viewer::InventoryDragAction> actions, float yaw = 0) {
+        Command c; c.sequence = ++sequence; c.slot = static_cast<std::uint8_t>(player.weapons.slot());
+        c.movement.yawDegrees = yaw; c.inventoryActions = std::move(actions);
+        const auto bytes = encode(Commands{{c}});
+        const auto decoded = std::get<Commands>(decode(bytes.data(), bytes.size()));
+        world.submit(id, decoded); world.submit(id, decoded); world.step();
+    };
+    const auto placeAtAim = [&](const std::string& item, glm::vec3 direction) {
+        const auto count = scene.groundItems->count();
+        submit({{Action::PickUp, item, ""}, {Action::DropGround, item, ""}});
+        for (int i = 0; i < 600 && (player.inventoryDrag.pending() || !player.pendingInventoryActions.empty()); ++i)
+            submit({});
+        require(scene.groundItems->count() == count + 1 && !player.inventory.owns(item),
+            "Shortcut target setup must finish the real inventory access and physical drop");
+        const auto entry = scene.groundItems->poses().back().entry;
+        scene.groundItems->erase(entry.id);
+        scene.groundItems->add(entry.item, entry.quantity, entry.weapon, player.camera.position() + direction * .8f);
+    };
+    placeAtAim("pistol", {0, 0, -1});
+    const auto beforePickup = player.weapons.slot();
+    submit({{Action::PickUpBackpack, "", ""}}, -90);
+    require(player.inventory.owns("pistol") && player.inventory.placements().at("pistol").storage ==
+        "backpack/tactical_backpack/main" && player.weapons.slot() == beforePickup,
+        "G must use the current command aim and store in the backpack without equipping");
+    for (int i = 0; i < 600 && player.weapons.slot() != viewer::handlingSlot; ++i) {
+        Command handling; handling.sequence = ++sequence;
+        handling.slot = static_cast<std::uint8_t>(viewer::handlingSlot); handling.movement.yawDegrees = 0;
+        world.submit(id, Commands{{handling}}); world.step();
+    }
+    require(player.weapons.slot() == viewer::handlingSlot && !player.weaponSwitch.pending(),
+        "Shortcut fixture must finish equipping the free-hand skill");
+    placeAtAim("pistol", {1, 0, 0});
+    submit({{Action::EquipGround, "", ""}});
+    require(player.weapons.slot() == 0 && player.weapons.state(0).loaded == 12 && scene.groundItems->count() == 0,
+        "H must equip the acquired weapon without restoring the command's previous skill slot");
+    for (int i = 0; i < 3; ++i) {
+        Command stale; stale.sequence = ++sequence; stale.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
+        stale.preserveEquippedSlot = true;
+        world.submit(id, Commands{{stale}}); world.step();
+    }
+    require(player.weapons.slot() == 0 && !player.weaponSwitch.pending(),
+        "Commands sent before H acknowledgement must preserve the new authoritative slot");
+    placeAtAim("shotgun", {1, 0, 0});
+    submit({{Action::EquipGround, "", ""}});
+    require(player.weapons.slot() == 2 && player.inventory.owns("shotgun") && !player.inventory.owns("pistol") &&
+        scene.groundItems->count() == 1 && scene.groundItems->poses()[0].entry.item.id() == "pistol",
+        "H must transfer the target once and drop the previously equipped weapon");
+    submit({{Action::DiscardEquipped, "", ""}});
+    require(!player.inventory.owns("shotgun") && scene.groundItems->count() == 2,
+        "F outside free-hand mode must discard the equipped weapon once");
+}
 void serverHandInventory(const std::filesystem::path& asset) {
     using namespace multiplayer;
     using Action = viewer::InventoryDragActionKind;
@@ -1373,7 +1454,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

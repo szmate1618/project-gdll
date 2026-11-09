@@ -848,7 +848,7 @@ are independent; selected source counts and collision remain unchanged.
 The experimental single-player layer streams branches, stones and occasional
 beer bottles around the player in runtime forest polygons, including the
 forested parts of boundary cells. Select **Object handling** in slot **0**, then hold left mouse to grab and carry
-them; release left to drop. Right click also drops; holding right and releasing charges a throw. Moved
+them; release left to drop. Right-drag rotates the held object; hold **F** and release to throw. Moved
 objects retain their identities across cell boundaries, including destinations
 outside woodland, and their poses are saved beside the map.
 
@@ -2069,12 +2069,13 @@ build directory when run by CTest.
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Confirm hotbar preview; otherwise fire/punch, or grab a nearby prop/door with Object handling |
-| Right mouse button | Grenade: tap to drop, hold to charge a throw (maximum 2 seconds); Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: tap to drop or push, hold to charge a throw or push (maximum 2 seconds) |
+| Right mouse button | Grenade: tap to drop, hold to charge a throw (maximum 2 seconds); Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: hold and drag to rotate a held prop |
 | 1–9 | Preview the corresponding configured hotbar slot; left click confirms |
 | Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0 (also available on number-row 0) |
 | R | Reload equipped weapon from its matching reserve ammo |
-| F | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
-| G | Pick up the discarded weapon under the camera ray within 2 m |
+| F | Object handling: tap to drop a held object or push, hold to charge a throw/push (maximum 2 seconds); otherwise discard the equipped weapon |
+| G | Pick up a held or targeted equippable item into the backpack if it fits |
+| H | Pick up and equip a held or targeted weapon, dropping the current weapon |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s forward, 4.5 backward, 5.25 sideways |
 | Mouse wheel | Scroll up for the next assigned hotbar action, down for the previous |
 | F1 | Open / close the Inventory visual prototype |
@@ -2254,7 +2255,12 @@ players from grabbing the same prop.
 Each grip owns a shapeless hand anchor and a critically damped Box3D motor joint
 at the clicked point. Its positional spring is solved during physics substeps
 using the body's mass and rotational inertia. Bounded rotational friction
-settles spin without an orientation spring. A hand's normal force budget is
+settles spin. Hold right mouse and drag sideways to turn a held prop, or
+vertically to tilt it, with the same drag directions as the character editor.
+During rotation, mouse motion leaves the camera and grip target still; walking
+continues to move the grip. A bounded angular spring turns the body while
+keeping collisions active, and holds the chosen
+orientation after right mouse is released. A hand's normal force budget is
 180 N, enough to suspend about 18 kg. For heavier props the joint's combined
 force budget increases toward 90% of the prop's weight, capped at 420 N,
 so one hand can drag or tip them without lifting them clear of the floor.
@@ -2262,8 +2268,8 @@ Mouse offsets are bounded, and a
 large camera teleport or an object too far from its target ends the grip.
 Existing collisions remain active while holding objects.
 
-Tap right mouse to drop the held object without adding momentum. While keeping
-left held, hold right mouse and release right to throw along the camera's aim.
+Tap **F** to drop the held object without adding momentum. While keeping
+left held, hold **F** and release it to throw along the camera's aim.
 Taps up to 0.2 seconds drop the object; longer holds add momentum proportional
 to the time held, reaching full strength after two seconds. At two seconds the
 throw happens automatically; continuing to hold cannot throw or push again.
@@ -2276,8 +2282,8 @@ strength ceiling are game approximations; see
 [the formula and research citations](../ATTRIBUTION.md#mass-dependent-object-throwing).
 Hinged doors keep their existing maximum shove of approximately 6.4 N·s.
 
-You can also right click without grabbing first: release pushes the nearest
-reachable object under the crosshair. A tap gives a small shove; holding right
+You can also press **F** without grabbing first: release pushes the nearest
+reachable object under the crosshair. A tap gives a small shove; holding **F**
 charges the same mass-dependent impulse as a throw and pushes automatically at two
 seconds. Reach and occlusion are checked when the push happens. Charging never
 grabs an object or applies a throw/push impulse before release or the time cap.
@@ -2764,7 +2770,7 @@ read once at startup; gameplay changes live in memory and restart from the file.
 
 ### Discarding and picking up weapons
 
-In the standalone viewer, **F** discards the equipped weapon with a 12.5 m/s
+Outside Object handling, **F** discards the equipped weapon with a 12.5 m/s
 forward launch, a small upward velocity, and a 14 rad/s spin about world Y.
 Actual player travel adds to the launch. The dropped item renders its weapon
 model and uses a box collider fitted to the model bounds, with continuous
@@ -2772,21 +2778,23 @@ collision detection and the same streamed terrain/building physics as crates.
 Strong linear and angular damping brakes grounded weapons. Holding a weapon
 disables this braking and skips its support-contact checks. Airborne weapons
 use their normal damping, so released weapons fall normally; braking resumes
-on ground contact. G still collects weapons within 2 m along the camera ray.
+on ground contact. Pickup targets items within 2 m along the camera ray.
 Doors and other physics props can also stop it. A blocked spawn leaves the
 weapon in the inventory. Discarding an HE grenade creates an unprimed
 equippable object.
 
-**G** casts the camera's forward ray against dropped weapon boxes within 2 m.
-Scenery blocks pickup. A successful pickup destroys the physics object and
-equips its weapon, preserving loaded rounds and its existing shot cooldown.
-Reserve ammunition stays with the player throughout. Already-owned weapon types
-are left in the world. Dropping selects the next owned weapon; dropping the last
-one leaves the player unarmed, without firing, reloading, or a held model.
-These actions work in either control mode while the mouse is captured.
-The flashlight toggle is **L**. The F/G shortcuts are standalone controls; both
-the viewer and multiplayer client also support dropping and acquiring items
-through the Inventory ground grid. Pickup needs a free compatible footprint.
+**G** picks up the held equippable item, or the item under the camera ray, and
+searches the backpack's main grid for space without changing the equipped weapon.
+If there is no backpack or the item does not fit, it stays where it is.
+**H** picks up and equips a weapon, dropping the currently equipped weapon into
+the world. In slot 0 there is no current weapon to drop; with temporary Alt
+handling, the lowered weapon is replaced. Scenery blocks targeted pickups.
+Transfers preserve quantities, loaded rounds and shot cooldowns. A failed
+transfer keeps the current weapon and target item. Already-owned weapon types
+remain in the world unless H is replacing that same equipped type.
+These controls work in standalone and multiplayer while the gameplay mouse is
+captured or the equipment cursor is active. Both also support transfers through
+the Inventory ground grid. The flashlight toggle is **L**.
 
 ## First-person walking
 

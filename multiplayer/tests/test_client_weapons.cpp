@@ -164,12 +164,41 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
             require(in.capture && !in.equipmentCursor, "Tab must recapture the client cursor");
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
-            require(command(in, window, false, 0).right, "Right press did not start a skill charge");
-            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            auto rotate = command(in, window, false, 0);
+            require(rotate.right && !rotate.throwHeld, "Right press must rotate independently of throwing");
+            in.holdingProp = true; in.firstMouse = false; in.lastX = in.lastY = 0;
+            const auto yawBeforeRotation = in.camera.yawDegrees(), pitchBeforeRotation = in.camera.pitchDegrees();
+            mouse(window, 80, 40);
+            rotate = command(in, window, false, 0);
+            require(rotate.drag == glm::vec2(80, -40) && in.camera.yawDegrees() == yawBeforeRotation &&
+                in.camera.pitchDegrees() == pitchBeforeRotation,
+                "Rotating a held prop must send drag without rotating the local camera");
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            in.holdingProp = false; in.firstMouse = true;
+            key(window, GLFW_KEY_G, 0, GLFW_PRESS, 0); key(window, GLFW_KEY_G, 0, GLFW_REPEAT, 0);
+            key(window, GLFW_KEY_H, 0, GLFW_PRESS, 0);
+            const auto pickup = command(in, window, false, 0);
+            require(pickup.inventoryActions.size() == 2 &&
+                pickup.preserveEquippedSlot &&
+                pickup.inventoryActions[0].kind == viewer::InventoryDragActionKind::PickUpBackpack &&
+                pickup.inventoryActions[1].kind == viewer::InventoryDragActionKind::EquipGround,
+                "G/H must queue distinct backpack/equip actions and ignore key repeats");
+            in.groundSlotRequest = {{100, in.slot}};
+            require(command(in, window, false, 0).preserveEquippedSlot,
+                "Commands awaiting H acknowledgement must retain the authoritative equipped slot");
+            auto equipped = authoritative; equipped.resolved = 99; equipped.slot = 0;
+            in.acknowledgeGroundSlot(equipped);
+            require(in.slot == viewer::handlingSlot, "An unacknowledged H request changed the requested slot");
+            equipped.resolved = 100; in.acknowledgeGroundSlot(equipped);
+            require(in.slot == 0 && !in.groundSlotRequest, "H acknowledgement must settle the requested slot");
+            in.slot = viewer::handlingSlot;
+            key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).throwHeld, "F press did not start a skill throw");
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
             key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
             const auto cancelled = command(in, window, false, 0);
-            require(cancelled.cancelInteraction && !cancelled.right,
+            require(cancelled.cancelInteraction && !cancelled.throwHeld,
                     "Opening and closing a menu between commands lost throw cancellation");
             authoritative.slot = 3;
             break;

@@ -41,7 +41,12 @@ public:
     std::vector<GroundItemPose> poses() const;
     bool discard(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
         const CollisionWorld& collision, glm::vec3 velocity);
+    // Quick pickup uses backpack space and leaves the selected equipment alone.
     bool pickUp(Weapons& weapons, PlayerInventory& inventory, const Camera& camera, const CollisionWorld& collision);
+    // Equip a nearby or already gripped weapon, dropping the selected weapon.
+    // A rejected swap leaves both ownership and the grip untouched.
+    bool equip(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
+        const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held = {});
     void removeBelow(float cutoffY);
     void prepare(PhysicsScene& scene, DoorLayer* doors = nullptr);
     // Replace a replica's complete visible set. Never advances replica physics.
@@ -53,6 +58,13 @@ public:
     bool erase(std::uint64_t id); // Invalidates any grip on this body.
     void reserve(std::uint64_t id, bool reserved);
 private:
+    friend class HandInventory;
+    bool store(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
+        glm::vec3 reachOrigin, bool gripped, bool reserved = false);
+    bool takeImpl(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
+        const ItemPlacement& destination, glm::vec3 reachOrigin, bool gripped, bool reserved = false);
+    bool equipImpl(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
+        const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held, bool reserved);
     bool inReach(std::size_t index, glm::vec3 feet) const;
     void remove(std::size_t index);
     BoxLayer bodies_;

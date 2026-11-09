@@ -39,7 +39,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 62; // Direct damage events and shared persistent map marks.
+constexpr std::uint32_t protocolVersion = 63; // Independent prop rotation, throw input and ground-item shortcuts.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -99,6 +99,8 @@ struct Command {
     float pitch = 0;
     glm::vec2 drag{0}; // Mouse pixels accumulated during this command.
     bool cancelInteraction = false, left = false, right = false, reload = false;
+    bool throwHeld = false; // F-held state for physical object throws; independent of right-drag rotation.
+    bool preserveEquippedSlot = false; // Awaiting an equip/discard shortcut acknowledgement.
     bool objectHandling = false; // Temporary on-foot handling; slot remains the equipped weapon.
     std::uint8_t slot = 0;
     bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
@@ -167,6 +169,7 @@ struct PlayerState {
     float swordSampleSeconds = 0;
     std::optional<viewer::PlayerHealth> medical{}; // Observer medical records only.
     std::uint64_t damageEvents = 0; // Monotonic successful direct hits, independent of blood loss.
+    bool holdingProp = false; // Allows the owner to rotate a grip without moving the local camera.
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

@@ -9,6 +9,7 @@ namespace {
 constexpr float metersPerPixel = .004f;
 constexpr float maxLiftForce = 180; // N: cannot suspend >18.4 kg.
 constexpr float extraDragForce = 240; // N of additional joint budget for unliftable props.
+constexpr float radiansPerPixel = .005f;
 }
 std::optional<std::size_t> ObjectInteraction::heldBox() const {
     return grab_ ? grab_->boxes->indexOf(grab_->prop) : std::nullopt;
@@ -31,7 +32,7 @@ bool ObjectInteraction::press(const Camera& camera, BoxLayer& boxes, const Colli
     const float gripForce = std::max(maxLiftForce, std::min(maxLiftForce+extraDragForce,
                                                          hit->prop.mass()*9.8f*.9f));
     grab_ = Grab{&boxes, hit->prop, std::make_unique<PhysicsGrab>(hit->prop,hit->localPoint,gripForce),
-                 hit->localPoint, hit->point - camera.position(), right, {}};
+                 hit->localPoint, hit->point - camera.position(), right, {}, {}};
     return true;
 }
 bool ObjectInteraction::grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop) {
@@ -39,7 +40,7 @@ bool ObjectInteraction::grip(const Camera& camera, BoxLayer& boxes, const Physic
     const float yaw = glm::radians(camera.yawDegrees());
     const auto right = glm::vec3(-std::sin(yaw), 0, std::cos(yaw));
     grab_ = Grab{&boxes, prop, std::make_unique<PhysicsGrab>(prop, glm::vec3(0), maxLiftForce),
-        glm::vec3(0), prop.center() - camera.position(), right, {}};
+        glm::vec3(0), prop.center() - camera.position(), right, {}, {}};
     return true;
 }
 void ObjectInteraction::cancel() { grab_.reset(); }
@@ -47,6 +48,26 @@ void ObjectInteraction::moveMouse(float dx, float dy) {
     if (!std::isfinite(dx) || !std::isfinite(dy) || !grab_) return;
     grab_->drag = glm::clamp(grab_->drag + glm::vec2(dx, dy) * metersPerPixel,
                             glm::vec2(-1.5f, -2), glm::vec2(1.5f, 2));
+}
+bool ObjectInteraction::beginRotation(const Camera& camera) {
+    if (!heldProp()) return false;
+    const float yaw = glm::radians(camera.yawDegrees());
+    grab_->rotation = Rotation{grab_->joint->rotation(), {-std::sin(yaw), 0, std::cos(yaw)}};
+    grab_->joint->setRotationTarget(grab_->rotation->initial);
+    return true;
+}
+void ObjectInteraction::endRotation() { if (grab_) grab_->rotation.reset(); }
+bool ObjectInteraction::rotating() const { return heldProp() && grab_->rotation.has_value(); }
+void ObjectInteraction::rotateMouse(float dx, float dy) {
+    if (!std::isfinite(dx) || !std::isfinite(dy) || !rotating()) return;
+    auto& rotation = *grab_->rotation;
+    // Match the editor's right-drag orbit: right turns the object right, and
+    // dragging down tips its top toward the camera. Keep pitch away from a flip.
+    rotation.yaw += dx * radiansPerPixel;
+    rotation.pitch = std::clamp(rotation.pitch - dy * radiansPerPixel, -1.2f, 1.2f);
+    const auto yaw = glm::angleAxis(rotation.yaw, glm::vec3(0, 1, 0));
+    const auto pitch = glm::angleAxis(rotation.pitch, rotation.right);
+    grab_->joint->setRotationTarget(pitch * yaw * rotation.initial);
 }
 void ObjectInteraction::update(const Camera& camera, float dt) {
     if (!std::isfinite(dt) || dt <= 0 || !grab_) return;

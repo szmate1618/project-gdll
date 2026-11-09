@@ -73,7 +73,7 @@ int main() {
         require(hand.store(interaction, ground, weapons) && ground.count() == 0 && inventory.ammoCount("pistol_rounds") == 127,
             "A held item lifted beyond ground-query reach must still fit into the backpack");
 
-        // Fill a one-cell backpack; a regrabbed item must stay physical on release.
+        // Fill a one-cell backpack; releasing over the drawer still drops the item.
         auto storage = viewer::loadStorageLoadout(root / "storage"); storage.backpack->grid = {1,1,0};
         auto fullItem = inventory.find("pistol_rounds_1")->renamed("full");
         viewer::InventoryContents fullContents;
@@ -88,7 +88,32 @@ int main() {
         require(fullHand.rejectedStores() == 1, "A rejected return must publish feedback exactly once");
         require(!fullHand.store(interaction, ground, weapons) && fullHand.rejectedStores() == 1,
             "Releasing an empty hand must not report an inventory rejection");
+        require(interaction.grip(camera, boxes, *ground.prop(extraId)), "Could not regrab a rejected pickup fixture");
+        require(!fullHand.pickUp(interaction, ground, weapons, camera, collision) && interaction.grabbing() &&
+            ground.count() == 1 && fullHand.rejectedStores() == 2,
+            "An explicit backpack pickup must preserve the physical grip when the backpack is full");
+        interaction.cancel();
         require(hand.rejectedStores() == 0, "Successful returns must not report a rejection");
+        {
+            auto reservedContents = fullContents;
+            reservedContents.owned.emplace("pistol", *inventory.find("pistol"));
+            reservedContents.placements.emplace("pistol", original);
+            viewer::PlayerInventory reservedInventory(storage, reservedContents);
+            viewer::HandInventory reservedHand(reservedInventory);
+            auto reservedWeapons = weapons;
+            reservedWeapons.synchronizeOwnership(reservedInventory, 0, 12);
+            viewer::GroundItems reservedGround(physics);
+            viewer::PlayerInteraction reservedInteraction;
+            require(reservedHand.begin("pistol"), "Could not retrieve a reserved full-backpack fixture");
+            reservedHand.update(reservedHand.duration(), camera, reservedInteraction, boxes, reservedGround, reservedWeapons, collision);
+            require(!reservedHand.pickUp(reservedInteraction, reservedGround, reservedWeapons, camera, collision) &&
+                reservedHand.active() && reservedInteraction.grabbing() && reservedInventory.owns("pistol") &&
+                reservedInventory.held() && reservedWeapons.state(0).loaded == 12 && reservedGround.count() == 1,
+                "A full backpack must preserve a reserved preview transaction and its magazine");
+            require(reservedHand.store(reservedInteraction, reservedGround, reservedWeapons) &&
+                reservedInventory.placements().at("pistol").storage == original.storage && reservedGround.count() == 0,
+                "A rejected backpack pickup must retain the original-location return privilege");
+        }
         require(hand.begin("pistol"), "Could not start lost-grip fixture"); update(hand.duration());
         const auto lostId = *ground.idOf(*interaction.heldProp());
         interaction.cancel();
@@ -97,6 +122,34 @@ int main() {
         update(0);
         require(!hand.active() && !inventory.owns("pistol") && !weapons.state(0).owned,
             "A lost grip must end the original-location return privilege and commit ownership");
+        {
+            auto swapInventory = viewer::loadPlayerInventory(root);
+            viewer::Weapons swapWeapons(root / "storage/weapons", root / "inventory.toml", true);
+            viewer::GroundItems swapGround(physics);
+            viewer::PlayerInteraction swapInteraction;
+            viewer::HandInventory swapHand(swapInventory);
+            swapWeapons.equip(1);
+            require(swapHand.begin("pistol"), "Could not retrieve a backpack pickup fixture");
+            swapHand.update(swapHand.duration(), camera, swapInteraction, boxes, swapGround, swapWeapons, collision);
+            require(swapHand.pickUp(swapInteraction, swapGround, swapWeapons, camera, collision) &&
+                swapInventory.placements().at("pistol").storage == "backpack/tactical_backpack/main" &&
+                swapWeapons.slot() == 1 && swapWeapons.state(0).loaded == 12 && !swapHand.active() && swapGround.count() == 0,
+                "Explicit backpack pickup must move a reserved preview into the backpack without equipping it");
+            require(swapHand.begin("pistol"), "Could not retrieve an equip-swap fixture");
+            swapHand.update(swapHand.duration(), camera, swapInteraction, boxes, swapGround, swapWeapons, collision);
+            require(swapHand.equip(swapInteraction, swapGround, swapWeapons, camera, collision, {}),
+                "A reserved physical inventory preview must support equip-and-drop");
+            require(!swapHand.active() && !swapInteraction.grabbing() && swapInventory.owns("pistol") &&
+                !swapInventory.owns("submachine_gun") && swapWeapons.slot() == 0 && swapWeapons.state(0).loaded == 12 &&
+                swapGround.count() == 1 && swapGround.poses()[0].entry.weapon->slot == 1 &&
+                swapGround.poses()[0].entry.weapon->loaded == 30,
+                "Equip-and-drop must commit the preview once and preserve both magazines");
+            require(swapHand.begin("pistol"), "Could not retrieve a same-weapon equip fixture");
+            swapHand.update(swapHand.duration(), camera, swapInteraction, boxes, swapGround, swapWeapons, collision);
+            require(swapHand.equip(swapInteraction, swapGround, swapWeapons, camera, collision, {}) &&
+                swapGround.count() == 1 && swapWeapons.slot() == 0 && swapInventory.owns("pistol"),
+                "Equipping the selected reserved weapon must not drop an unrelated automatic fallback weapon");
+        }
         std::cout << "Hand inventory checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

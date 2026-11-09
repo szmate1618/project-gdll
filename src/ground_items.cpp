@@ -8,6 +8,26 @@
 #include <map>
 
 namespace viewer {
+namespace {
+bool insertGroundItem(const GroundItem& entry, PlayerInventory& inventory, Weapons& weapons,
+    const ItemPlacement& destination) {
+    if (entry.weapon && weapons.state(entry.weapon->slot).owned) return false;
+    std::string itemId = entry.item.id();
+    if (inventory.owns(itemId)) {
+        if (!entry.item.inventory().stackable) return false;
+        itemId = "ground_" + std::to_string(entry.id);
+        while (inventory.owns(itemId)) itemId += "_";
+    }
+    if (!inventory.insert(entry.item.renamed(itemId), entry.quantity, destination)) return false;
+    if (entry.weapon) {
+        const auto previous = weapons.slot();
+        if (!weapons.pickUp(*entry.weapon)) return false;
+        weapons.equip(previous);
+    }
+    weapons.syncAmmo(inventory);
+    return true;
+}
+}
 GroundItems::GroundItems(std::shared_ptr<PhysicsWorld> world, bool replica)
     : bodies_(std::move(world)), nextId_(replica ? std::uint64_t(1) << 63 : 1), replica_(replica) {
     sizes_.fill(glm::vec3(.15f, .1f, .3f));
@@ -70,27 +90,22 @@ std::vector<GroundItem> GroundItems::nearby(glm::vec3 feet) const {
 }
 bool GroundItems::take(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
     const ItemPlacement& destination, glm::vec3 reachOrigin) {
-    if (pending(id) || reserved_.count(id)) return false;
+    return takeImpl(id, inventory, weapons, destination, reachOrigin, false);
+}
+bool GroundItems::takeImpl(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
+    const ItemPlacement& destination, glm::vec3 reachOrigin, bool gripped, bool reserved) {
+    if (pending(id) || (reserved_.count(id) && !reserved)) return false;
     const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const auto& entry) { return entry.id == id; });
     if (found == entries_.end() || inventory.held() || weapons.reloading()) return false;
     const auto index = std::size_t(found - entries_.begin());
-    if (bodies_.prop(index).grabbed()) return false;
+    if (bodies_.prop(index).grabbed() && !gripped) return false;
     if (!inReach(index, reachOrigin) || (found->weapon && weapons.state(found->weapon->slot).owned)) return false;
-    std::string itemId = found->item.id();
-    if (inventory.owns(itemId)) {
-        if (!found->item.inventory().stackable) return false;
-        itemId = "ground_" + std::to_string(id);
-        while (inventory.owns(itemId)) itemId += "_";
-    }
-    const auto item = found->item.renamed(itemId);
-    if (!inventory.insert(item, found->quantity, destination)) return false;
-    if (found->weapon) {
-        const auto previous = weapons.slot();
-        weapons.pickUp(*found->weapon);
-        weapons.equip(previous);
-    }
+    auto candidateInventory = inventory;
+    auto candidateWeapons = weapons;
+    if (!insertGroundItem(*found, candidateInventory, candidateWeapons, destination)) return false;
+    inventory = std::move(candidateInventory);
+    weapons = std::move(candidateWeapons);
     remove(index);
-    weapons.syncAmmo(inventory);
     return true;
 }
 void GroundItems::remove(std::size_t index) {
@@ -135,14 +150,72 @@ bool GroundItems::discard(Weapons& weapons, PlayerInventory& inventory, const Ca
 bool GroundItems::pickUp(Weapons& weapons, PlayerInventory& inventory, const Camera& camera, const CollisionWorld& collision) {
     const auto hit = bodies_.raycast(camera.position(), camera.direction(), reach);
     if (!hit || !collision.lineOfSight(camera.position(), hit->point)) return false;
-    const auto entry = entries_.at(hit->box);
-    for (const auto& [reference, container] : inventory.layout())
-        for (int rotation : {0,90}) for (int y = 0; y < container.grid.height; ++y) for (int x = 0; x < container.grid.width; ++x)
-            if (take(entry.id, inventory, weapons, {reference,x,y,rotation}, camera.position() - glm::vec3(0,1.65f,0))) {
-                if (entry.weapon) weapons.equip(entry.weapon->slot);
+    return store(entries_.at(hit->box).id, inventory, weapons,
+                 camera.position() - glm::vec3(0,1.65f,0), false);
+}
+bool GroundItems::store(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
+    glm::vec3 reachOrigin, bool gripped, bool reserved) {
+    if (!inventory.storage().backpack) return false;
+    const auto reference = backpackStorageReference(inventory.storage().backpack->id);
+    const auto& grid = inventory.layout().at(reference).grid;
+    for (int rotation : {0,90}) for (int y = 0; y < grid.height; ++y) for (int x = 0; x < grid.width; ++x)
+        if (takeImpl(id, inventory, weapons, {reference,x,y,rotation}, reachOrigin, gripped, reserved)) return true;
+    return false;
+}
+bool GroundItems::equip(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
+    const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held) {
+    return equipImpl(weapons, inventory, camera, collision, velocity, held, false);
+}
+bool GroundItems::equipImpl(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
+    const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held, bool reserved) {
+    if (inventory.held() || weapons.reloading()) return false;
+    std::size_t index;
+    if (held) {
+        const auto found = bodies_.indexOf(*held);
+        if (!found || glm::distance(held->center(), camera.position()) > 5) return false;
+        index = *found;
+    } else {
+        const auto hit = bodies_.raycast(camera.position(), camera.direction(), reach);
+        if (!hit || !collision.lineOfSight(camera.position(), hit->point)) return false;
+        index = hit->box;
+        if (!inReach(index, camera.position() - glm::vec3(0,1.65f,0))) return false;
+    }
+    const auto entry = entries_[index];
+    if (!entry.weapon || pending(entry.id) || (reserved_.count(entry.id) && !reserved) ||
+        (bodies_.prop(index).grabbed() && !held)) return false;
+    auto candidateInventory = inventory;
+    auto candidateWeapons = weapons;
+    std::optional<GroundItem> dropped;
+    const auto center = camera.position() + camera.direction() * .75f;
+    if (weapons.slot() < weaponIds.size()) {
+        const auto slot = weapons.slot();
+        const auto* item = inventory.find(weaponIds[slot]);
+        if (!item || !collision.lineOfSight(camera.position(), center + camera.direction() * glm::length(sizes_[slot]) * .5f)) return false;
+        const auto state = weapons.state(slot);
+        dropped = GroundItem{0, *item, inventory.quantity(item->id()), WeaponItem{slot,state.loaded,state.readyAt}};
+        InventoryDrag outgoing(candidateInventory);
+        if (!outgoing.pickUp(item->id()) || !outgoing.release() || !candidateWeapons.discard(slot)) return false;
+    }
+    const auto acquire = [&] {
+        for (const auto& [reference, container] : candidateInventory.layout()) {
+            for (int rotation : {0,90}) for (int y = 0; y < container.grid.height; ++y) for (int x = 0; x < container.grid.width; ++x) {
+                auto attemptInventory = candidateInventory;
+                auto attemptWeapons = candidateWeapons;
+                if (!insertGroundItem(entry, attemptInventory, attemptWeapons, {reference,x,y,rotation})) continue;
+                candidateInventory = std::move(attemptInventory);
+                candidateWeapons = std::move(attemptWeapons);
                 return true;
             }
-    return false;
+        }
+        return false;
+    };
+    if (!acquire() || !candidateWeapons.equip(entry.weapon->slot)) return false;
+    if (dropped) add(dropped->item, dropped->quantity, dropped->weapon, center, velocity,
+        glm::normalize(glm::quat_cast(glm::mat3(glm::inverse(camera.view())))));
+    inventory = std::move(candidateInventory);
+    weapons = std::move(candidateWeapons);
+    remove(index);
+    return true;
 }
 void GroundItems::removeBelow(float cutoffY) {
     for (std::size_t i = 0; i < entries_.size();)

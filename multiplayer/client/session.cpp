@@ -70,6 +70,8 @@ struct Input {
     bool equipmentCursor = false, equipmentGripHeld = false;
     bool leftPressed = false, rightPressed = false, leftHeld = false;
     bool rightHeld = false, wheelOpen = false, signalMouseSuppressed = false;
+    bool throwHeld = false, throwPressed = false, suppressThrowUntilRelease = false;
+    bool holdingProp = false;
     bool cancelInteraction = false; // Preserve cancellation even between outgoing commands.
     std::array<bool, 2> altHeld{};
     glm::vec2 wheelOffset{0}; // Design dp; same scale as the shared HUD.
@@ -92,6 +94,12 @@ struct Input {
     double lastX = 0, lastY = 0;
     glm::vec2 drag{0};
     std::uint8_t slot = 0;
+    std::optional<std::pair<std::uint64_t, std::uint8_t>> groundSlotRequest;
+    void acknowledgeGroundSlot(const multiplayer::PlayerState& player) {
+        if (!groundSlotRequest || player.resolved < groundSlotRequest->first || player.inventoryDragging) return;
+        if (slot == groundSlotRequest->second) slot = player.slot;
+        groundSlotRequest.reset();
+    }
     bool temporaryHandling() const {
         return (capture || equipmentCursor) && !driver.occupied() && equippedSlot != viewer::handlingSlot && (altHeld[0] || altHeld[1]);
     }
@@ -107,6 +115,7 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
     in.hudScreen = screen;
     in.suppressLeftUntilRelease |= in.leftHeld;
     in.suppressRightUntilRelease |= in.rightHeld;
+    in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
     in.firstMouse = true; in.drag = {};
     in.cancelSignal();
     in.actionSelection.close();
@@ -117,6 +126,9 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
 }
 void key(GLFWwindow* window, int code, int, int action, int) {
     auto& in = input(window);
+    if (code == GLFW_KEY_F && action == GLFW_RELEASE) {
+        in.throwHeld = false; in.suppressThrowUntilRelease = false;
+    }
     if (in.inSleepSession && in.hudScreen != viewer::HudScreen::MissionMenu &&
         code != GLFW_KEY_TAB && code != GLFW_KEY_HOME && code != GLFW_KEY_ESCAPE) return;
     if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) {
@@ -127,6 +139,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
             in.cancelInteraction = true;
             in.suppressLeftUntilRelease |= in.leftHeld;
             in.suppressRightUntilRelease |= in.rightHeld;
+            in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
             in.leftPressed = in.rightPressed = in.reload = false;
             in.drag = {}; in.actionSelection.close();
             if (in.temporaryHandling()) while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
@@ -157,6 +170,20 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
+    if (code == GLFW_KEY_F && action == GLFW_PRESS && (in.capture || in.equipmentCursor) &&
+        !in.driver.occupied() && !in.wheelOpen && !in.actionSelection.open() &&
+        !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot) {
+        if (in.handling()) { in.throwHeld = true; in.throwPressed = true; }
+        else in.inventoryActions.push_back({viewer::InventoryDragActionKind::DiscardEquipped, "", ""});
+        return;
+    }
+    if ((code == GLFW_KEY_G || code == GLFW_KEY_H) && (in.capture || in.equipmentCursor) &&
+        !in.driver.occupied() && !in.wheelOpen && !in.actionSelection.open() &&
+        !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot) {
+        in.inventoryActions.push_back({code == GLFW_KEY_G ? viewer::InventoryDragActionKind::PickUpBackpack :
+            viewer::InventoryDragActionKind::EquipGround, "", ""});
+        return;
+    }
     if (code == GLFW_KEY_TAB) {
         in.equipmentCursor = in.capture; in.capture = !in.capture;
         if (in.equipmentCursor) in.equipmentGripHeld = in.handling() && in.leftHeld;
@@ -200,6 +227,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         in.cancelSignal();
         in.suppressLeftUntilRelease |= in.leftHeld;
         in.suppressRightUntilRelease |= in.rightHeld;
+        in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
         in.actionSelection.close();
         in.leftPressed = in.rightPressed = false;
@@ -233,7 +261,8 @@ void mouse(GLFWwindow* window, double x, double y) {
     }
     const bool meleeDrag = viewer::directionalMeleeSlot(in.equippedSlot) && in.leftHeld && !in.suppressLeftUntilRelease &&
         !in.handling() && !in.driver.occupied() && !in.weaponSwitching && !in.actionSelection.open();
-    if (!meleeDrag) in.camera.look(dx, dy);
+    const bool rotateGrip = in.handling() && in.holdingProp && in.rightHeld && !in.suppressRightUntilRelease;
+    if (!meleeDrag && !rotateGrip) in.camera.look(dx, dy);
     in.drag = glm::clamp(in.drag + glm::vec2(dx, dy), glm::vec2(-2000), glm::vec2(2000));
 }
 void button(GLFWwindow* window, int buttonCode, int action, int) {
@@ -245,7 +274,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT) {
         in.rightHeld = action == GLFW_PRESS;
         if (action == GLFW_RELEASE) in.suppressRightUntilRelease = false;
-        else if (!in.capture || in.driver.occupied() || in.wheelOpen || in.signalMouseSuppressed ||
+        else if ((!in.capture && !in.equipmentCursor) || in.driver.occupied() || in.wheelOpen || in.signalMouseSuppressed ||
                  in.hudScreen != viewer::HudScreen::Gameplay ||
                  in.weaponSwitching || in.weaponReloading || in.slot != in.equippedSlot)
             in.suppressRightUntilRelease = true;
@@ -256,6 +285,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
             in.wheelOpen = true; in.wheelOffset = {}; in.drag = {};
             in.actionSelection.close();
             in.leftPressed = in.rightPressed = in.reload = false;
+            in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
             in.signalMouseSuppressed = true;
         } else if (action == GLFW_RELEASE && in.wheelOpen) {
             if (const auto page = viewer::commandWheelPageSelection(in.wheelOffset)) showHudScreen(window, *page);
@@ -316,6 +346,7 @@ void focus(GLFWwindow* window, int focused) {
         auto& in = input(window); in.cancelInteraction = true; in.capture = false; in.equipmentCursor = false; in.firstMouse = true;
         in.altHeld.fill(false);
         in.cancelSignal(); in.rightHeld = false;
+        in.throwHeld = in.throwPressed = in.suppressThrowUntilRelease = false;
         in.actionSelection.close();
         if (in.hud) in.hud->cancelPointerInteraction();
         in.drag = {}; in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
@@ -436,6 +467,9 @@ struct Graphics {
 multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds, float swayScale = 1) {
     multiplayer::Command c;
     c.inventoryActions.swap(in.inventoryActions);
+    c.preserveEquippedSlot = in.groundSlotRequest.has_value() || std::any_of(c.inventoryActions.begin(), c.inventoryActions.end(),
+        [](const auto& action) { return action.kind == viewer::InventoryDragActionKind::EquipGround ||
+            action.kind == viewer::InventoryDragActionKind::DiscardEquipped; });
     c.sleepAction = std::exchange(in.sleepAction, std::nullopt);
     c.removeMapMark = std::exchange(in.removeMapMark, 0);
     const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling(), swayScale);
@@ -452,6 +486,11 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
             // Preserve a pre-existing world grip until the drawer has routed
             // its release to storage or ground on the rendering thread.
             c.left = in.equipmentGripHeld; c.drag = in.drag; in.drag = {};
+            const bool handling = in.handling() && !c.cancelInteraction && !in.weaponSwitching &&
+                !in.weaponReloading && in.slot == in.equippedSlot;
+            c.right = handling && in.rightHeld && !in.suppressRightUntilRelease;
+            c.throwHeld = handling && !in.suppressThrowUntilRelease && (in.throwPressed || in.throwHeld);
+            in.throwPressed = false;
         }
         return c;
     }
@@ -472,6 +511,9 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     c.right = !in.driver.occupied() && !c.cancelInteraction && !in.suppressRightUntilRelease && !in.wheelOpen && !in.signalMouseSuppressed &&
         !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot && (in.handling() || in.canThrowGrenade) &&
         (in.rightPressed || in.rightHeld);
+    c.throwHeld = in.handling() && !in.driver.occupied() && !c.cancelInteraction && !in.suppressThrowUntilRelease &&
+        !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot && (in.throwPressed || in.throwHeld);
+    in.throwPressed = false;
     in.leftPressed = in.rightPressed = false;
 #endif
     return c;
@@ -634,6 +676,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 if (in.inSleepSession && !wasResting) {
                     in.equipmentGripHeld = false; in.cancelInteraction = true; in.drag = {};
                     in.suppressLeftUntilRelease |= in.leftHeld; in.suppressRightUntilRelease |= in.rightHeld;
+                    in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
                     in.firstMouse = true;
                 }
                 if (in.inSleepSession) {
@@ -657,6 +700,11 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     if (ready && p.damageEvents > ownState.damageEvents) lastDamageSeconds = now;
 #endif
                     if (!ready || p.slot != ownState.slot || p.vehicle != ownState.vehicle || p.seat != ownState.seat) {
+                        if (ready && p.slot != ownState.slot) {
+                            in.suppressLeftUntilRelease |= in.leftHeld;
+                            in.suppressRightUntilRelease |= in.rightHeld;
+                            in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
+                        }
                         if (!weaponDefinitions.equip(p.slot))
                             throw std::runtime_error("Server equipped an unavailable weapon");
                         while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
@@ -665,6 +713,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.canScope = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.hasScope;
                     in.canThrowGrenade = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.grenade.has_value();
                     in.equippedSlot = p.slot;
+                    in.acknowledgeGroundSlot(p);
+                    in.holdingProp = p.holdingProp;
                     in.weaponSwitching = p.weaponSwitchRemaining > 0;
                     in.weaponReloading = p.reloadRemaining > 0;
                     if (in.weaponSwitching) while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
@@ -675,6 +725,9 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                         in.suppressLeftUntilRelease = true;
                     if ((in.weaponSwitching || in.weaponReloading) && in.rightHeld)
                         in.suppressRightUntilRelease = true;
+                    if ((in.weaponSwitching || in.weaponReloading) && in.throwHeld) {
+                        in.suppressThrowUntilRelease = true; in.throwPressed = false;
+                    }
 #ifdef MP_GRAPHICS
                     graphics.weaponFeedback.reconcile(p);
                     ownStateReceivedAt = now;
@@ -683,7 +736,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     const bool walking=p.vehicle==multiplayer::noVehicle && ownState.vehicle==multiplayer::noVehicle;
                     in.driver.followCar(p.vehicle==multiplayer::noVehicle?std::optional<std::size_t>{}:p.vehicle,
                                         *scene.vehicles,in.camera,p.seat==multiplayer::noVehicleSeat?0:p.seat);
-                    if (in.driver.occupied()) in.cancelSignal();
+                    if (in.driver.occupied()) {
+                        in.cancelSignal();
+                        in.suppressThrowUntilRelease |= in.throwHeld; in.throwPressed = false;
+                    }
                     ownState=p; found=true;
                     bool inventoryIdle = !p.inventoryDragging && in.inventoryActions.empty() && p.resolved >= lastInventoryCommand;
 #ifdef MP_GRAPHICS
@@ -821,6 +877,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 const auto movement = prediction.controller().feet() - previousFeet;
                 playerSpeed = glm::length(glm::vec2(movement.x, movement.z)) / multiplayer::tickSeconds;
                 if (!predicted.inventoryActions.empty()) lastInventoryCommand = predicted.sequence;
+                for (const auto& action : predicted.inventoryActions)
+                    if (action.kind == viewer::InventoryDragActionKind::EquipGround ||
+                        action.kind == viewer::InventoryDragActionKind::DiscardEquipped)
+                        in.groundSlotRequest = {{predicted.sequence, predicted.slot}};
 #ifdef MP_GRAPHICS
                 graphics.speedMetersPerSecond = playerSpeed;
                 // Fresh prediction only: reconciliation replays must stay silent.
@@ -1019,7 +1079,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 }
                 if (in.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
                 else if (in.handling())
-                    hudState.prompt = "Hold left: drag; release left: drop; hold right: throw / push";
+                    hudState.prompt = "Hold left: drag; right-drag: rotate; F: throw; G: backpack; H: equip";
                 else if (birds.ready() && ownState.health>0)
                     for (const auto& flock:birds.simulation().state().flocks)
                         if (flock.control.mode==viewer::boid::Mode::gathering || flock.control.mode==viewer::boid::Mode::swooping) {

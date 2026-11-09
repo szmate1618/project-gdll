@@ -15,6 +15,7 @@ void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& door
         objects_.cancel(); doors_.release();
         return;
     }
+    if (hand == Hand::Right) { objects_.endRotation(); return; }
     if (!chargeStarted_) return;
     const double duration = seconds - *chargeStarted_;
     chargeStarted_.reset();
@@ -51,7 +52,9 @@ void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& door
 bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
                               const CollisionWorld& world, double seconds) {
     if (!std::isfinite(seconds)) return false;
-    if (hand == Hand::Right) {
+    if (hand == Hand::Right) return !charging() && objects_.beginRotation(camera);
+    if (hand == Hand::Throw) {
+        objects_.endRotation();
         if (!chargeStarted_) { chargeStarted_ = seconds; chargingGrip_ = grabbing(); }
         return true;
     }
@@ -62,15 +65,20 @@ bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors,
     return objects_.press(camera, boxes, world);
 }
 void PlayerInteraction::look(Camera& camera, float dx, float dy) {
-    objects_.moveMouse(dx, dy);
+    if (rotating()) { objects_.rotateMouse(dx, dy); return; }
+    moveGrip(dx, dy);
     if (doors_.grabbing()) doors_.look(camera, dx, dy);
     else camera.look(dx, dy);
+}
+void PlayerInteraction::moveGrip(float dx, float dy) {
+    if (rotating()) objects_.rotateMouse(dx, dy);
+    else objects_.moveMouse(dx, dy);
 }
 void PlayerInteraction::update(const Camera& camera, float dt, DoorLayer& doors, BoxLayer& boxes,
                                const CollisionWorld& world, double seconds) {
     doors_.update(camera, dt);
     objects_.update(camera, dt);
     if (chargeStarted_ && std::isfinite(seconds) && seconds - *chargeStarted_ >= throwChargeSeconds)
-        release(Hand::Right, camera, doors, boxes, world, seconds);
+        release(Hand::Throw, camera, doors, boxes, world, seconds);
 }
 } // namespace viewer

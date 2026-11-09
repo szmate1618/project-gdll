@@ -391,12 +391,12 @@ void printHelp() {
     std::cout << "Usage: godollo_viewer [model.glb|model.gltf] [options]\n"
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
-              << "Slot 0 or held Alt: Object handling; hold left to drag, release to drop; hold right to charge throw/push\n"
-              << "Object handling: mouse moves the held object; WASD moves the grip; right click also pushes objects within reach\n"
-              << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
+              << "Slot 0 or held Alt: Object handling; hold left to drag, release to drop; right-drag rotates the held object\n"
+              << "Object handling: mouse moves the held object; WASD moves the grip; F charges a throw or pushes objects within reach\n"
+              << "Tap F to drop; hold F and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov, 8 Sword, 9 Axe; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape mission menu\n\n"
+              << "Alt handling / vehicle camera, Tab Sleep/Inventory cursor, Home cursor, wheel preview action, F throw, G pick up into backpack, H pick up and equip, L toggle flashlight, End frame model, Escape mission menu\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Settings, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
@@ -597,6 +597,11 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             app.driver.toggleThirdPerson(*app.cars, app.rig.camera(), app.world);
         return;
     }
+    if (key == GLFW_KEY_F && action == GLFW_RELEASE && app.doors && app.boxes) {
+        app.interaction.release(viewer::Hand::Throw, app.rig.camera(), *app.doors, *app.boxes,
+            app.world, viewer::SimulationClock::instance().seconds());
+        return;
+    }
     if (action != GLFW_PRESS) return;
     if (app.hudScreen == viewer::HudScreen::MissionMenu) {
         if (key == GLFW_KEY_ESCAPE && app.hud && app.hud->cancelMissionConfirmation()) return;
@@ -665,17 +670,25 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_HOME) captureMouse(window, !app.capture);
-    else if (key == GLFW_KEY_F && app.capture && app.groundItems) {
-        if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
-        if (app.groundItems->discard(app.weapons,app.inventory,app.rig.camera(),app.world,app.playerVelocity)) {
+    else if (key == GLFW_KEY_F && (app.capture || app.equipmentCursor)) {
+        if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
+        if (app.handling()) {
+            if (app.doors && app.boxes)
+                app.interaction.press(viewer::Hand::Throw, app.rig.camera(), *app.doors, *app.boxes,
+                    app.world, viewer::SimulationClock::instance().seconds());
+        } else if (app.groundItems && app.groundItems->discard(app.weapons,app.inventory,app.rig.camera(),app.world,app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Discarded weapon | " << app.weapons.status() << '\n';
         }
-    } else if (key == GLFW_KEY_G && app.capture && app.groundItems) {
-        if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
-        if (app.groundItems->pickUp(app.weapons,app.inventory,app.rig.camera(),app.world)) {
+    } else if (key == GLFW_KEY_G && (app.capture || app.equipmentCursor) && app.groundItems) {
+        if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
+        if (app.handInventory.pickUp(app.interaction, *app.groundItems, app.weapons, app.rig.camera(), app.world))
+            std::cout << "Stored item in backpack | " << app.weapons.status() << '\n';
+    } else if (key == GLFW_KEY_H && (app.capture || app.equipmentCursor) && app.groundItems) {
+        if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
+        if (app.handInventory.equip(app.interaction, *app.groundItems, app.weapons, app.rig.camera(), app.world, app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
-            std::cout << "Picked up weapon | " << app.weapons.status() << '\n';
+            std::cout << "Equipped picked up weapon | " << app.weapons.status() << '\n';
         }
     } else if (key == GLFW_KEY_L) {
         app.flashlight = !app.flashlight;
@@ -736,6 +749,15 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
         app.weapons.secondaryTrigger(false, viewer::SimulationClock::instance().seconds());
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
+        if (app.hudScreen == viewer::HudScreen::Gameplay && app.equipmentCursor && app.handling() &&
+            button == GLFW_MOUSE_BUTTON_RIGHT && app.doors && app.boxes) {
+            if (action == GLFW_PRESS)
+                app.interaction.press(viewer::Hand::Right, app.rig.camera(), *app.doors, *app.boxes,
+                    app.world, viewer::SimulationClock::instance().seconds());
+            else if (action == GLFW_RELEASE)
+                app.interaction.release(viewer::Hand::Right, app.rig.camera(), *app.doors, *app.boxes,
+                    app.world, viewer::SimulationClock::instance().seconds());
+        }
         double x, y; glfwGetCursorPos(window, &x, &y);
         hudPointer(window, app.hud, x, y);
         if (app.hud) app.hud->pointerButton(button, action == GLFW_PRESS);
@@ -1032,11 +1054,12 @@ void inputSelfTest(GLFWwindow* window) {
         key(window,GLFW_KEY_F,0,GLFW_RELEASE,0);
         if (app.groundItems->count()!=before+1 || app.weapons.equip(originalWeapons.slot()))
             throw std::runtime_error("F must discard one weapon and remove its inventory ownership");
-        key(window,GLFW_KEY_G,0,GLFW_PRESS,0);
-        key(window,GLFW_KEY_G,0,GLFW_RELEASE,0);
+        app.weapons.equip(viewer::handlingSlot);
+        key(window,GLFW_KEY_H,0,GLFW_PRESS,0);
+        key(window,GLFW_KEY_H,0,GLFW_RELEASE,0);
         if (app.groundItems->count()!=before || app.weapons.slot()!=originalWeapons.slot() ||
             app.weapons.equipped().loaded!=originalWeapons.equipped().loaded || app.flashlight!=originalFlashlight)
-            throw std::runtime_error("G must recover the weapon and ammunition without toggling the flashlight");
+            throw std::runtime_error("H must recover and equip the weapon and ammunition without toggling the flashlight");
         app.rig.camera() = original;
     }
     const bool wasWalking = app.rig.walking();
@@ -1245,6 +1268,35 @@ void inputSelfTest(GLFWwindow* window) {
             shot.weapons.grenadeThrowPower() != 0 || !shot.actionSelection.open() || shot.weapons.slot() != 4)
             throw std::runtime_error("Right-click must drop a grenade while leaving the hotbar selector open");
     }
+    {
+        viewer::Model fixture;
+        fixture.boundsMin = {-5, 0, -5}; fixture.boundsMax = {5, 3, 5};
+        viewer::CollisionWorld world(fixture);
+        auto physics = std::make_shared<viewer::PhysicsWorld>();
+        viewer::BoxLayer boxes(physics); boxes.add({0, 1.5f, 0}, glm::vec3(.4f));
+        viewer::DoorLayer doors({}, physics);
+        AppState handling(world, fixture); handling.boxes = &boxes; handling.doors = &doors;
+        handling.weapons.equip(viewer::handlingSlot);
+        handling.rig.camera().setPosition({0, 1.5f, 1}); handling.rig.camera().setOrientation(-90, 0);
+        if (!handling.interaction.grip(handling.rig.camera(), boxes, boxes.prop(0)))
+            throw std::runtime_error("Could not grip the rotation input fixture");
+        glfwSetWindowUserPointer(window, &handling);
+        const auto view = handling.rig.camera().view();
+        mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+        cursor(window, 100, 100); cursor(window, 160, 125);
+        if (!handling.interaction.rotating() || handling.interaction.charging() || handling.rig.camera().view() != view)
+            throw std::runtime_error("Right-drag must rotate the prop while keeping the camera still");
+        key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+        mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+        if (handling.interaction.rotating() || !handling.interaction.grabbing())
+            throw std::runtime_error("Right release with the equipment cursor must preserve the grip");
+        key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
+        if (!handling.interaction.charging()) throw std::runtime_error("F must charge with the equipment cursor active");
+        key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
+        if (handling.interaction.charging() || handling.interaction.grabbing())
+            throw std::runtime_error("A quick F tap must release the physical grip");
+        glfwSetWindowUserPointer(window, &app);
+    }
     app.weapons.equip(viewer::handlingSlot);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     if (app.capture || !app.equipmentCursor || app.weapons.slot() != viewer::handlingSlot)
@@ -1252,9 +1304,17 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     if (!app.capture || app.equipmentCursor) throw std::runtime_error("Tab must recapture the cursor");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    if (app.interaction.charging()) throw std::runtime_error("Object handling right click must not charge a throw");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Object handling right click changed zoom");
+    if (app.doors && app.boxes) {
+        key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
+        key(window, GLFW_KEY_F, 0, GLFW_REPEAT, 0);
+        if (!app.interaction.charging()) throw std::runtime_error("Object handling F must charge a throw or push");
+        key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
+        if (app.interaction.charging()) throw std::runtime_error("Releasing F must end the throw charge");
+    }
     app.weapons.equip(0);
     const auto cameraBeforeAlt = app.rig.camera();
     for (int code : {GLFW_KEY_LEFT_ALT, GLFW_KEY_RIGHT_ALT}) {
@@ -1812,7 +1872,7 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Settings, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "C")
-              << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, End frame scene, Alt handling / vehicle camera, Home cursor, Escape mission menu\n";
+              << " toggle prone, mouse look, F throw, G pick up into backpack, H pick up and equip, L flashlight, End frame scene, Alt handling / vehicle camera, Home cursor, Escape mission menu\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
     for (std::size_t i=0; i<droppedModels.size(); ++i)
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
@@ -2276,9 +2336,9 @@ int run(const Options& options) {
         hudState.reloadRemaining = app.weaponReload.remaining(simulationClock.seconds());
         hudState.reloadDuration = app.weaponReload.duration();
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
-        else if (app.interaction.charging()) hudState.prompt = "Release right mouse: throw / push";
-        else if (app.interaction.grabbing()) hudState.prompt = "Release left: drop; hold right: throw";
-        else if (app.handling()) hudState.prompt = "Hold left: drag; right click / hold: push";
+        else if (app.interaction.charging()) hudState.prompt = "Release F: throw / push";
+        else if (app.interaction.grabbing()) hudState.prompt = "Right-drag: rotate; F: throw; G: backpack; H: equip";
+        else if (app.handling()) hudState.prompt = "Hold left: drag; F: push; G: backpack; H: equip";
         else if (birds && app.rig.walking() && app.vitals.health() > 0) {
             for (const auto& flock : birds->flocks()) {
                 if (flock.mode == viewer::BirdFlockMode::gathering || flock.mode == viewer::BirdFlockMode::swooping) {

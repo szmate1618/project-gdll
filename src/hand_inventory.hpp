@@ -14,6 +14,10 @@ public:
     void update(double dt, const Camera& camera, PlayerInteraction& interaction,
                 BoxLayer& boxes, GroundItems& ground, Weapons& weapons, const CollisionWorld& collision);
     bool store(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons);
+    bool pickUp(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
+                const Camera& camera, const CollisionWorld& collision);
+    bool equip(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
+               const Camera& camera, const CollisionWorld& collision, glm::vec3 velocity);
     void release(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons);
     bool active() const { return !item_.empty(); }
     double remaining() const { return remaining_; }
