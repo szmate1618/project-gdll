@@ -1,12 +1,13 @@
 # Vehicle asset preparation
 
-All 14 requested models were downloaded from the official Sketchfab download API.
+The original 14 models were downloaded from the official Sketchfab download API;
+the Japanese kei truck was added from the user's official Sketchfab glTF ZIP.
 Both the listing metadata and the bundled license files specify **CC BY 4.0**.
 All pass the commercial-use-and-modification license filter; none were excluded.
 Preserve the [author credits and modification notice](CREDITS.md) when distributing
 assets or derivatives. License evidence is in `license-audit/` and [sources.json](sources.json).
 
-The Fiat archive contains three complete variants, so there are 16 prepared vehicles.
+The Fiat archive contains three complete variants, so there are 17 prepared vehicles.
 The default budget is 999 triangles. Following approval to increase the budget where
 it improves quality, the Corsa, three Fiats, Passat and Swift allow up to 1,500.
 Models already below budget retain their geometry.
@@ -33,12 +34,15 @@ display scale. The third view overlays triangle edges.
 | Volkswagen Passat B8 | 12,598 | 1,473 | 1,500 | [View](comparisons/volkswagen-passat-b8.png) |
 | Suzuki Swift 2024 | 21,743 | 1,499 | 1,500 | [View](comparisons/suzuki-swift-2024.png) |
 | Skoda Octavia 2001 | 4,842 | 996 | 999 | [View](comparisons/skoda-octavia-2001.png) |
+| Japanese kei truck (1990s) | 638 | 638 | 999 | [View](comparisons/japanese-kei-truck-1990s.png) |
 
 Counts are measured from actual triangle primitives, including each active scene
 instance. Ford Focus has 608 downloaded triangles versus 612 listed; Corsa has
 11,637 versus 11,712 listed; Passat has 12,598 versus 12,623 listed. The Fiat
 variants total 11,944 downloaded triangles. [preparation.json](preparation.json)
-records output paths, triangle budgets and SHA-256 hashes.
+records output paths, triangle budgets and SHA-256 hashes. The truck's downloaded
+glTF has 1,914 indices (638 triangles), versus 644 on the listing; no triangles
+were removed from its near mesh.
 
 Originals are `models/<name>-original.glb`. Selected outputs are recorded in
 `preparation.json`: `-under-1000.glb` for the default budget, and `-optimized.glb`
@@ -171,8 +175,16 @@ Portable asset ZIPs include only the active LoD publication, its source checksum
 and required credit files. The basic Linux/Windows application packages continue
 to obtain these optional visual assets from a separately supplied asset pack.
 
+The truck has two cab seats and side entries, a 710 kg empty mass reference, and
+a forward cabin collider that leaves the bed open above the lower body. Its LoDs
+contain 638/464/432/408 triangles. Its source has an opaque, double-sided exterior
+and no authored interior. The `single_sided` setting enables backface culling on
+its runtime derivatives so seated players can see out through the painted windows;
+the downloaded source and selected source GLB remain unchanged. Imported wheels
+retain the same static visual treatment as the other cars.
+
 `viewer_vehicle_lod` tests policy and stale/invalid publications without a GPU.
-`viewer_vehicle_lod_renderer` loads all 16 types when the local cache exists,
+`viewer_vehicle_lod_renderer` loads all 17 types when the local cache exists,
 checks distance/zoom/occupied selection and GL state, writes per-type captures,
 and checks moving/parked spatial bounds in a 1,000-car population. It also records
 a 192-car diagnostic in `build/vehicle-asset-check/vehicle-lod-renderer/`.

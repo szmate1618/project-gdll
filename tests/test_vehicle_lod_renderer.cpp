@@ -61,6 +61,13 @@ void run(const std::filesystem::path& models,const std::filesystem::path& config
         renderer.setSkipHighestDetail(false); renderer.render(camera);
         require(renderer.vehicleStats().levels[0]==1,"Disabling the restriction must restore car LOD0");
         renderer.writeScreenshot(output/(type.id+".ppm"));
+        if (type.id == "japanese_kei_truck_1990s") {
+            const auto eye = car.pose(0).chassis.center + type.seats[0].eyePosition;
+            lookAt(camera,eye,eye+glm::vec3(0,0,-10));
+            renderer.updateVehicles(car,0); renderer.render(camera);
+            renderer.writeScreenshot(output/"kei-truck-driver.ppm");
+            renderer.updateVehicles(car);
+        }
         const float distances[]{30,70,140};
         for(std::size_t level=1;level<4;++level) {
             lookAt(camera,{0,2,-distances[level-1]},{0,1,0}); renderer.render(camera);
@@ -137,6 +144,15 @@ void run(const std::filesystem::path& models,const std::filesystem::path& config
     renderer.render(close);require(renderer.vehicleStats().boundsUpdated>0,"Simulated movement left stale render bounds");
     move(scattered,800,{1000,0,0});renderer.render(close);
     require(renderer.vehicleStats().drawCalls==0,"A car moved away but remained visible in the spatial index");
+    const auto truck = std::find_if(types.begin(),types.end(),[](const auto& type) { return type.id=="japanese_kei_truck_1990s"; });
+    if (truck != types.end()) {
+        viewer::VehicleLayer comparison(physics,types);
+        comparison.add({-2.1f,viewer::vehiclePivotHeight,0},0,0);
+        comparison.add({2.1f,viewer::vehiclePivotHeight,0},0,std::size_t(truck-types.begin()));
+        renderer.updateVehicles(comparison);
+        lookAt(camera,{6,3,-8},{0,.8f,0}); renderer.render(camera);
+        renderer.writeScreenshot(output/"kei-truck-scale.ppm");
+    }
     viewer::Renderer::checkErrors("vehicle fleet");
 }
 }
@@ -146,9 +162,10 @@ int main(int argc,char** argv) {
     if (argc==5) {
         if (std::string(argv[4])!="--cpu-only") return 1;
         try {
-            for (const auto& type : viewer::loadVehicleConfigs(argv[2]))
+            const auto types = viewer::loadVehicleConfigs(argv[2]);
+            for (const auto& type : types)
                 require(viewer::loadVehicleLods(argv[1],type.id,&type).size()==4,"Prepared asset type failed validation");
-            std::cout<<"All 16 vehicle types and 64 LoDs match their configured fitting frames\n";
+            std::cout<<"All "<<types.size()<<" vehicle types and "<<types.size()*4<<" LoDs match their configured fitting frames\n";
             return 0;
         } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
     }

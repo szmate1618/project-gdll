@@ -1,0 +1,44 @@
+name = "Japanese kei truck (1990s)"
+seat_count = 2
+# Empty 1990 Acty 4WD SDX reference; generic stylized asset, not an exact replica.
+weight_kg = 710.0
+
+# Uniform length fit; measured mesh bounds include mirrors.
+# See assets/vehicles/DIMENSIONS.md for the reference and authored proportions.
+[dimensions]
+length_m = 3.2550
+width_m = 1.5171
+height_m = 1.4927
+
+# Forward cab leaves the open bed clear above the lower chassis collider.
+[cabin]
+center = [0.0, 0.3900, -1.0200]
+half_extents = [0.6220, 0.4220, 0.5580]
+
+# Chassis-local meters: X right, Y up, -Z forward; ground is Y=-0.68.
+# Tire centers and radius measured from the fitted eight-sided source wheels.
+[wheels]
+radius_m = 0.2780
+width_m = 0.1868
+front_left = [-0.5213, -0.4020, -0.9921]
+front_right = [0.5244, -0.4020, -0.9921]
+rear_left = [-0.5213, -0.4020, 1.0845]
+rear_right = [0.5244, -0.4020, 1.0845]
+
+[headlights]
+left = [-0.4300, -0.1200, -1.6000]
+right = [0.4300, -0.1200, -1.6000]
+
+# Front-left driver follows the game's shared seat convention.
+[[seats]]
+eye_position = [-0.2800, 0.5500, -0.9500]
+entry_position = [-0.8500, 0.5500, -0.8800]
+entry_radius = 1.3
+exit_position = [-1.4500, 0.4000, -0.8800]
+
+# Front-right passenger; no rear doors or seats in the cargo bed.
+[[seats]]
+eye_position = [0.2800, 0.5500, -0.9500]
+entry_position = [0.8500, 0.5500, -0.8800]
+entry_radius = 1.3
+exit_position = [1.4500, 0.4000, -0.8800]

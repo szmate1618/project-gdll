@@ -94,3 +94,12 @@ Current listing credit: [tonielpro520](https://sketchfab.com/tonielpro520).
 This work is based on "Skoda Octavia 2001 Low Poly Pixel Art" (https://sketchfab.com/3d-models/skoda-octavia-2001-low-poly-pixel-art-7f2a74dc21524af1a7d7a19faffbdfb8) by Kuutti Siitonen (https://sketchfab.com/kuuttisiitonen) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
 
 Current listing credit: [Kuutti Siitonen](https://sketchfab.com/kuuttisiitonen).
+
+## Japanese kei truck (1990s)
+
+This work is based on "Ps1 90s Japanese truck" (https://sketchfab.com/3d-models/ps1-90s-japanese-truck-bffd56034d8b45528fc7147dfeb6a51d) by Dorumin666 (https://sketchfab.com/Dorumin666) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+
+Modifications: packed the official glTF into GLB, applied a uniform real-length
+fit and 180-degree yaw correction, generated four mesh/texture LoDs, and made the
+runtime exterior single-sided for visibility from the seated camera. The original
+archive, textures and notices are retained unchanged. No detailed interior was added.

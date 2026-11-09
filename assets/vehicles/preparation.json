@@ -259,6 +259,22 @@
       "before": 4842,
       "after": 996,
       "simplified": true
+    },
+    {
+      "slug": "japanese-kei-truck-1990s",
+      "name": "Japanese Kei Truck 1990s",
+      "source_slug": "japanese-kei-truck-1990s",
+      "author": "Dorumin666",
+      "source_url": "https://sketchfab.com/3d-models/ps1-90s-japanese-truck-bffd56034d8b45528fc7147dfeb6a51d",
+      "triangle_budget": 999,
+      "original_glb": "models/japanese-kei-truck-1990s-original.glb",
+      "output_glb": "models/japanese-kei-truck-1990s-under-1000.glb",
+      "comparison": "comparisons/japanese-kei-truck-1990s.png",
+      "original_sha256": "61d0cc096a8d18a86500ff82b3531fc766c174d0a17a938e6f9e9ca77ffb34de",
+      "output_sha256": "61d0cc096a8d18a86500ff82b3531fc766c174d0a17a938e6f9e9ca77ffb34de",
+      "before": 638,
+      "after": 638,
+      "simplified": false
     }
   ]
 }

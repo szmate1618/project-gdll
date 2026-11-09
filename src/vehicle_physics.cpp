@@ -26,6 +26,12 @@ glm::vec3 fittedCenter(glm::vec3 center, const VehicleConfig& config) {
     return (center + glm::vec3(0, vehiclePivotHeight, 0)) * bodyScale(config) - glm::vec3(0, vehiclePivotHeight, 0);
 }
 glm::vec3 activeHalf(const VehicleConfig& config) { return glm::vec3(.85f, .325f, 1.8f) * bodyScale(config); }
+glm::vec3 cabinPosition(const VehicleConfig& config) {
+    return config.cabin ? config.cabin->center : fittedCenter(cabinCenter, config);
+}
+glm::vec3 cabinSize(const VehicleConfig& config) {
+    return config.cabin ? config.cabin->halfExtents : cabinHalf * bodyScale(config);
+}
 }
 VehiclePhysics::VehiclePhysics(PhysicsWorld& w, const VehicleConfig& c, glm::vec3 center, glm::quat orientation)
     : world(w), config(c) {
@@ -75,18 +81,17 @@ void VehiclePhysics::replaceBoxes(bool active) {
         // The cabin participates in contacts without changing the tuned chassis
         // mass/inertia or the suspension's weight budget.
         shape.density = 0;
-        const auto cabinSize = cabinHalf * scale;
-        const auto cabin = b3MakeOffsetBoxHull(cabinSize.x, cabinSize.y, cabinSize.z,
-                                               vector(fittedCenter(cabinCenter, config)));
+        const auto size = cabinSize(config);
+        const auto cabin = b3MakeOffsetBoxHull(size.x, size.y, size.z, vector(cabinPosition(config)));
         boxes[1] = b3CreateHullShape(body, &shape, &cabin.base);
         // Preserve the original lowered center of mass and unconstrained tilt.
         auto mass = b3Body_GetMassData(body);
         mass.center.y = -.18f * scale.y;
         b3Body_SetMassData(body, mass);
     } else {
-        const auto lowerSize = lowerHalf * scale, cabinSize = cabinHalf * scale;
+        const auto lowerSize = lowerHalf * scale, size = cabinSize(config);
         const auto lower = b3MakeOffsetBoxHull(lowerSize.x, lowerSize.y, lowerSize.z, vector(fittedCenter(lowerCenter,config)));
-        const auto cabin = b3MakeOffsetBoxHull(cabinSize.x, cabinSize.y, cabinSize.z, vector(fittedCenter(cabinCenter,config)));
+        const auto cabin = b3MakeOffsetBoxHull(size.x, size.y, size.z, vector(cabinPosition(config)));
         boxes[0] = b3CreateHullShape(body, &shape, &lower.base);
         boxes[1] = b3CreateHullShape(body, &shape, &cabin.base);
     }
@@ -171,8 +176,8 @@ VehiclePose VehiclePhysics::pose(std::size_t index) const {
 BoxPose VehiclePhysics::collider(std::size_t index, std::size_t part) const {
     const auto q = rotation(body);
     if (detailed && part == 0) return {index, position(body), activeHalf(config), q};
-    return {index, position(body) + q * fittedCenter(part == 0 ? lowerCenter : cabinCenter,config),
-            (part == 0 ? lowerHalf : cabinHalf) * bodyScale(config), q};
+    return {index, position(body) + q * (part == 0 ? fittedCenter(lowerCenter,config) : cabinPosition(config)),
+            part == 0 ? lowerHalf * bodyScale(config) : cabinSize(config), q};
 }
 void VehiclePhysics::setPose(const VehiclePose& pose, glm::vec3 velocity) {
     const auto valid = [](glm::vec3 p, glm::quat q) {

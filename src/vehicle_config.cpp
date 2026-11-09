@@ -31,6 +31,17 @@ void validateVehicleConfig(const VehicleConfig& c) {
     for (int axis = 0; axis < 3; ++axis)
         if (!std::isfinite(c.dimensions[axis]) || c.dimensions[axis] < .5f || c.dimensions[axis] > 10)
             throw std::runtime_error("Invalid vehicle dimensions");
+    if (c.cabin) {
+        const auto minimum = c.cabin->center - c.cabin->halfExtents;
+        const auto maximum = c.cabin->center + c.cabin->halfExtents;
+        const glm::vec3 lower(-c.dimensions.x / 2, -vehiclePivotHeight, -c.dimensions.z / 2);
+        const glm::vec3 upper(c.dimensions.x / 2, c.dimensions.y - vehiclePivotHeight, c.dimensions.z / 2);
+        for (int axis = 0; axis < 3; ++axis)
+            if (!std::isfinite(c.cabin->center[axis]) || !std::isfinite(c.cabin->halfExtents[axis]) ||
+                c.cabin->halfExtents[axis] <= 0 || minimum[axis] < lower[axis] - .001f ||
+                maximum[axis] > upper[axis] + .001f)
+                throw std::runtime_error("Cabin must fit inside the vehicle dimensions");
+    }
     if (!std::isfinite(c.tireRadius) || c.tireRadius < .1f || c.tireRadius > 1 ||
         !std::isfinite(c.tireWidth) || c.tireWidth < .05f || c.tireWidth > .6f)
         throw std::runtime_error("Invalid tire dimensions");
@@ -72,6 +83,11 @@ VehicleConfig loadVehicleConfig(const std::filesystem::path& path) {
             c.tireWidth = static_cast<float>(required<double>(*wheels,"width_m"));
         }
         const char* wheelNames[]{"front_left","front_right","rear_left","rear_right"};
+        if (table.contains("cabin")) {
+            const auto* cabin = table["cabin"].as_table();
+            if (!cabin) throw std::runtime_error("Expected [cabin] table");
+            c.cabin = VehicleCabinConfig{vector(*cabin,"center"), vector(*cabin,"half_extents")};
+        }
         for (std::size_t i=0;i<4;++i) c.wheels[i]=vector(*wheels,wheelNames[i]);
         c.headlights={vector(*lights,"left"),vector(*lights,"right")};
         const auto count = required<std::int64_t>(table, "seat_count");

@@ -15,12 +15,53 @@ template<class F> void rejects(F run) {
     try { run(); } catch (const std::exception&) { rejected = true; }
     require(rejected, "Invalid vehicle config was accepted");
 }
+void truckEntryAndDriving(const viewer::VehicleConfig& config) {
+    require(config.seats.size() == 2 && config.cabin.has_value(), "Truck needs exactly two cab seats");
+    auto invalid = config; invalid.cabin->halfExtents.y = -1;
+    rejects([&] { viewer::validateVehicleConfig(invalid); });
+    invalid = config; invalid.cabin->center.z = 2;
+    rejects([&] { viewer::validateVehicleConfig(invalid); });
+    viewer::Model terrain; terrain.materials.push_back({});
+    interior_fixture::quad(terrain, {-80,0,-80}, {-80,0,80}, {80,0,80}, {80,0,-80}, "terrain");
+    interior_fixture::bounds(terrain); terrain.boundsMax.y = 8;
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(physics,{config}); cars.add({0,viewer::vehiclePivotHeight,0});
+    viewer::CollisionWorld world(terrain); world.setVehicles(&cars);
+    viewer::PhysicsScene scene(physics,world,terrain.boundsMin,terrain.boundsMax);
+    // The front cab blocks walking, while the open bed has no phantom sedan roof.
+    require(cars.overlaps({-.1f,1.1f,-1.1f},{.1f,1.3f,-.9f}), "Truck front cab has no parked collision");
+    require(!cars.overlaps({-.1f,1.1f,.8f},{.1f,1.3f,1.0f}), "Truck bed retained a sedan cabin collider");
+    require(!viewer::vehicleEntry(cars,{1.4f,1.7f,1.2f},world), "Cargo bed exposed a rear door entry");
+    viewer::CameraRig driverRig(world,terrain.boundsMin,terrain.boundsMax,1.5f);
+    viewer::CameraRig passengerRig(world,terrain.boundsMin,terrain.boundsMax,1.5f);
+    require(driverRig.enterWalking(glm::vec3(-1.4f,1.7f,-.88f)) && passengerRig.enterWalking(glm::vec3(1.4f,1.7f,-.88f)),
+            "Truck occupants could not stand beside the two doors");
+    viewer::VehiclePlayer driver, passenger;
+    require(passenger.toggle(cars,passengerRig,world) && passenger.seat()==1 && !cars.simulating(0),
+            "Truck passenger must enter without enabling suspension");
+    require(driver.toggle(cars,driverRig,world) && driver.driving(), "Truck driver door did not enable driving");
+    const auto tick = [&](int frames) {
+        for (int i=0;i<frames;++i) physics->step(1.f/60,[&](float seconds) {
+            viewer::prepareVehicleScene(cars,scene); cars.beforeStep(seconds);
+        });
+    };
+    tick(120);
+    const auto start = cars.pose(0).chassis.center;
+    cars.drive(0,1,0,false); tick(120);
+    require(cars.pose(0).chassis.center.z < start.z-4 && -cars.velocity(0).z > 3,
+            "Truck failed to drive forward on its configured tires and mass");
+    cars.drive(0,0,0,true); tick(240);
+    require(glm::length(cars.velocity(0)) < .3f, "Truck could not brake for exit");
+    require(passenger.toggle(cars,passengerRig,world) && !passenger.occupied(), "Truck passenger could not exit");
+    require(driver.toggle(cars,driverRig,world) && !driver.occupied(), "Truck driver could not exit");
+}
 }
 int main(int argc, char** argv) {
     try {
         require(argc == 2, "Fixture directory missing");
         const auto types = viewer::loadVehicleConfigs(TEST_VEHICLE_CONFIGS);
-        require(types.size() == 16 && types[0].id == "toyota_corolla_1999", "Missing car types or unstable default");
+        require(types.size() == 17 && types[0].id == "toyota_corolla_1999", "Missing car types or unstable default");
+        truckEntryAndDriving(viewer::loadVehicleConfig(std::filesystem::path(TEST_VEHICLE_CONFIGS) / "japanese_kei_truck_1990s.toml"));
         for (const auto& c : types) require(c.seats.size() <= 4 && c.seats.size() >= 1 && !c.name.empty(), "Invalid car seats/name");
         std::filesystem::create_directories(argv[1]);
         const auto path = std::filesystem::path(argv[1]) / "car.toml";

@@ -33,7 +33,7 @@ def write_report(report, root):
         sizes = ', '.join(str(i['width'])+'×'+str(i['height']) for i in row['source_textures']['images']) or 'none'
         counts = ' | '.join(str(l['triangles']) for l in row['levels'])
         text.append(f"| {row['name']} | {sizes} | {row['source_textures']['gpu_bytes']/2**20:.2f} | {counts} |")
-    text += ['', f"All 16 source variants: **{source:.2f} MiB**. Per-level runtime texture totals: " +
+    text += ['', f"All {len(rows)} source variants: **{source:.2f} MiB**. Per-level runtime texture totals: " +
              ', '.join(f"LOD{i} **{value:.2f} MiB**" for i,value in enumerate(levels)) + '.', '',
         f"The renderer lazily uploads a type when it first appears, sharing its meshes and textures among its cars. "
         f"All four levels of all types resident together use **{sum(levels):.2f} MiB** of texture storage. "
@@ -83,6 +83,11 @@ def main():
         with (args.vehicles / (config_id + '.toml')).open('rb') as stream:
             dimensions = tomllib.load(stream)['dimensions']
         doc, binary = chassis_model(doc, binary, settings['yaw_degrees'][row['slug']], dimensions['length_m'], settings['bottom_m'])
+        if row['slug'] in settings.get('single_sided', []):
+            # An opaque exterior shell must not obscure the seated camera from
+            # inside. Preserve downloaded originals and the outward-facing art.
+            for material in doc.get('materials', []):
+                material['doubleSided'] = False
         frame = doc['extras']['vehicle_frame']
         expected = [dimensions['width_m'], dimensions['height_m'], dimensions['length_m']]
         if not np.allclose(frame['dimensions'], expected, atol=.0002, rtol=0):

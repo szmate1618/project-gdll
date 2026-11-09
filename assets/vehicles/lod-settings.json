@@ -1,6 +1,7 @@
 {
   "version": 2,
   "bottom_m": -0.68,
+  "single_sided": ["japanese-kei-truck-1990s"],
   "yaw_degrees": {
     "toyota-corolla-1999": 180,
     "volkswagen-golf-v-2006": 180,
@@ -17,6 +18,7 @@
     "fiat-126p-maluch-tuned": -45,
     "volkswagen-passat-b8": -90,
     "suzuki-swift-2024": 180,
-    "skoda-octavia-2001": 180
+    "skoda-octavia-2001": 180,
+    "japanese-kei-truck-1990s": 180
   }
 }

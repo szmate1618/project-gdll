@@ -1,7 +1,7 @@
 # Vehicle definitions
 
 Each TOML file defines a car type, following the gameplay definitions in `storage/weapons/*.gameplay.toml`.
-There are 16 definitions for the downloaded car types, including the three Fiat
+There are 17 definitions for the downloaded vehicle types, including the three Fiat
 variants. The filename stem is its stable type name. Definitions are loaded once
 at startup; the default spawned car uses `toyota_corolla_1999.toml`.
 
@@ -11,6 +11,7 @@ at startup; the default spawned car uses `toyota_corolla_1999.toml`.
 | `seat_count` | Number of seats, from 1 to 4; must match the `[[seats]]` tables |
 | `weight_kg` | Total gameplay mass; the chassis uses this minus the four 25 kg wheels |
 | `[dimensions]` | `length_m` real-car fitting target; `width_m` and `height_m` measured fitted mesh bounds, including mirrors |
+| `[cabin]` (optional) | Chassis-local `center` and `half_extents` in meters for a cab-over vehicle; absent preserves the scaled sedan fit |
 | `[wheels].radius_m`, `width_m` | Per-type physical tire cylinder dimensions in meters |
 | `[wheels]` | `front_left`, `front_right`, `rear_left`, `rear_right` wheel centers |
 | `[headlights]` | `left` and `right` light-emitter positions |
@@ -82,3 +83,14 @@ map output, preserved locally and included with its map in portable asset ZIPs.
 Missing files use the nearby-car fallback; empty files disable it. Invalid or
 stale files fail with a diagnostic instead of silently loading another map's
 positions. The population limit is 1,024.
+
+## Japanese kei truck
+
+`japanese_kei_truck_1990s.toml` adds the generic 1990s flatbed to the normal seeded
+vehicle population in standalone and multiplayer. It is fitted to a 3.255 m
+reference length and weighs 710 kg empty; these are 1990 Acty 4WD SDX assumptions,
+not an identification of the model. The mesh retains its stylized width/height.
+It has exactly two cab seats and two side entry/exit points, with no cargo-bed
+seats. Seat 0 remains the front-left driver under the shared game convention.
+The explicit forward `[cabin]` moves its collider away from the open bed. Enter,
+WASD, Space braking and the existing third-person camera work as for other cars.

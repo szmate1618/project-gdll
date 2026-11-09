@@ -3,7 +3,7 @@
   "checked_on": "2026-10-24",
   "license_policy": "Commercial use and modification permitted; preserve attribution, license link and modification notice.",
   "triangle_count_source": "sources.json lists Sketchfab API faceCount; preparation.json records measured triangles from downloaded glTF and output GLBs, counting scene instances.",
-  "download_status": "All 14 official glTF archives downloaded and SHA-256 recorded; all bundled notices verified CC BY 4.0.",
+  "download_status": "All 15 official glTF archives downloaded and SHA-256 recorded; all bundled notices verified CC BY 4.0.",
   "models": [
     {
       "requested_name": "Toyota Corolla 1999",
@@ -481,6 +481,40 @@
         "source/skoda-octavia-2001/license.txt"
       ],
       "triangle_budget": 999
+    },
+    {
+      "requested_name": "Japanese Kei Truck 1990s",
+      "uid": "bffd56034d8b45528fc7147dfeb6a51d",
+      "api_url": "https://api.sketchfab.com/v3/models/bffd56034d8b45528fc7147dfeb6a51d",
+      "metadata_status": 200,
+      "checked_on": "2026-11-09",
+      "name": "Ps1 90s Japanese truck",
+      "author": "Dorumin666",
+      "author_url": "https://sketchfab.com/Dorumin666",
+      "url": "https://sketchfab.com/3d-models/ps1-90s-japanese-truck-bffd56034d8b45528fc7147dfeb6a51d",
+      "listed_triangles": 644,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "Made in Blender textured in Krita \n\ngive credit if use (I just wanna know if people use lel)",
+      "slug": "japanese-kei-truck-1990s",
+      "triangle_budget": 999,
+      "license_eligible": true,
+      "download_status": 200,
+      "archive_path": "downloads/japanese-kei-truck-1990s.zip",
+      "archive_bytes": 60209,
+      "archive_sha256": "d91a3f759b2614c6577ff95797cb53590c7f0f46037c57c4082fdcd0d91e0b6c",
+      "scene_path": "source/japanese-kei-truck-1990s/scene.gltf",
+      "bundled_notices": [
+        "source/japanese-kei-truck-1990s/license.txt"
+      ],
+      "download_method": "Official Sketchfab glTF ZIP downloaded by the user through Firefox"
     }
   ],
   "default_maximum_triangles": 999,

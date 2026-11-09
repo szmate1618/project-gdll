@@ -299,6 +299,44 @@ void passengerOnly(const Options& o) {
     world.leave(player);
     require(!scene.vehicles->simulating(0),"Passenger disconnect activated driving physics");
 }
+void keiTruck(const Options& o) {
+    Scene scene(o); openGround(scene);
+    std::size_t type = 0;
+    while (type < scene.vehicles->typeCount() && scene.vehicles->typeConfig(type).id != "japanese_kei_truck_1990s") ++type;
+    require(type < scene.vehicles->typeCount(), "Truck missing from shared vehicle catalog");
+    scene.vehicles->add({0,viewer::vehiclePivotHeight,0},0,type);
+    World world(scene);
+    std::vector<std::uint32_t> occupants;
+    for (std::size_t seat=0;seat<2;++seat) {
+        const auto box=scene.vehicles->pose(0).chassis;
+        auto point=scene.vehicles->config(0).seats[seat].entryPosition;
+        point.x += seat == 0 ? -.55f : .55f;
+        point.y = 1.7f-box.center.y;
+        scene.spawnEye=box.center+point-glm::vec3(float(seat),0,0);
+        const auto id=world.join(); occupants.push_back(id);
+        Command enter; enter.sequence=1; enter.enterVehicle=true;
+        world.submit(id,Commands{{enter}});
+        for (int i=0;i<6;++i) world.step();
+        const auto snapshot=wire(world.snapshot(id));
+        require(snapshot.players.back().vehicle==0 && snapshot.players.back().seat==seat,
+                "Truck cab door did not admit its driver/passenger");
+    }
+    scene.spawnEye={-3.4f,1.7f,-.88f}; // join offsets player 3 by +2 m in X.
+    const auto extra=world.join();
+    Command enter; enter.sequence=1; enter.enterVehicle=true;
+    world.submit(extra,Commands{{enter}});
+    for (int i=0;i<6;++i) world.step();
+    require(world.snapshot(extra).players.back().vehicle==noVehicle, "Truck admitted a third occupant");
+    for (std::uint64_t sequence=2;sequence<122;++sequence) {
+        Command drive; drive.sequence=sequence; drive.movement.forward=1;
+        world.submit(occupants[0],Commands{{drive}}); world.step();
+    }
+    require(scene.vehicles->pose(0).chassis.center.z < -4, "Server did not drive the new truck");
+    const auto snapshot=wire(world.snapshot(occupants[0]));
+    Scene client(o); Snapshots playback; playback.push(snapshot,0); playback.apply(client,0);
+    require(client.vehicles->type(0)==type && client.vehicles->config(0).seats.size()==2,
+            "Truck type and two-seat configuration did not survive late join");
+}
 void passengers(const Options& o) {
     Scene scene(o); openGround(scene); scene.vehicles->add({0,.8f,0},0,1);
     World world(scene);
@@ -492,8 +530,14 @@ void environmentalActivation(const Options& o) {
 int main(int argc, char** argv) {
     try {
         require(argc == 3, "Expected test map and scratch directory");
-        protocolChecks(); const auto o = options(argv[1]);
-        acknowledgedUpdates(o); seatedExertion(o); ownershipAndDriving(o); passengerOnly(o); passengers(o);
+        const auto o = options(argv[1]);
+        if (std::string(argv[2]) == "--kei-truck") {
+            keiTruck(o);
+            std::cout << "Multiplayer kei truck entry, two-seat limit, driving and late-join checks passed\n";
+            return 0;
+        }
+        protocolChecks();
+        acknowledgedUpdates(o); seatedExertion(o); ownershipAndDriving(o); passengerOnly(o); keiTruck(o); passengers(o);
         extrapolation(o); zombieImpacts(o); physicsParity(o); environmentalActivation(o); parkedPopulation(o,argv[2]);
         std::cout << "Multiplayer vehicle ownership, physics, late join, timeout, camera and wire checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

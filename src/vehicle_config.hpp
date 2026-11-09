@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <optional>
 
 namespace viewer {
 constexpr std::size_t maxVehicleSeats = 4, maxVehicleTypes = 32, maxVehicleInstances = 1024;
@@ -14,12 +15,17 @@ struct VehicleSeatConfig {
     glm::vec3 eyePosition, entryPosition, exitPosition;
     float entryRadius = 2;
 };
+struct VehicleCabinConfig {
+    glm::vec3 center, halfExtents; // Chassis-local meters, excluding the lower body.
+};
 struct VehicleConfig {
     std::string id = "prototype", name = "Prototype car";
     float weightKg = 1100; // Total mass, including the four 25 kg wheels.
     // Full fitted mesh bounds (including mirrors), in meters. Length is the
     // real-car reference; width/height retain the authored mesh proportions.
     glm::vec3 dimensions{1.7f, 1.56f, 3.6f}; // width, height, length
+    // Cab-over trucks need a forward cabin; absent preserves the sedan fit.
+    std::optional<VehicleCabinConfig> cabin;
     float tireRadius = .36f, tireWidth = .24f;
     std::array<glm::vec3, 4> wheels{{{-.83f,-.32f,-1.15f},{.83f,-.32f,-1.15f},
                                   {-.83f,-.32f,1.15f},{.83f,-.32f,1.15f}}};

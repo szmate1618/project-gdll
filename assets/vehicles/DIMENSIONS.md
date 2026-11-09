@@ -35,6 +35,7 @@ selected mesh; simplification can slightly change its original bounds.
 | volkswagen-passat-b8 | 2.9477 | 4.7670 | 2.0459 | 1.4967 | 1.619143 |
 | suzuki-swift-2024 | 3.8269 | 3.8600 | 1.8694 | 1.5196 | 1.009339 |
 | skoda-octavia-2001 | 3.0378 | 4.5070 | 2.0331 | 1.4367 | 1.484909 |
+| japanese-kei-truck-1990s | 3.9991 | 3.2550 | 1.5171 | 1.4927 | 0.813940 |
 
 ## Reference lengths and assumptions
 
@@ -75,6 +76,18 @@ selected mesh; simplification can slightly change its original bounds.
   asset instead represents the earlier front end, that car is 4.511 m.
   [Skoda brochure](https://www.allcarcentral.com/Skoda_pdf/Skoda_OctaviaTour_Catalogue_2009.pdf).
 
+- Japanese kei truck: generic stylized 1990s cab-over flatbed; use the **3.255 m**
+  overall length and **710 kg** empty mass of the 1990 Honda Acty 4WD SDX as a
+  reference, from [Honda's launch specifications](https://global.honda/jp/news/1990/4900223a.html).
+  This is a fitting assumption, not an exact make/model identification. Retain
+  uniform proportions: the fitted roof is 1.493 m high and width including mirrors
+  is 1.517 m. Measured wheel centers are approximately X=±0.523 m, Z=-0.992/+1.085 m,
+  with 0.278 m radius and 0.187 m width. Two front cab seats use local Z=-0.950 m;
+  the cargo bed has no seats or door entries. Driver remains front-left according
+  to the shared game contract. The optional cabin box covers the front cab instead
+  of placing a sedan roof over the bed. Single-sided runtime materials provide
+  visibility from inside the opaque exterior shell; it has no detailed interior.
+
 ## Physics and occupants
 
 Every type retains the common chassis pivot 0.68 m above its neutral tire support
@@ -83,12 +96,12 @@ Collision boxes use fitted width/height/length; they remain coarse body/cabin
 approximations. Active suspension still uses the original single-body-box policy.
 
 TOMLs also specify per-type tire radius/width, approximate axle centers using the
-corresponding wheelbase, lights, and four seat/entry/exit positions. These are
+corresponding wheelbase, lights, and per-seat entry/exit positions. These are
 initial fitting estimates, not measurements of detailed interiors or separate
 wheel meshes. Eye positions stay below fitted roofs, and exits clear the sides.
 Imported wheels remain static visual geometry; physical wheels have per-type
 cylinder shapes. The procedural fallback scales its tires and body to the config.
-Masses remain the existing gameplay values.
+Masses remain the existing gameplay values, with the truck using the 710 kg empty reference.
 
 ## LoD publication
 
