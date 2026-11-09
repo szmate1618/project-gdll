@@ -335,7 +335,7 @@ endif()
 
 add_library(viewer_physics STATIC src/vehicle_config.cpp src/door_config.cpp src/physics_world.cpp src/physics_impacts.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model viewer_acoustics viewer_noise box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
-target_sources(viewer_physics PRIVATE src/collision_box.cpp src/melee_sweep.cpp src/physics_mesh_adjacency.cpp)
+target_sources(viewer_physics PRIVATE src/collision_box.cpp src/melee_sweep.cpp src/physics_mesh_adjacency.cpp src/corpse_settling.cpp)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
@@ -1315,6 +1315,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_physics_ground PRIVATE viewer_zombies)
     viewer_warnings(test_physics_ground)
     add_test(NAME viewer_physics_ground COMMAND test_physics_ground)
+
+    add_executable(test_corpse_settling tests/test_corpse_settling.cpp)
+    target_link_libraries(test_corpse_settling PRIVATE viewer_zombies)
+    viewer_warnings(test_corpse_settling)
+    add_test(NAME viewer_corpse_settling COMMAND test_corpse_settling)
 
     target_link_libraries(test_zombie_movement PRIVATE viewer_poles)
     target_link_libraries(test_zombie_damage PRIVATE viewer_weapons)

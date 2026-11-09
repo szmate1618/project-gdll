@@ -1185,6 +1185,20 @@ leave, without activating new interiors or retaining distant interior rendering.
 Runtime collision uses stable geometry chunks, so changing an unrelated chunk
 does not replace a sleeping corpse's supporting collider.
 
+Corpse knees have 0.2 N·m of passive rotational resistance. Elbows retain their
+2 N·m resistance; neither pulls toward an authored pose. Held or driven attack
+rigs use their pose springs, and release restores corpse resistance.
+
+Supported corpse groups may also sleep after every part's actual translation
+and rotation stays below 5 mm/s for two seconds. This handles nearly stationary
+piles whose contact and joint corrections still produce internal solver velocity.
+The check follows live contacts and joints, stopping at static terrain, and
+rejects groups containing held parts, driven rigs, other dynamic objects, or
+bodies with sleep disabled. Changes to support, connectivity, or externally
+modified poses and velocities restart qualification. Collision shapes remain
+active, with native wake-up on collisions, impulses, grabbing, and carrying.
+Sleeping populations are skipped until movement events wake them.
+
 `PhysicsWorld` consumes body movement events after **every** fixed step,
 including the final pose when a body sleeps. `ZombieLayer::synchronizePhysics()`
 rebuilds a corpse's skinning palette only when its physics revision changes.

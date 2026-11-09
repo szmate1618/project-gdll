@@ -1,4 +1,5 @@
 #include "zombie_ragdoll.hpp"
+#include "corpse_settling.hpp"
 #include "physics_impacts.hpp"
 #include "physics_scene.hpp"
 #include "physics_world.hpp"
@@ -33,6 +34,12 @@ enum Part {
     lowerLegRight,
     partCount
 };
+
+float hingeFrictionTorque(Part child) {
+    if (child == lowerArmLeft || child == lowerArmRight) return 2.f;
+    if (child == lowerLegLeft || child == lowerLegRight) return .2f;
+    return 0;
+}
 
 b3Pos toB3Pos(glm::vec3 value) {
     return {value.x, value.y, value.z};
@@ -182,6 +189,7 @@ public:
 
     ~Ragdoll() {
         for (const auto body : bodies_) {
+            simulation_.corpseSettling().untrack(body);
             detached_.forget(body);
             simulation_.untrackBodyMotion(body);
             simulation_.impacts().untrack(body);
@@ -192,7 +200,10 @@ public:
 
     // Register only after construction, when this owner's address is stable.
     void trackMotion() {
-        for (const auto body : bodies_) simulation_.trackBodyMotion(body, revision_);
+        for (const auto body : bodies_) {
+            simulation_.trackBodyMotion(body, revision_);
+            simulation_.corpseSettling().track(body);
+        }
     }
     std::uint64_t revision() const { return revision_; }
     bool sleeping() const {
@@ -224,9 +235,11 @@ public:
             if (b3Body_IsValid(ground_)) b3DestroyBody(ground_);
             ground_ = {};
             sceneSupported_ = true;
+            invalidateSettling();
         }
     }
     void translate(glm::vec3 displacement) {
+        invalidateSettling();
         for (const auto body : bodies_) {
             b3Body_SetTransform(body, toB3Pos(fromB3(b3Body_GetPosition(body)) + displacement), b3Body_GetRotation(body));
             b3Body_SetAwake(body, true);
@@ -236,12 +249,14 @@ public:
         ++revision_;
     }
     void applyImpulse(Part part, glm::vec3 impulse) {
+        simulation_.corpseSettling().invalidate(bodies_[part]);
         b3Body_ApplyLinearImpulseToCenter(bodies_[part], toB3Vec(impulse), true);
         ++revision_;
     }
 
     void addLinearVelocity(Part part, glm::vec3 velocity) {
         const auto body = bodies_[part];
+        simulation_.corpseSettling().invalidate(body);
         const auto current = b3Body_GetLinearVelocity(body);
         b3Body_SetLinearVelocity(body, {current.x + velocity.x, current.y + velocity.y, current.z + velocity.z});
         b3Body_SetAwake(body, true);
@@ -250,6 +265,7 @@ public:
 
     void addAngularVelocity(Part part, glm::vec3 velocity) {
         const auto body = bodies_[part];
+        simulation_.corpseSettling().invalidate(body);
         const auto current = b3Body_GetAngularVelocity(body);
         b3Body_SetAngularVelocity(body, {current.x + velocity.x, current.y + velocity.y, current.z + velocity.z});
         b3Body_SetAwake(body, true);
@@ -258,6 +274,8 @@ public:
 
     void sever(Part child) {
         if (child <= pelvis || child >= partCount) throw std::invalid_argument("Invalid severed ragdoll joint");
+        // Reset both resulting components before removing their connection.
+        invalidateSettling();
         auto& joint = joints_[child];
         if (b3Joint_IsValid(joint)) {
             b3DestroyJoint(joint, true);
@@ -283,6 +301,10 @@ public:
 
 
     void holdPose() {
+        poseHeld_ = true;
+        for (const auto body : bodies_) {
+            simulation_.corpseSettling().setEnabled(body, false);
+        }
         // Stiffness scales with frequency squared: sqrt(5) times the original
         // 3 Hz makes these pose springs five times stiffer at the same inertia.
         const float poseSpringHertz = 3.f * std::sqrt(5.f);
@@ -411,7 +433,7 @@ public:
     }
 
     void releasePose() {
-        if (!driven_) return;
+        if (!poseHeld_) return;
         for (const auto shape : handShapes_) if (b3Shape_IsValid(shape)) b3DestroyShape(shape, true);
         handShapes_ = {};
         for (const auto body : bodies_) {
@@ -422,6 +444,7 @@ public:
             for (int i = 0; i < count; ++i) {
                 auto filter = b3Shape_GetFilter(shapes[i]);
                 filter.categoryBits = ragdollBodyCategory;
+                filter.maskBits |= playerBodyCategory;
                 b3Shape_SetFilter(shapes[i], filter, false);
             }
         }
@@ -433,10 +456,17 @@ public:
                 b3SphericalJoint_EnableMotor(joint, child == head || child == upperArmLeft || child == upperArmRight);
             } else {
                 b3RevoluteJoint_EnableSpring(joint, false);
-                b3RevoluteJoint_EnableMotor(joint, child == lowerArmLeft || child == lowerArmRight);
+                const float torque = hingeFrictionTorque(static_cast<Part>(child));
+                b3RevoluteJoint_SetMotorSpeed(joint, 0);
+                b3RevoluteJoint_SetMaxMotorTorque(joint, torque);
+                b3RevoluteJoint_EnableMotor(joint, torque > 0);
             }
         }
         driven_ = false;
+        poseHeld_ = false;
+        for (const auto body : bodies_) {
+            simulation_.corpseSettling().setEnabled(body, true);
+        }
         ++revision_;
     }
 
@@ -467,6 +497,10 @@ public:
     }
 
 private:
+    void invalidateSettling() {
+        for (const auto body : bodies_) simulation_.corpseSettling().invalidate(body);
+    }
+
     static glm::quat rigidRotation(const glm::mat4& matrix) {
         auto x = glm::normalize(glm::vec3(matrix[0]));
         auto y = glm::vec3(matrix[1]) - x * glm::dot(x, glm::vec3(matrix[1]));
@@ -544,11 +578,13 @@ private:
         joint.enableLimit = true;
         joint.lowerAngle = lower * B3_DEG_TO_RAD;
         joint.upperAngle = upper * B3_DEG_TO_RAD;
-        if (child == lowerArmLeft || child == lowerArmRight) {
-            // Brake elbow swing without changing knee motion or adding a spring.
+        const float torque = hingeFrictionTorque(child);
+        if (torque > 0) {
+            // Passive hinge friction opposes swing without an authored pose.
+            // Knees need a lighter brake than elbows to preserve the collapse.
             joint.enableMotor = true;
             joint.motorSpeed = 0;
-            joint.maxMotorTorque = 2.0f; // N*m around the hinge axis.
+            joint.maxMotorTorque = torque; // N*m around the hinge axis.
         }
         joints_[child] = b3CreateRevoluteJoint(world_, &joint);
     }
@@ -565,6 +601,7 @@ private:
     std::array<glm::mat4, partCount> boneToBody_{};
     std::array<b3Vec3, 2> handPoints_{};
     std::array<b3ShapeId, 2> handShapes_{};
+    bool poseHeld_ = false;
     bool driven_ = false;
     bool sceneSupported_ = false;
     glm::vec3 feet_{0};

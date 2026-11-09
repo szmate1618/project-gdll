@@ -1,6 +1,7 @@
 #include "physics_world.hpp"
 #include "frame_stage_profile.hpp"
 #include "physics_impacts.hpp"
+#include "corpse_settling.hpp"
 
 #include <box3d/box3d.h>
 #include <algorithm>
@@ -37,7 +38,10 @@ PhysicsWorld::PhysicsWorld(const std::filesystem::path& acousticStorage) {
     world_ = b3CreateWorld(&definition);
     if (!b3World_IsValid(world_)) throw std::runtime_error("Unable to create Box3D world");
     b3World_SetCustomFilterCallback(world_, allowShapeContact, nullptr);
-    try { impacts_ = std::make_unique<PhysicsImpacts>(world_, acousticStorage); }
+    try {
+        impacts_ = std::make_unique<PhysicsImpacts>(world_, acousticStorage);
+        corpseSettling_ = std::make_unique<CorpseSettling>(*this);
+    }
     catch (...) { b3DestroyWorld(world_); throw; }
 }
 PhysicsWorld::~PhysicsWorld() { b3DestroyWorld(world_); }
@@ -49,10 +53,12 @@ void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
     while (accumulator_ >= fixedStepSeconds && steps++ < 8) {
         if (before) before(fixedStepSeconds);
         for (const auto& callbacks : stepCallbacks_) callbacks.second.prepare();
+        corpseSettling_->prepare();
         {
             frame_stage_profile::Timer timer(frame_stage_profile::Stage::physics);
             b3World_Step(world_, fixedStepSeconds, 4);
         }
+        corpseSettling_->finish();
         const auto events = b3World_GetBodyEvents(world_);
         for (int i = 0; i < events.moveCount; ++i) {
             const auto found = motionOwners_.find(b3StoreBodyId(events.moveEvents[i].bodyId));
@@ -84,10 +90,14 @@ void PhysicsWorld::unregisterStepCallbacks(const void* owner) {
     stepCallbacks_.erase(owner);
 }
 bool PhysicsWorld::isGrabbed(b3BodyId body) const { return grabCounts_.count(b3StoreBodyId(body)) != 0; }
-void PhysicsWorld::beginGrab(b3BodyId body) { ++grabCounts_[b3StoreBodyId(body)]; }
+void PhysicsWorld::beginGrab(b3BodyId body) {
+    ++grabCounts_[b3StoreBodyId(body)];
+    corpseSettling_->invalidate(body);
+}
 void PhysicsWorld::endGrab(b3BodyId body) {
     const auto found = grabCounts_.find(b3StoreBodyId(body));
     if (found != grabCounts_.end() && --found->second == 0) grabCounts_.erase(found);
+    corpseSettling_->invalidate(body);
 }
 int PhysicsWorld::allocateCollisionGroup() {
     if (nextCollisionGroup_ == std::numeric_limits<int>::min())

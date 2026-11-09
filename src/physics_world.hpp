@@ -30,6 +30,7 @@ constexpr std::uint64_t detachedLimbCategory = 1ull << 23;
 // Classification only: these shapes retain their ordinary collision category.
 constexpr std::uint64_t hardImpactCategory = 1ull << 24;
 class PhysicsImpacts;
+class CorpseSettling;
 
 // Shared Box3D simulation in runtime meters (X east, Y up, Z south).
 // Owners of bodies/joints must retain this world and destroy their resources
@@ -48,6 +49,7 @@ public:
     float interpolationAlpha() const;
     b3WorldId id() const { return world_; }
     PhysicsImpacts& impacts() { return *impacts_; }
+    CorpseSettling& corpseSettling() { return *corpseSettling_; }
     int allocateCollisionGroup(); // Negative groups suppress ragdoll self-contact.
     // Owner revision must have a stable address until untrackBodyMotion().
     // Movement/sleep events are consumed after every fixed step, synchronously.
@@ -66,6 +68,7 @@ private:
     void endGrab(b3BodyId body);
     b3WorldId world_{};
     std::unique_ptr<PhysicsImpacts> impacts_;
+    std::unique_ptr<CorpseSettling> corpseSettling_;
     float accumulator_ = 0;
     int nextCollisionGroup_ = -1;
     std::unordered_map<std::uint64_t, std::uint64_t*> motionOwners_;

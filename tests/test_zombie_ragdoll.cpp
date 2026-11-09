@@ -9,6 +9,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 using viewer::RagdollPart;
@@ -177,6 +178,68 @@ void plantedFeetSupportImpactsAndTranslateWithTheirOwner() {
     require(removed.bodyCount == 0 && removed.jointCount == 0, "Removing a planted ragdoll must release its foot anchors");
 }
 
+void releasingHeldAndDrivenPosesRestoresPassiveHinges() {
+    for (const bool driven : {false, true}) {
+        auto simulation = std::make_shared<viewer::PhysicsWorld>();
+        viewer::ZombieRagdollWorld world(simulation);
+        const auto pose = referencePose({}, 0);
+        const auto handle = world.create({}, 0, {}, pose, pose);
+        std::vector<b3BodyId> bodies;
+        auto filter = b3DefaultQueryFilter();
+        filter.maskBits = viewer::ragdollBodyCategory;
+        b3World_OverlapAABB(simulation->id(), {{-2, -1, -2}, {2, 3, 2}}, filter,
+            [](b3ShapeId shape, void* context) {
+                static_cast<std::vector<b3BodyId>*>(context)->push_back(b3Shape_GetBody(shape));
+                return true;
+            }, &bodies);
+        require(bodies.size() == viewer::ragdollPartCount, "The fixture must expose all eleven ragdoll bodies");
+        const auto transforms = world.bodyTransforms(handle);
+        const auto bodyFor = [&](RagdollPart part) {
+            const auto expected = glm::vec3(transforms[index(part)][3]);
+            const auto found = std::find_if(bodies.begin(), bodies.end(), [&](b3BodyId body) {
+                const auto p = b3Body_GetPosition(body);
+                return glm::distance(expected, glm::vec3(p.x, p.y, p.z)) < 1e-5f;
+            });
+            require(found != bodies.end(), "Every anatomical part must have its expected body");
+            return *found;
+        };
+        std::array<b3JointId, 4> hinges{};
+        const std::array<RagdollPart, 4> parts{
+            RagdollPart::lowerArmLeft, RagdollPart::lowerArmRight,
+            RagdollPart::lowerLegLeft, RagdollPart::lowerLegRight};
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            const auto body = bodyFor(parts[i]);
+            std::array<b3JointId, 2> joints{};
+            const int count = b3Body_GetJoints(body, joints.data(), static_cast<int>(joints.size()));
+            for (int j = 0; j < count; ++j)
+                if (b3Joint_GetType(joints[j]) == b3_revoluteJoint) hinges[i] = joints[j];
+            require(b3Joint_IsValid(hinges[i]), "Every lower arm and leg must retain its hinge");
+            require(b3RevoluteJoint_IsMotorEnabled(hinges[i]) &&
+                    std::abs(b3RevoluteJoint_GetMaxMotorTorque(hinges[i]) - (i < 2 ? 2.f : .2f)) < 1e-6f,
+                    "Loose elbows and knees must use their passive friction torque");
+        }
+        if (driven) world.drivePose(handle, pose, 1.f / 60);
+        else world.holdPose(handle);
+        for (const auto joint : hinges)
+            require(!b3RevoluteJoint_IsMotorEnabled(joint) && b3RevoluteJoint_IsSpringEnabled(joint),
+                    "Held and driven hinge springs must replace passive friction");
+        for (const auto part : {RagdollPart::lowerLegLeft, RagdollPart::lowerLegRight})
+            require(b3Body_GetType(bodyFor(part)) == b3_kinematicBody, "Holding must plant the lower legs");
+
+        world.releasePose(handle);
+        for (const auto body : bodies)
+            require(b3Body_GetType(body) == b3_dynamicBody, "Release must return every held or driven body to dynamic motion");
+        for (std::size_t i = 0; i < hinges.size(); ++i)
+            require(!b3RevoluteJoint_IsSpringEnabled(hinges[i]) && b3RevoluteJoint_IsMotorEnabled(hinges[i]) &&
+                    b3RevoluteJoint_GetMotorSpeed(hinges[i]) == 0 &&
+                    std::abs(b3RevoluteJoint_GetMaxMotorTorque(hinges[i]) - (i < 2 ? 2.f : .2f)) < 1e-6f,
+                    "Release must restore zero-speed elbow and knee friction without pose springs");
+        world.releasePose(handle);
+        for (std::size_t p = 0; p < viewer::ragdollPartCount; ++p)
+            require(close(world.bodyTransforms(handle)[p], transforms[p]), "Repeated release must preserve the current pose");
+    }
+}
+
 void repeatedActivationsRemainFiniteAndMoving() {
     viewer::ZombieRagdollWorld world;
     for (int count = 0; count < 24; ++count) {
@@ -293,6 +356,7 @@ int main() {
         lowFeetDoNotLaunchThePelvis();
         springPoseRecoversWithPlantedFeet();
         plantedFeetSupportImpactsAndTranslateWithTheirOwner();
+        releasingHeldAndDrivenPosesRestoresPassiveHinges();
         repeatedActivationsRemainFiniteAndMoving();
         degenerateReferenceCannotCreateAnInvalidHinge();
         motionRevisionsSleepWakeAndRemoval();
