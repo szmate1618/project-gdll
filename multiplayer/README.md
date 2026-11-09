@@ -844,8 +844,9 @@ the flashlight toggle does not disable that light. Grenade settings and starting
 counts are in `storage/weapons/he_grenade.gameplay.toml` and `inventory.toml`.
 
 Hotbar 7 selects the Molotov cocktail. The server owns throwing and the bottle's
-first physical impact, then replicates only its impact ID, position, incoming
-flight direction and age. Each client casts ten random rays in a 60° full cone,
+first physical impact, including hits on animated zombies, then replicates only
+its impact ID, position, incoming flight direction and age. Each client casts
+ten random rays in a 60° full cone,
 with a two-metre reach, and renders ten-second fire at the surfaces those rays
 hit. Misses produce no fire. Hits on local props/doors and actors follow their
 poses; particles, hit positions and attachments are never sent to the server.

@@ -5,9 +5,11 @@
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_melee_query.hpp"
 #include "vehicle_layer.hpp"
 
 #include <box3d/box3d.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -20,6 +22,41 @@ constexpr float collisionRadius = .09f, restitution = .35f;
 b3Vec3 vec(glm::vec3 p) { return {p.x, p.y, p.z}; }
 glm::vec3 vec(b3Vec3 p) { return {p.x, p.y, p.z}; }
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
+
+glm::mat4 bodyTransform(b3BodyId body) {
+    const auto rotation = b3Body_GetRotation(body);
+    return glm::translate(glm::mat4(1),vec(b3Body_GetPosition(body))) *
+        glm::mat4_cast(glm::quat(rotation.s,rotation.v.x,rotation.v.y,rotation.v.z));
+}
+
+std::optional<glm::vec3> bottleZombieContact(ZombieLayer& zombies, const glm::mat4& from,
+        const glm::mat4& to, double seconds, const CollisionWorld& world) {
+    // A box encloses the rotating octagonal bottle. Sweep its full volume so
+    // fast throws and glancing contacts do not depend on end-of-step overlap.
+    std::array<glm::vec3,8> corners;
+    for (int i=0; i<8; ++i)
+        corners[std::size_t(i)] = {(i&1 ? 1.f : -1.f)*Grenades::radius,
+            (i&2 ? 1.f : -1.f)*Grenades::halfHeight*2,(i&4 ? 1.f : -1.f)*Grenades::radius};
+    const auto sweep = meleeSweep(corners.data(),int(corners.size()),from,to);
+    const auto center = (sweep.bounds.minimum+sweep.bounds.maximum)*.5f;
+    std::vector<std::size_t> candidates;
+    zombies.visitReplicationNear(center,glm::length(sweep.bounds.maximum-center),[&](std::size_t id) {
+        const auto& bounds = zombies.replicationBounds(id);
+        if (!glm::any(glm::greaterThan(sweep.bounds.minimum,bounds.maximum)) &&
+            !glm::any(glm::lessThan(sweep.bounds.maximum,bounds.minimum))) candidates.push_back(id);
+        return true;
+    });
+    ZombieMeleeQuery query(&zombies,candidates,seconds);
+    std::optional<MeleeSweepHit> nearest;
+    for (const auto& contact : query.cast(sweep,false)) {
+        // Ordinary surfaces, without the bullet joint-hit precedence. Physics
+        // already handles corpse bodies. Scene cover must still block hits.
+        if (!contact.body || (nearest && contact.hit.fraction>=nearest->fraction) ||
+            !world.lineOfSight(glm::vec3(from[3]),contact.hit.point)) continue;
+        nearest = contact.hit;
+    }
+    return nearest ? std::optional<glm::vec3>{nearest->point} : std::nullopt;
+}
 
 void reboundFromTrunks(b3BodyId body, const CollisionWorld& world) {
     auto position = vec(b3Body_GetPosition(body));
@@ -99,6 +136,9 @@ struct Grenades::Impl {
         GrenadeKind kind = GrenadeKind::he;
         glm::vec3 incoming{0,-1,0};
         std::optional<MolotovImpact> impact;
+        glm::mat4 stepStart{1};
+        struct Flight { glm::mat4 from, to; glm::vec3 incoming; };
+        std::vector<Flight> flight{};
     };
     struct Event { std::uint32_t id; glm::vec3 position; double seconds; };
     std::shared_ptr<PhysicsWorld> physics;
@@ -111,11 +151,14 @@ struct Grenades::Impl {
     std::uint32_t nextId = 1;
     void captureVelocities() {
         for (auto& g : active) if (g.kind==GrenadeKind::molotov && !g.impact) {
+            g.stepStart = bodyTransform(g.body);
             const auto velocity = vec(b3Body_GetLinearVelocity(g.body));
             if (glm::length(velocity)>.001f) g.incoming = glm::normalize(velocity);
         }
     }
     void captureImpacts() {
+        for (auto& g : active) if (g.kind==GrenadeKind::molotov && !g.impact)
+            g.flight.push_back({g.stepStart,bodyTransform(g.body),g.incoming});
         const auto contacts = b3World_GetContactEvents(physics->id());
         for (int i=0; i<contacts.hitCount; ++i) {
             const auto& hit = contacts.hitEvents[i];
@@ -222,6 +265,13 @@ std::vector<NoiseEvent> Grenades::update(double seconds, const CollisionWorld& w
     for (auto it = active.begin(); it != active.end();) {
         if (it->kind==GrenadeKind::molotov) {
             const auto position = vec(b3Body_GetPosition(it->body));
+            if (zombies) for (const auto& flight : it->flight) {
+                if (const auto hit = bottleZombieContact(*zombies,flight.from,flight.to,animationSeconds,world)) {
+                    it->impact = MolotovImpact{it->id,*hit,flight.incoming,0};
+                    break;
+                }
+            }
+            it->flight.clear();
             if (!it->impact && world.trunkContact(position,.16f))
                 it->impact = MolotovImpact{it->id,position,it->incoming,0};
             if (!it->impact && seconds<it->explodeAt) { ++it; continue; }

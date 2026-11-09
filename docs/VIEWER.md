@@ -2661,7 +2661,9 @@ counts are whole grenades; `muzzle_position` is unused for throws.
 HE grenade primary throws, right-click drops/charge, inventory retrieval and
 cooldown rules. One bottle starts ready and two more are stored in the backpack;
 each bottle or ammo stack occupies 1×2 cells. The bottle breaks on its first
-physical contact (including trunk overlaps), rather than waiting for a fuse.
+physical contact (including animated zombie surfaces and trunk overlaps), rather
+than waiting for a fuse. Bottle-volume sweeps catch fast throws and glancing
+zombie hits; the impact's flames can attach to the hit zombie's bones.
 It creates no HE blast or explosion light. Uncollided bottles expire after 30
 seconds as a bounded cleanup policy.
 

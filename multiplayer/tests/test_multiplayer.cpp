@@ -1001,7 +1001,7 @@ void serverChargedGrenades(const std::filesystem::path& asset) {
     }
 }
 
-void serverMolotov(const std::filesystem::path& asset) {
+void serverMolotov(const std::filesystem::path& asset, bool hitZombie = false) {
     using namespace multiplayer;
     Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
     Scene scene(options); scene.model=ground();
@@ -1018,9 +1018,17 @@ void serverMolotov(const std::filesystem::path& asset) {
     auto state=world.snapshot(id);
     require(state.grenades.size()==1 && state.grenades[0].kind==viewer::GrenadeKind::molotov && state.players[0].loaded==0,
         "Molotov throw lost its bottle kind or failed to consume ammunition");
+    if (hitZombie) {
+        scene.zombies.setPerceptionEnabled(false);
+        scene.zombies.assets.emplace_back();
+        auto& actor = scene.zombies.instances.emplace_back();
+        actor.transform = actor.restRoot = actor.restTransform = glm::translate(glm::mat4(1),glm::vec3(0,0,-1));
+    }
     for (int i=0; i<180 && state.molotovImpacts.empty(); ++i) { world.step(); state=world.snapshot(id); }
     require(state.grenades.empty() && state.molotovImpacts.size()==1 && state.explosions.empty(),
         "Server did not publish exactly one molotov impact without an HE explosion");
+    if (hitZombie) require(state.molotovImpacts[0].position.y>1.4f && state.molotovImpacts[0].position.z>-1.1f,
+        "Server bottle passed through the zombie and hit the ground instead");
     const auto bytes=encode(state);
     const auto copy=std::get<Snapshot>(decode(bytes.data(),bytes.size()));
     require(copy.molotovImpacts.size()==1 && copy.molotovImpacts[0].direction==state.molotovImpacts[0].direction,
@@ -1035,6 +1043,10 @@ void serverMolotov(const std::filesystem::path& asset) {
     rejects([&] { encode(invalid); },"Unknown thrown grenade kind was accepted");
     Scene client(options,{},std::nullopt,SceneRole::Replica);
     client.model=ground(); client.collision=std::make_unique<viewer::CollisionWorld>(client.model);
+    if (hitZombie) {
+        client.zombies.assets = scene.zombies.assets;
+        client.zombies.instances = scene.zombies.instances;
+    }
     Snapshots snapshots;
     require(snapshots.push(copy,100),"Molotov snapshot was rejected");
     snapshots.apply(client,100);
@@ -1454,7 +1466,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverMolotov(argv[1],true); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

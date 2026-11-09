@@ -46,8 +46,9 @@ public:
     bool throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
                    double seconds, const GrenadeConfig& config, const CollisionWorld& world, float power = 1);
     void prepare(PhysicsScene& scene, DoorLayer& doors); // Before the shared step.
-    // After physics: resolve approximate sphere/trunk overlaps, remove expired
-    // bodies, apply blast effects and return new simulation noises for dispatch.
+    // After physics: sweep bottles against animated zombie surfaces, resolve
+    // approximate sphere/trunk overlaps, remove expired bodies, apply blast
+    // effects and return new simulation noises for dispatch.
     // Exposed vehicles activate before receiving their blast impulse.
     // Fast throws can miss trunks.
     std::vector<NoiseEvent> update(double seconds, const CollisionWorld& world, ZombieLayer* zombies = nullptr,

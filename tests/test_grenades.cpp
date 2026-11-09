@@ -1,4 +1,5 @@
 #include "grenades.hpp"
+#include "fire_effects.hpp"
 #include "physics_world.hpp"
 #include "physics_scene.hpp"
 #include "box_layer.hpp"
@@ -61,6 +62,80 @@ void molotovImpacts() {
         require(f.grenades.molotovImpacts(hitAt+9.99).size()==1 && f.grenades.molotovImpacts(hitAt+10).empty(),
             "Impact history must cover the ten-second fire lifetime and then expire");
     }
+}
+void molotovZombieImpacts() {
+    // Thirty m/s travels half a metre in a tick, completely crossing this
+    // narrow animated capsule. The bottle volume must also catch grazing hits.
+    for (const float offset : {0.f,.075f,.3f}) {
+        Fixture f;
+        viewer::ZombieLayer zombies;
+        zombies.assets.emplace_back();
+        auto& asset = zombies.assets[0];
+        asset.skeleton.resize(1);
+        asset.frameCount = 2; asset.duration = 1;
+        asset.boneFrames = {glm::mat4(1),glm::mat4(1)};
+        viewer::ZombieBoneCapsule capsule;
+        capsule.bone = 0; capsule.a = {0,1,0}; capsule.b = {0,1.5f,0}; capsule.radius = .04f;
+        zombies.capsuleAssets.resize(1);
+        zombies.capsuleAssets[0].capsules.push_back(capsule);
+        zombies.instances.emplace_back();
+        auto& actor = zombies.instances[0];
+        actor.transform = actor.restRoot = actor.restTransform = glm::translate(glm::mat4(1),glm::vec3(offset,0,-.25f));
+        const viewer::GrenadeConfig config{30,0,30,viewer::GrenadeKind::molotov};
+        require(f.grenades.throwFrom({0,1.2f,0},{0,0,-1},{},0,config,f.world),"Zombie bottle fixture throw failed");
+        f.scene.prepare(f.boxes); f.grenades.prepare(f.scene,f.doors);
+        f.physics->step(1.f/60);
+        f.grenades.update(1.0/60,f.world,&zombies);
+        const auto impacts = f.grenades.molotovImpacts(1.0/60);
+        if (offset==.3f) {
+            require(impacts.empty() && f.grenades.poses().size()==1,"Bottle broke beside an untouched zombie");
+            continue;
+        }
+        require(impacts.size()==1 && f.grenades.poses().empty(),"Bottle passed through a zombie without breaking");
+        require(std::abs(impacts[0].position.z+.25f)<.05f && impacts[0].direction.z<-.99f,
+            "Zombie impact lost the surface point or incoming flight direction");
+        require(!actor.ragdoll && !zombies.damage().injury(0) && f.grenades.explosions(1.0/60).empty(),
+            "Bottle contact incorrectly applied bullet or explosion damage");
+        if (offset==0) {
+            viewer::FireEffects fire;
+            viewer::FireScene scene{f.world,f.physics,&zombies};
+            fire.receive(impacts,1.0/60,1.0/60,1.0/60,scene);
+            require(fire.hasEffects(1.0/60),"A direct bottle hit failed to ignite the zombie surface");
+            const viewer::FirePatch* attached = nullptr;
+            for (const auto& patch : fire.patches())
+                if (patch.active && patch.contact.attachment==viewer::FireAttachment::zombie) attached = &patch;
+            require(attached,"A direct bottle hit left no fire attached to the zombie");
+            const auto point = attached->contact.point;
+            actor.transform = glm::translate(glm::mat4(1),glm::vec3(1,0,0))*actor.transform;
+            fire.update(2.0/60,scene);
+            require(glm::distance(attached->contact.point,point+glm::vec3(1,0,0))<.001f,
+                "Flames from the bottle hit failed to follow the zombie bone");
+        }
+        f.grenades.update(2.0/60,f.world,&zombies);
+        require(f.grenades.molotovImpacts(2.0/60).size()==1,"Zombie contact duplicated its impact");
+    }
+}
+void molotovZombieCover() {
+    Fixture f;
+    viewer::ZombieLayer zombies;
+    zombies.assets.emplace_back();
+    for (const auto feet : {glm::vec3(0,0,-.8f),{0,0,-4}}) {
+        auto& actor = zombies.instances.emplace_back();
+        actor.transform = actor.restRoot = actor.restTransform = glm::translate(glm::mat4(1),feet);
+    }
+    zombies.instances[0].removed = true;
+    require(f.grenades.throwFrom({0,1.2f,0},{0,0,-1},{},0,{30,0,30,viewer::GrenadeKind::molotov},f.world),
+        "Covered zombie bottle fixture throw failed");
+    double now = 0;
+    for (int tick=1; tick<=20 && !f.grenades.poses().empty(); ++tick) {
+        now = tick/60.0;
+        f.scene.prepare(f.boxes); f.grenades.prepare(f.scene,f.doors);
+        f.physics->step(1.f/60); f.grenades.update(now,f.world,&zombies);
+    }
+    const auto impacts = f.grenades.molotovImpacts(now);
+    // Physics contact points can include a few centimetres of solver penetration.
+    require(impacts.size()==1 && std::abs(impacts[0].position.z+3)<.05f,
+        "Removed or covered zombies stole the bottle impact from the wall");
 }
 void launchPower() {
     for (const float power : {0.f, .5f, 1.f}) {
@@ -244,7 +319,7 @@ void vehicleBlast() {
 }
 int main() {
     try {
-        molotovImpacts(); launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast(); vehicleBlast();
+        molotovImpacts(); molotovZombieImpacts(); molotovZombieCover(); launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast(); vehicleBlast();
         std::cout << "Grenade CCD, wall/floor/prop/trunk collision, fuse, blast cover and light tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }
