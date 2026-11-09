@@ -48,9 +48,9 @@ int main(int argc, char** argv) {
         options.forests = false;
         const glm::vec3 spawn{1.5f, -2.25f, 0};
         const auto fingerprint = multiplayer::sceneFingerprint(options, 7, spawn, {first});
-        // Independently calculated for protocol 64: SHA-256 of <III6f2B
+        // Independently calculated for protocol 65: SHA-256 of <III6f2B
         // little-endian settings followed by ASCII SHA-256("abc") in hex.
-        require(fingerprint == "03b02b375a108d697555369e0073daeac74968db80a46a3db9f37026ef40c4e2",
+        require(fingerprint == "c4625e8dd497156bfaf4d05a7fe9e348a5a4f64b448a6e691e8e19bd48d748a0",
                 "Scene fingerprint differs from the cross-platform reference");
         require(multiplayer::sceneFingerprint(options, 7, spawn, {second}) == fingerprint,
                 "Resource paths changed the fingerprint");
@@ -113,10 +113,10 @@ int main(int argc, char** argv) {
                 multiplayer::sceneFingerprint(disabled, 7, spawn, {first}),
                 "None preset must fingerprint the effective disabled vegetation");
         options.zombieRadius = 999.25f; options.trees = false; options.forests = true;
-        // Same protocol-64 serialization as above, with count=1024, radius=999.25,
+        // Same protocol-65 serialization as above, with count=1024, radius=999.25,
         // spawn=(0, 0.1, -123.5), and vegetation bytes (0, 1).
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {first}) ==
-                "479c4c2688dc3182ebe16e5103d1f14cd26470637293c0e3cb9d7ca56d29fe7e",
+                "95ca6db81b7f6f6d9d46769feaddf3cc568056a8cf6dbc4142bd2eb3a52ff476",
                 "Fractional settings differ from the cross-platform reference");
         std::ofstream(second, std::ios::binary) << "abd";
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {second}) !=

@@ -593,6 +593,12 @@ void payload(Wire& w, Snapshot& s) {
         w.integer(entry.quantity); w.integer(entry.loaded); w.number(entry.readyAt); w.integer(entry.slot);
         w.vector(entry.center); w.vector(entry.halfExtents);
         w.number(entry.rotation.w); w.number(entry.rotation.x); w.number(entry.rotation.y); w.number(entry.rotation.z);
+        w.list(entry.panels,36,[&](GroundPanelState& panel) {
+            w.vector(panel.center);
+            w.number(panel.rotation.w); w.number(panel.rotation.x); w.number(panel.rotation.y); w.number(panel.rotation.z);
+            if (std::abs(glm::length(panel.rotation)-1)>.001f) throw std::runtime_error("Invalid canopy panel rotation");
+        });
+        if (!entry.panels.empty() && entry.panels.size()!=36) throw std::runtime_error("Invalid canopy panel count");
         if (!entry.id || (entry.slot != 255 && entry.slot >= viewer::weaponIds.size()) || entry.readyAt < 0 ||
             std::abs(glm::length(entry.rotation) - 1) > .001f ||
             glm::any(glm::lessThan(entry.halfExtents, glm::vec3(.01f))) ||

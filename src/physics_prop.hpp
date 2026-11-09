@@ -25,6 +25,7 @@ public:
 private:
     friend class PhysicsGrab;
     friend class StakeProjectiles;
+    friend class Canopy;
     b3BodyId body() const;
     std::shared_ptr<PhysicsWorld> world_;
     b3BodyId body_;

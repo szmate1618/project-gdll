@@ -79,7 +79,7 @@ Item loadItem(const Path& directory, const std::string& id) {
         if (!table["max_stack"].is_integer()) invalid(file, "max_stack must be a positive integer");
         item.maxStack = required<int>(table, "max_stack", file);
         if (item.maxStack < 1) invalid(file, "max_stack must be a positive integer");
-    } else invalid(file, "type must be 'weapon', 'ammo' or 'medical'");
+    } else if (item.type != "equipment") invalid(file, "type must be 'weapon', 'ammo', 'medical' or 'equipment'");
     const auto dimension = [&](const char* key) {
         if (!table[key].is_integer()) invalid(file, std::string(key) + " must be an integer cell count");
         const auto value = required<std::int64_t>(table, key, file);

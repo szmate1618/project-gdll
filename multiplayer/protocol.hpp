@@ -39,7 +39,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 64; // Adds the transferable stake slot before skills.
+constexpr std::uint32_t protocolVersion = 65; // Articulated canopy ground items and general equipment.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -131,14 +131,19 @@ struct InventoryState {
     std::vector<InventoryEntryState> items;
     std::array<std::string, 10> hotbar;
 };
+struct GroundPanelState {
+    glm::vec3 center{0};
+    glm::quat rotation{1,0,0,0};
+};
 struct GroundItemState {
     std::uint64_t id = 0;
     std::string item, prototype;
     std::uint32_t quantity = 0, loaded = 0;
     float readyAt = 0;
-    std::uint8_t slot = 255; // 255 is an ammo box.
+    std::uint8_t slot = 255; // 255 has no combat weapon state (ammo/equipment).
     glm::vec3 center{0}, halfExtents{.1f};
     glm::quat rotation{1,0,0,0};
+    std::vector<GroundPanelState> panels{}; // Empty, or 36 canonical canopy panels.
 };
 struct PlayerState {
     std::uint32_t id = 0;

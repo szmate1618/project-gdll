@@ -63,6 +63,12 @@ quantity = 2
 item = "bandage"
 quantity = 4
 
+[equipment.canopy]
+item = "canopy"
+
+[equipment.support_stake]
+item = "support_stake"
+
 # Owned item IDs or skill:<ID> references registered in skills.toml.
 [hotbar]
 0 = "skill:object_handling"
@@ -178,4 +184,14 @@ y = 0
 [placements.stake]
 storage = "backpack/tactical_backpack/main"
 x = 4
+y = 0
+
+[placements.support_stake]
+storage = "backpack/tactical_backpack/main"
+x = 2
+y = 0
+
+[placements.canopy]
+storage = "backpack/tactical_backpack/main"
+x = 5
 y = 0

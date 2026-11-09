@@ -98,6 +98,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     drawFloorplans();
     if (objectShadows_) {
         drawBoxes(projectionView);
+        drawDroppedWeapons(projectionView);
         drawDoodads(projectionView, true);
         drawGrenades(projectionView);
         drawVehicles(projectionView, true);

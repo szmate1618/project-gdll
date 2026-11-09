@@ -105,6 +105,17 @@ class MultiplayerAssetPackTests(unittest.TestCase):
     def package(self, **kwargs):
         return package_assets(self.root, self.map, self.output, self.zombies, **kwargs)
 
+    def test_shelter_equipment_definitions_are_packaged(self):
+        for item in ("canopy", "support_stake"):
+            for suffix in ("inventory.toml", "tags.txt", "acoustics.toml"):
+                self.write(f"storage/items/{item}.{suffix}", b"shelter equipment definition\n")
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            names = set(archive.namelist())
+            for item in ("canopy", "support_stake"):
+                for suffix in ("inventory.toml", "tags.txt", "acoustics.toml"):
+                    self.assertIn(f"storage/items/{item}.{suffix}", names)
+
     def prepare_dogs(self, directory="assets/undead_dog/models"):
         models = {}
         for variant in range(1, 4):

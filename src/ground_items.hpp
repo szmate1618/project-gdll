@@ -5,12 +5,14 @@
 #include "weapons.hpp"
 #include <cstdint>
 #include <set>
+#include <map>
 
 namespace viewer {
 class Camera;
 class DoorLayer;
 class CollisionWorld;
 class PhysicsScene;
+class Canopy;
 struct GroundItem {
     std::uint64_t id;
     Item item;
@@ -20,6 +22,7 @@ struct GroundItem {
 struct GroundItemPose {
     GroundItem entry;
     BoxPose body;
+    std::vector<BoxPose> panels{}; // Canopy only; 36 row-major articulated poses.
 };
 // Shared world ownership of equippable items. Grid coordinates are presentation
 // only; ground-query reach is measured in world metres from player feet to the item's bounds.
@@ -27,6 +30,7 @@ class GroundItems {
 public:
     static constexpr float reach = 2;
     explicit GroundItems(std::shared_ptr<PhysicsWorld> world, bool replica = false);
+    ~GroundItems();
     bool pending(std::uint64_t id) const { return replica_ && id >= (std::uint64_t(1) << 63); }
     void setModels(const std::array<Model, weaponIds.size()>& models);
     std::uint64_t add(const Item& item, int quantity, std::optional<WeaponItem> weapon,
@@ -66,9 +70,11 @@ private:
     bool equipImpl(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
         const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held, bool reserved);
     bool inReach(std::size_t index, glm::vec3 feet) const;
+    bool grabbed(std::size_t index) const;
     void remove(std::size_t index);
     BoxLayer bodies_;
     std::vector<GroundItem> entries_;
+    std::map<std::uint64_t,std::unique_ptr<Canopy>> canopies_;
     std::uint64_t nextId_ = 1;
     bool replica_ = false;
     std::set<std::uint64_t> reserved_; // Physical previews still owned by a hand transaction.

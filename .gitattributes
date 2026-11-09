@@ -6,6 +6,8 @@
 /storage/ammo/*.tags.txt text eol=lf
 /storage/medical/*.toml text eol=lf
 /storage/medical/*.tags.txt text eol=lf
+/storage/items/*.toml text eol=lf
+/storage/items/*.tags.txt text eol=lf
 /vehicles/*.toml text eol=lf
 /inventory.toml text eol=lf
 /doors.toml text eol=lf

@@ -12,7 +12,9 @@ Item::Item(std::string id, ItemInventoryConfig inventory, WeaponConfig gameplay,
         !inventory_.ammoType.empty() && inventory_.stackable && inventory_.maxStack > 0;
     const bool medical = inventory_.type == "medical" && gameplay_.id.empty() &&
         inventory_.ammoType.empty() && inventory_.stackable && inventory_.maxStack > 0;
-    if (id_.empty() || inventory_.name.empty() || (!weapon && !ammo && !medical) ||
+    const bool equipment = inventory_.type == "equipment" && gameplay_.id.empty() &&
+        inventory_.ammoType.empty() && !inventory_.stackable && inventory_.maxStack == 1;
+    if (id_.empty() || inventory_.name.empty() || (!weapon && !ammo && !medical && !equipment) ||
         inventory_.width < 1 || inventory_.width > 16 || inventory_.height < 1 || inventory_.height > 16)
         throw std::invalid_argument("Invalid inventory/gameplay components for item " + id_);
 }

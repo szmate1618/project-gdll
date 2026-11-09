@@ -1164,7 +1164,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
     // Leave one vest cell free and make the reserve pistol stack slower to access.
     Command reserve;
     reserve.inventoryActions = {{Action::PickUp, "pistol_rounds_2", "", 0, 0, 0},
-        {Action::Drop, "", "backpack/tactical_backpack/main", 6, 0, 0}};
+        {Action::Drop, "", "backpack/tactical_backpack/main", 7, 0, 0}};
     submit(reserve);
     for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
     require(!player.inventory.held(), "Reserve stack setup must complete");

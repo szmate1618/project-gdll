@@ -656,7 +656,7 @@ private:
         std::vector<DrawInstance> draws;
         GLuint instances = 0;
     };
-    std::array<DroppedModelGPU,weaponIds.size()+1> droppedModels_;
+    std::array<DroppedModelGPU,weaponIds.size()+2> droppedModels_;
     const GroundItems* groundSource_ = nullptr;
     const DroppedWeapons* droppedSource_ = nullptr;
     bool rainEnabled_ = false;

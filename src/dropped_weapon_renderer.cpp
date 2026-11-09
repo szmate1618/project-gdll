@@ -18,8 +18,8 @@ void Renderer::setGroundItems(const GroundItems& items, const std::array<Model,w
         auto& gpu = droppedModels_[i];
         if (!gpu.model.meshes.empty()) continue;
         auto model = i < models.size() ? models[i] : BoxLayer::unitCube();
-        if (i == models.size()) {
-            model.materials[0].baseColor = {.28f,.36f,.19f,1};
+        if (i >= models.size()) {
+            model.materials[0].baseColor = i==models.size() ? glm::vec4(.28f,.36f,.19f,1) : glm::vec4(.47f,.43f,.26f,1);
             model.draws.push_back(DrawInstance{});
         }
         uploadModel(model, gpu.model);
@@ -31,14 +31,24 @@ void Renderer::setGroundItems(const GroundItems& items, const std::array<Model,w
 void Renderer::drawDroppedWeapons(const glm::mat4& projectionView) {
     if ((!droppedSource_ || !droppedSource_->count()) && (!groundSource_ || !groundSource_->count())) return;
     const Frustum frustum(projectionView);
-    std::array<std::vector<glm::mat4>,weaponIds.size()+1> visible;
+    std::array<std::vector<glm::mat4>,weaponIds.size()+2> visible;
     if (droppedSource_) for (const auto& pose : droppedSource_->poses())
         if (frustum.intersects(pose.minimum,pose.maximum)) visible[pose.slot].push_back(pose.transform);
     if (groundSource_) for (const auto& pose : groundSource_->poses()) {
+        if (!pose.panels.empty()) {
+            for (const auto& panel : pose.panels) {
+                const auto half=glm::vec3(glm::length(panel.halfExtents));
+                if (!frustum.intersects(panel.center-half,panel.center+half)) continue;
+                // Thin visible fabric, with thicker continuous physics plates.
+                visible[weaponIds.size()+1].push_back(glm::translate(glm::mat4(1),panel.center)*
+                    glm::mat4_cast(panel.rotation)*glm::scale(glm::mat4(1),glm::vec3(.5f,.004f,.5f)));
+            }
+            continue;
+        }
         const auto half = glm::vec3(glm::length(pose.body.halfExtents));
         if (!frustum.intersects(pose.body.center - half, pose.body.center + half)) continue;
-        const auto slot = pose.entry.weapon ? pose.entry.weapon->slot : weaponIds.size();
-        const auto transform = pose.entry.weapon ?
+        const auto slot = pose.entry.item.hasTag("stake") ? stakeSlot : pose.entry.weapon ? pose.entry.weapon->slot : weaponIds.size();
+        const auto transform = slot<weaponIds.size() ?
             glm::translate(glm::mat4(1), pose.body.center) * glm::mat4_cast(pose.body.rotation) *
                 glm::translate(glm::mat4(1), -groundSource_->centers()[slot]) : pose.body.transform();
         visible[slot].push_back(transform);

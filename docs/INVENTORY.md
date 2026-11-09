@@ -198,3 +198,14 @@ stack limits and inventory footprints without weapon gameplay. The starting
 inventory carries four bandages at `medical.bandages`; a bandage treats one
 selected bleeding wound from the Health page and consumes one unit. Stale
 requests, empty stacks and active storage transactions consume nothing.
+
+## General equipment
+
+`[equipment.<instance-id>]` in `inventory.toml` references an `item` definition
+under `storage/items/`. These use inventory schema 2 with `type = "equipment"`,
+cell dimensions, tags and an acoustics sidecar, and have no weapon gameplay
+component or ammunition count. Each instance needs a placement. They are handled
+through the Object handling equipment drawer and ordinary ground-inventory
+transfers. The starter canopy uses 2×2 cells while folded; its deployed size and
+articulated physics are independent of its stored footprint. The spare support
+stake uses 1×6 cells. See [canopy handling](VIEWER.md#tent-canopy-and-support-stakes).

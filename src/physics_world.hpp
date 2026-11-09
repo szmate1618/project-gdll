@@ -32,6 +32,7 @@ constexpr std::uint64_t hardImpactCategory = 1ull << 24;
 // No body uses this category. Embedded props accept ray queries while their
 // physical contact mask excludes the surface/bone they penetrate.
 constexpr std::uint64_t embeddedPropQueryCategory = 1ull << 25;
+constexpr std::uint64_t canopyBodyCategory = 1ull << 26;
 class PhysicsImpacts;
 class CorpseSettling;
 

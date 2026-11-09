@@ -44,6 +44,22 @@ InventoryContents loadInventoryContents(const Path& root) {
         if (!node.is_integer() || !count || *count < 0) invalid(file, "invalid loaded round count for " + id);
         result.owned.emplace(id, loadItem(root / "storage/weapons", id));
     }
+    if (table.contains("equipment")) {
+        const auto* equipment=table["equipment"].as_table();
+        if (!equipment) invalid(file,"equipment must be a table of item instances");
+        for (const auto& [key,node] : *equipment) {
+            const auto* entry=node.as_table();
+            if (!entry) invalid(file,"equipment entries must specify an item");
+            auto item=loadItem(root/"storage/items",label(*entry,"item",file));
+            if (item.inventory().type!="equipment") invalid(file,"equipment must reference an equipment item");
+            const std::string id(key.str());
+            if (id.empty() || !std::all_of(id.begin(),id.end(),[](char c) {
+                return (c>='a' && c<='z') || (c>='0' && c<='9') || c=='_';
+            })) invalid(file,"invalid equipment ID "+id);
+            if (!result.owned.emplace(id,Item(id,item.inventory(),{},item.tags())).second)
+                invalid(file,"duplicate owned item ID "+id);
+        }
+    }
     for (const auto* category : {"ammo", "medical"}) if (table.contains(category)) {
         const auto* stacks = table[category].as_table();
         if (!stacks) invalid(file, std::string(category) + " must be a table of stack IDs");

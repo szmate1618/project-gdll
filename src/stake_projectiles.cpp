@@ -135,7 +135,7 @@ struct StakeProjectiles::Impl {
         b3ShapeId shape{};
         if (b3Body_GetShapes(e.prop.body(),&shape,1) == 1) {
             e.originalFilter = b3Shape_GetFilter(shape);
-            auto filter = e.originalFilter; filter.maskBits = embeddedPropQueryCategory;
+            auto filter = e.originalFilter; filter.maskBits = embeddedPropQueryCategory | canopyBodyCategory;
             // Remains ray-queryable for G/H and free-hand retrieval. Suppress
             // contacts with the penetrated bone while the embedding owns it.
             b3Shape_SetFilter(shape,filter,true);
@@ -214,7 +214,7 @@ struct StakeProjectiles::Impl {
         for (auto it = entries.begin(); it != entries.end();)
             if (!it->second->prop.valid()) it = entries.erase(it); else ++it;
         for (const auto& item : items.poses()) {
-            if (!item.entry.weapon || item.entry.weapon->slot != stakeSlot) continue;
+            if (!item.entry.item.hasTag("stake")) continue;
             auto& entry = entries[item.entry.id];
             if (!entry) entry = std::make_unique<Entry>(*items.prop(item.entry.id));
             auto& e = *entry;

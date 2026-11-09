@@ -22,6 +22,8 @@ struct Fixture {
             std::filesystem::copy_options::recursive);
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/medical", root / "storage/medical",
             std::filesystem::copy_options::recursive);
+        std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/items", root / "storage/items",
+            std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "inventory.toml", root / "inventory.toml");
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills.toml", root / "skills.toml");
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills", root / "skills", std::filesystem::copy_options::recursive);
@@ -50,8 +52,8 @@ struct Fixture {
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 6> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
-    require(inventory.owned.size() == 20 && inventory.quantities.size() == 13,
-        "All seven equippable weapons, twelve ammo stacks and the medical stack must have owned item definitions");
+    require(inventory.owned.size() == 22 && inventory.quantities.size() == 13,
+        "All seven equippable weapons, twelve ammo stacks the medical stack and two shelter items must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–7");
         const auto& item = inventory.owned.at(expected[slot]);
@@ -89,6 +91,17 @@ void starterInventory() {
     require(viewer::loadInventoryContents(fixture.root).owned.empty(), "No ownership entries must mean no owned items");
 }
 void ammoDefinitionsAndStacks() {
+    {
+        Fixture fixture;
+        fixture.inventory("[weapons]\n[equipment.roof]\nitem='canopy'\n");
+        const auto contents=viewer::loadInventoryContents(fixture.root);
+        const auto& item=contents.owned.at("roof");
+        require(item.inventory().type=="equipment" && item.prototype()=="roof" && item.gameplay().id.empty() &&
+                item.inventory().acoustics=="canopy" && !item.inventory().stackable,
+                "Equipment aliases must retain starting-instance identity and their shared physical definition");
+        fixture.inventory("[weapons]\n[equipment.'bad/id']\nitem='canopy'\n");
+        fixture.rejects("inventory.toml","equipment ID");
+    }
     Fixture fixture;
     fixture.inventory("[weapons]\n[ammo.first]\nitem='pistol_rounds'\nquantity=60\n"
         "[ammo.empty]\nitem='pistol_rounds'\nquantity=0\n");

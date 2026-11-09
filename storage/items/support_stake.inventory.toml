@@ -1,0 +1,6 @@
+schema_version = 2
+id = "support_stake"
+name = "Wooden support stake"
+type = "equipment"
+width = 1
+height = 6

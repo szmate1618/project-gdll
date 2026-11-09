@@ -1,4 +1,5 @@
 #include "inventory_state.hpp"
+#include "canopy.hpp"
 #include <stdexcept>
 #include <set>
 
@@ -42,6 +43,7 @@ std::vector<GroundItemState> captureGround(const viewer::GroundItems& ground, gl
             entry.weapon ? static_cast<float>(entry.weapon->readyAt) : 0,
             entry.weapon ? static_cast<std::uint8_t>(entry.weapon->slot) : std::uint8_t(255),
             pose.body.center, pose.body.halfExtents, pose.body.rotation});
+        for (const auto& panel : pose.panels) result.back().panels.push_back({panel.center,panel.rotation});
     }
     return result;
 }
@@ -51,13 +53,19 @@ void applyGround(viewer::GroundItems& ground, const viewer::PlayerInventory& cat
     for (const auto& entry : state) {
         const auto* prototype = catalog.find(entry.prototype);
         if (!prototype || !ids.insert(entry.id).second || entry.quantity > static_cast<std::uint32_t>(prototype->inventory().maxStack) ||
-            (entry.slot == 255) != prototype->inventory().stackable ||
+            (entry.slot == 255) != (prototype->inventory().type!="weapon") ||
+            (prototype->hasTag("canopy") ? entry.panels.size()!=viewer::Canopy::panelCount : !entry.panels.empty()) ||
             (entry.slot != 255 && (prototype->id() != viewer::weaponIds.at(entry.slot) || entry.loaded > static_cast<std::uint32_t>(prototype->gameplay().magazineCapacity))))
             throw std::runtime_error("Invalid ground item definition");
         std::optional<viewer::WeaponItem> weapon;
         if (entry.slot != 255) weapon = viewer::WeaponItem{entry.slot, static_cast<int>(entry.loaded), entry.readyAt};
         poses.push_back({{entry.id, prototype->renamed(entry.item), static_cast<int>(entry.quantity), weapon},
             {poses.size(), entry.center, entry.halfExtents, entry.rotation}});
+        for (std::size_t p=0; p<entry.panels.size(); ++p)
+            poses.back().panels.push_back({p,entry.panels[p].center,{.25f,viewer::Canopy::thickness*.5f,.25f},entry.panels[p].rotation});
+        if (!entry.panels.empty() && (glm::distance(entry.panels[viewer::Canopy::rootPanel].center,entry.center)>.001f ||
+            std::abs(glm::dot(entry.panels[viewer::Canopy::rootPanel].rotation,entry.rotation))<.99999f))
+            throw std::runtime_error("Canopy root disagrees with its panel snapshot");
     }
     ground.synchronize(poses);
 }
