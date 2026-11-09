@@ -1160,7 +1160,7 @@ std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, 
     if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
     Bounds region; region.include(minimum); region.include(maximum);
     impl_->query(region, [&](const Triangle& t) {
-        result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}, t.hardSurface});
+        result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}, t.hardSurface, t.terrain});
     });
     if (includeRuntime && impl_->runtime) {
         for (auto face : impl_->runtime->staticFaces(minimum, maximum)) {

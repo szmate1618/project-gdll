@@ -1,0 +1,160 @@
+--- a/include/box3d/types.h
++++ b/include/box3d/types.h
+@@ -2148,7 +2148,7 @@
+ } b3MeshDef;
+ 
+ /// 64-bit mesh version. Useful for validating serialized data.
+-#define B3_MESH_VERSION 0xAAAB9A00F1A8AAF7ull
++#define B3_MESH_VERSION 0xAAAB9A00F1A8AAF8ull
+ 
+ /// Triangle mesh edge flags.
+ typedef enum b3MeshEdgeFlags
+@@ -2160,6 +2160,13 @@
+ 	b3_inverseConcaveEdge1 = 0x10,
+ 	b3_inverseConcaveEdge2 = 0x20,
+ 	b3_inverseConcaveEdge3 = 0x40,
++
++	// All three vertices have complete closed source fans made of flat edges.
++	// Supplied by chunked-mesh builders with adjacency beyond this mesh.
++	b3_smoothVertexFans = 0x08,
++
++	// At least one flat edge continues into a different source mesh chunk.
++	b3_externalAdjacency = 0x80,
+ 
+ 	b3_allConcaveEdges = b3_concaveEdge1 | b3_concaveEdge2 | b3_concaveEdge3,
+ 
+--- a/include/box3d/collision.h
++++ b/include/box3d/collision.h
+@@ -328,6 +328,11 @@
+ 	return (const uint8_t*)( (intptr_t)mesh + mesh->flagsOffset );
+ }
+ 
++/// Set adjacency flags in stored triangle order before attaching a mesh to shapes.
++/// The caller must own the mesh exclusively. Invalid flags/count/version leave it unchanged.
++/// Flags come from b3MeshEdgeFlags and may include adjacency outside this mesh.
++B3_API bool b3SetMeshEdgeFlags( b3MeshData* mesh, const uint8_t* flags, int triangleCount );
++
+ /// Create a grid mesh along the x and z axes.
+ /// @param xCount the number of rows in the x direction
+ /// @param zCount the number of rows in the z direction
+--- a/src/mesh.c
++++ b/src/mesh.c
+@@ -1228,6 +1228,27 @@
+ 
+ 	B3_FREE( normals, b3Vec3, triangleCount );
+ 	B3_FREE( edges, b3MeshEdge, edgeCount );
++}
++
++bool b3SetMeshEdgeFlags( b3MeshData* mesh, const uint8_t* flags, int triangleCount )
++{
++	if ( mesh == NULL || flags == NULL || mesh->version != B3_MESH_VERSION || triangleCount != mesh->triangleCount )
++	{
++		return false;
++	}
++	for ( int i = 0; i < triangleCount; ++i )
++	{
++		if ( ( flags[i] & ~( b3_allFlatEdges | b3_smoothVertexFans | b3_externalAdjacency ) ) != 0 ) return false;
++		if ( ( flags[i] & b3_externalAdjacency ) != 0 &&
++			 ( flags[i] & b3_flatEdge1 ) != b3_flatEdge1 &&
++			 ( flags[i] & b3_flatEdge2 ) != b3_flatEdge2 &&
++			 ( flags[i] & b3_flatEdge3 ) != b3_flatEdge3 ) return false;
++	}
++	memcpy( b3GetMeshFlagsWrite( mesh ), flags, triangleCount * sizeof( uint8_t ) );
++	mesh->hash = 0;
++	mesh->hash = b3Hash64NonZero( (uint8_t*)mesh, mesh->byteCount );
++	B3_VALIDATE( b3IsConsistent( mesh ) );
++	return true;
+ }
+ 
+ b3MeshData* b3CreateGridMesh( int xCount, int zCount, float cellWidth, int materialCount, bool identifyEdges )
+@@ -2332,7 +2353,7 @@
+ 		result.i3 = triangle.index2;
+ 
+ 		// mesh is inverted, so concave edges are now convex
+-		result.flags = 0;
++		result.flags = triangleFlags & ( b3_smoothVertexFans | b3_externalAdjacency );
+ 		result.flags |= ( triangleFlags & b3_inverseConcaveEdge1 ) ? b3_concaveEdge1 : 0;
+ 		result.flags |= ( triangleFlags & b3_inverseConcaveEdge2 ) ? b3_concaveEdge2 : 0;
+ 		result.flags |= ( triangleFlags & b3_inverseConcaveEdge3 ) ? b3_concaveEdge3 : 0;
+--- a/src/mesh_contact.c
++++ b/src/mesh_contact.c
+@@ -165,6 +165,68 @@
+ 					   contact->meshContact.triangleCache.data[i].triangleIndex < shapeA->mesh.data->triangleCount );
+ 		}
+ 	}
++}
++
++// A mesh section can end on an edge that continues in a different mesh.
++// Source adjacency marks that edge flat before either shape is attached.
++static bool b3IsSmoothTriangleFeature( b3TriangleFeature feature, int flags )
++{
++	// Same-mesh edge handling already has neighboring face witnesses. Only
++	// externally restored adjacency needs this cross-mesh correction.
++	if ( ( flags & b3_externalAdjacency ) == 0 ) return false;
++	int required = 0;
++	switch ( feature )
++	{
++		case b3_featureEdge1: required = b3_flatEdge1; break;
++		case b3_featureEdge2: required = b3_flatEdge2; break;
++		case b3_featureEdge3: required = b3_flatEdge3; break;
++		case b3_featureVertex1:
++			if ( ( flags & b3_smoothVertexFans ) == 0 ) return false;
++			required = b3_flatEdge1 | b3_flatEdge3;
++			break;
++		case b3_featureVertex2:
++			if ( ( flags & b3_smoothVertexFans ) == 0 ) return false;
++			required = b3_flatEdge1 | b3_flatEdge2;
++			break;
++		case b3_featureVertex3:
++			if ( ( flags & b3_smoothVertexFans ) == 0 ) return false;
++			required = b3_flatEdge2 | b3_flatEdge3;
++			break;
++		default:
++			return false;
++	}
++	return ( flags & required ) == required;
++}
++
++static void b3ProjectSmoothTriangleFeature( b3LocalManifold* manifold, b3Vec3 trianglePoint, const b3Shape* shape )
++{
++	const b3Vec3 normal = manifold->triangleNormal;
++	const b3Vec3 oldNormal = manifold->normal;
++	for ( int i = 0; i < manifold->pointCount; ++i )
++	{
++		b3LocalManifoldPoint* point = manifold->points + i;
++		// The stored point is the midpoint of the two witness points. Recover
++		// the shape-side witness before projecting onto the continuing plane.
++		b3Vec3 surface = b3MulAdd( point->point, 0.5f * point->separation, oldNormal );
++		if ( shape->type == b3_sphereShape || shape->type == b3_capsuleShape )
++		{
++			const float radius = shape->type == b3_sphereShape ? shape->sphere.radius : shape->capsule.radius;
++			const b3Vec3 center = shape->type == b3_sphereShape ? shape->sphere.center :
++				b3MulAdd( surface, radius, oldNormal );
++			const float offset = b3Dot( normal, b3Sub( center, trianglePoint ) );
++			point->point = b3MulSub( center, 0.5f * ( radius + offset ), normal );
++			point->separation = offset - radius;
++			if ( shape->type == b3_sphereShape ) manifold->squaredDistance = offset * offset;
++		}
++		else
++		{
++			const float separation = b3Dot( normal, b3Sub( surface, trianglePoint ) );
++			point->point = b3MulSub( surface, 0.5f * separation, normal );
++			point->separation = separation;
++		}
++	}
++	manifold->normal = normal;
++	manifold->feature = b3_featureTriangleFace;
+ }
+ 
+ typedef struct b3TentativeTriangle
+@@ -649,6 +711,10 @@
+ 			manifold->i1 = triangle.i1;
+ 			manifold->i2 = triangle.i2;
+ 			manifold->i3 = triangle.i3;
++			if ( B3_FORCE_GHOST_COLLISIONS == false && b3IsSmoothTriangleFeature( manifold->feature, triangle.flags ) )
++			{
++				b3ProjectSmoothTriangleFeature( manifold, vertices[0], shapeB );
++			}
+ 
+ 			if ( manifold->feature == b3_featureTriangleFace || B3_FORCE_GHOST_COLLISIONS )
+ 			{

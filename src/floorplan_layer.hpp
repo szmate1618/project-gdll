@@ -17,7 +17,10 @@ public:
     ~FloorplanLayer();
     FloorplanLayer(const FloorplanLayer&) = delete;
     FloorplanLayer& operator=(const FloorplanLayer&) = delete;
-    void update(const std::vector<glm::vec3>& observers);
+    // Physical support points retain existing interiors without opening or
+    // generating additional buildings. Points include sleeping corpse parts.
+    void update(const std::vector<glm::vec3>& observers,
+                const std::vector<glm::vec3>& physicsSupport = {});
     std::uint64_t revision() const;
     std::size_t residentCount() const;
     const std::map<std::string, HouseFloorplan>& resident() const;

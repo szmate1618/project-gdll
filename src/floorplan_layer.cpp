@@ -61,14 +61,16 @@ struct FloorplanLayer::Impl {
     std::uint64_t graphGeneration = 0;
     Model renderModel;
     std::map<std::size_t, std::size_t> doorDraws;
+    std::set<std::string> rendered;
     std::uint64_t revision = 1;
 
-    void publish() {
+    void publish(bool collisionChanged) {
         Model collisionModel;
         renderModel = {}; doorDraws.clear();
         for (const auto& entry : resident) {
             const auto& plan = entry.second;
-            appendStaticModel(collisionModel, Model(plan.structure));
+            if (collisionChanged) appendStaticModel(collisionModel, Model(plan.structure));
+            if (!rendered.count(entry.first)) continue;
             const auto materialOffset = static_cast<int>(renderModel.materials.size());
             appendStaticModel(renderModel, Model(plan.structure));
             for (const auto& door : plan.doors) {
@@ -79,7 +81,7 @@ struct FloorplanLayer::Impl {
                 doorDraws.emplace(draw, door.id);
             }
         }
-        collision->setRuntimeGeometry(collisionModel);
+        if (collisionChanged) collision->setRuntimeGeometry(collisionModel);
         ++revision;
     }
 };
@@ -140,16 +142,28 @@ FloorplanLayer::~FloorplanLayer() {
         impl_->doors->evictRuntimeDoor(door.id);
     if (!impl_->resident.empty()) impl_->collision->setRuntimeGeometry({});
 }
-void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
+void FloorplanLayer::update(const std::vector<glm::vec3>& observers,
+                           const std::vector<glm::vec3>& physicsSupport) {
     auto& data = *impl_;
     bool changed = false;
+    std::set<std::string> supportedBuildings;
+    for (const auto p : physicsSupport) {
+        if (!finite(p)) continue;
+        // Part centers can sit just outside a supporting slab at a doorway.
+        // Query the footprint index rather than scan all corpses per building.
+        for (const auto& name : data.footprints->near(p, 1.f)) {
+            const auto plan = data.resident.find(name);
+            if (plan != data.resident.end() && distanceSquared(plan->second, p) <= 1.f)
+                supportedBuildings.insert(name);
+        }
+    }
     for (auto it = data.resident.begin(); it != data.resident.end();) {
         const auto& plan = it->second;
         const bool keep = std::any_of(observers.begin(), observers.end(), [&](glm::vec3 p) {
             if (!finite(p)) return false;
             return distanceSquared(plan, p) <= 30 * 30 + .001f;
         });
-        if (keep) { ++it; continue; }
+        if (keep || supportedBuildings.count(it->first)) { ++it; continue; }
         for (const auto& door : plan.doors) data.doors->evictRuntimeDoor(door.id);
         data.graphs.erase(it->first);
         it = data.resident.erase(it); changed = true;
@@ -184,8 +198,15 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);
         data.resident.emplace(name, std::move(*plan)); changed = true;
     }
+    std::set<std::string> rendered;
+    for (const auto& [name, plan] : data.resident)
+        if (std::any_of(observers.begin(), observers.end(), [&](glm::vec3 p) {
+                return finite(p) && distanceSquared(plan, p) <= 30 * 30 + .001f;
+            })) rendered.insert(name);
+    const bool renderChanged = data.rendered != rendered;
+    data.rendered = std::move(rendered);
+    if (changed || renderChanged) data.publish(changed);
     if (changed) {
-        data.publish();
         for (const auto& [name, plan] : data.resident)
             if (!data.graphs.count(name)) data.graphs.try_emplace(name, plan, *data.doors, *data.collision, ++data.graphGeneration);
     }

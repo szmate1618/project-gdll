@@ -122,6 +122,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-mesh-refit.patch"
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-spring-torque.patch"
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-wheel-motor.patch"
+    "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-mesh-seams.patch"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py")
 if(GD_VIEWER)
     FetchContent_MakeAvailable(glfw openal_soft)
@@ -334,7 +335,7 @@ endif()
 
 add_library(viewer_physics STATIC src/vehicle_config.cpp src/door_config.cpp src/physics_world.cpp src/physics_impacts.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model viewer_acoustics viewer_noise box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
-target_sources(viewer_physics PRIVATE src/collision_box.cpp src/melee_sweep.cpp)
+target_sources(viewer_physics PRIVATE src/collision_box.cpp src/melee_sweep.cpp src/physics_mesh_adjacency.cpp)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
@@ -361,7 +362,7 @@ add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cp
     src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_detached_parts.cpp src/zombie_ragdoll_pose.cpp src/zombie_active_attack.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_crowd_steering.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
     src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp src/zombie_shot_query.cpp src/zombie_melee_hit.cpp src/zombie_melee_query.cpp
     src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp src/zombie_house_investigation.cpp
-    src/blood_mist.cpp src/blood_spurt.cpp src/blood_particles.cpp src/zombie_blood.cpp)
+    src/blood_mist.cpp src/blood_spurt.cpp src/blood_particles.cpp src/zombie_blood.cpp src/zombie_scene_physics.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_objects viewer_fingerprints
     viewer_zombie_steering viewer_scenario_config viewer_visibility viewer_zombie_animation_buffer viewer_day_night_clock)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
@@ -1309,6 +1310,11 @@ if(BUILD_TESTING AND GD_VIEWER)
         viewer_warnings(test_${suite})
         add_test(NAME viewer_${suite} COMMAND test_${suite})
     endforeach()
+
+    add_executable(test_physics_ground tests/test_physics_ground.cpp)
+    target_link_libraries(test_physics_ground PRIVATE viewer_zombies)
+    viewer_warnings(test_physics_ground)
+    add_test(NAME viewer_physics_ground COMMAND test_physics_ground)
 
     target_link_libraries(test_zombie_movement PRIVATE viewer_poles)
     target_link_libraries(test_zombie_damage PRIVATE viewer_weapons)

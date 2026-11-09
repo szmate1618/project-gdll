@@ -117,6 +117,16 @@ void streaming(const glm::mat4& node) {
     require(layer.residentCount() == 1, "A second nearby server observer must retain the interior");
     layer.update({point({0, 1.7f, 36})});
     require(layer.residentCount() == 1, "The 30 metre eviction boundary is inclusive from the building footprint");
+    const auto supportRevision = collision.runtimeRevision();
+    layer.update({point({0, 1.7f, 80})}, {upper + glm::vec3(0, .1f, 0)});
+    require(layer.residentCount() == 1 && collision.runtimeRevision() == supportRevision,
+            "Physical support must retain an upper-storey interior without rebuilding it");
+    require(layer.renderModel().draws.empty(), "Corpse support must not retain distant interior rendering");
+    require(collision.walkingGroundAt(upper.x, upper.z, upper.y - .2f, upper.y + .2f).has_value(),
+            "A distant observer must not remove the floor beneath a corpse");
+    layer.update({point({0, 1.7f, 7})}, {upper});
+    require(!layer.renderModel().draws.empty() && collision.runtimeRevision() == supportRevision,
+            "Returning observers must recover rendering without replacing retained collision");
     layer.update({point({0, 1.7f, 36.2f})});
     require(layer.residentCount() == 0 && layer.renderModel().draws.empty() &&
             std::all_of(generatedIds.begin(), generatedIds.end(), [&](std::size_t id) { return !doors.present(id); }),

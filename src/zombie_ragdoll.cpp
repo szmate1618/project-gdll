@@ -1,5 +1,6 @@
 #include "zombie_ragdoll.hpp"
 #include "physics_impacts.hpp"
+#include "physics_scene.hpp"
 #include "physics_world.hpp"
 #include "zombie_detached_parts.hpp"
 
@@ -203,12 +204,35 @@ public:
             if (b3Body_ComputeAABB(body).upperBound.y < cutoffY) return true;
         return false;
     }
+    void prepareScenePhysics(PhysicsScene& scene) {
+        constexpr float predictionSeconds = .2f;
+        const glm::vec3 padding(1);
+        for (const auto body : bodies_) {
+            if (sceneSupported_ && !b3Body_IsAwake(body)) continue;
+            const auto bounds = b3Body_ComputeAABB(body);
+            const auto velocity = b3Body_GetLinearVelocity(body);
+            const auto travel = predictionSeconds * glm::vec3(velocity.x, velocity.y, velocity.z);
+            const glm::vec3 minimum(bounds.lowerBound.x, bounds.lowerBound.y, bounds.lowerBound.z);
+            const glm::vec3 maximum(bounds.upperBound.x, bounds.upperBound.y, bounds.upperBound.z);
+            // A carried limb may be far from the torso. Preparing each part
+            // avoids loading all the cells between disconnected components.
+            scene.ensureNear(minimum + glm::min(travel, glm::vec3(0)) - padding,
+                             maximum + glm::max(travel, glm::vec3(0)) + padding);
+        }
+        if (!sceneSupported_) {
+            // Retain fallback support if preparing any part throws.
+            if (b3Body_IsValid(ground_)) b3DestroyBody(ground_);
+            ground_ = {};
+            sceneSupported_ = true;
+        }
+    }
     void translate(glm::vec3 displacement) {
         for (const auto body : bodies_) {
             b3Body_SetTransform(body, toB3Pos(fromB3(b3Body_GetPosition(body)) + displacement), b3Body_GetRotation(body));
             b3Body_SetAwake(body, true);
         }
-        b3Body_SetTransform(ground_, toB3Pos(fromB3(b3Body_GetPosition(ground_)) + displacement), b3Body_GetRotation(ground_));
+        if (b3Body_IsValid(ground_))
+            b3Body_SetTransform(ground_, toB3Pos(fromB3(b3Body_GetPosition(ground_)) + displacement), b3Body_GetRotation(ground_));
         ++revision_;
     }
     void applyImpulse(Part part, glm::vec3 impulse) {
@@ -542,6 +566,7 @@ private:
     std::array<b3Vec3, 2> handPoints_{};
     std::array<b3ShapeId, 2> handShapes_{};
     bool driven_ = false;
+    bool sceneSupported_ = false;
     glm::vec3 feet_{0};
     glm::vec3 initialPelvis_{0};
     float yaw_ = 0;
@@ -629,6 +654,11 @@ std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impu
 
 void ZombieRagdollWorld::step(float seconds) {
     if (impl_) impl_->simulation->step(seconds);
+}
+
+void ZombieRagdollWorld::prepareScenePhysics(std::size_t handle, PhysicsScene& scene) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    impl_->entries[handle].ragdoll->prepareScenePhysics(scene);
 }
 
 bool ZombieRagdollWorld::valid(std::size_t handle) const {

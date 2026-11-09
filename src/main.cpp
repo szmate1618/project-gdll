@@ -1791,6 +1791,7 @@ int run(const Options& options) {
     app.doors = &doors;
     app.boxes = &boxes;
     app.physicsScene = &physicsScene;
+    physicsScene.prewarmGround(app.rig.camera().position());
     app.interiors = &interiors;
     app.floorplans = &floorplans;
     auto audioOptions = options.audio;
@@ -1977,7 +1978,9 @@ int run(const Options& options) {
         }
         const double simulationStart = glfwGetTime();
         viewer::frame_stage_profile::Capture frameStageCapture(options.profile ? &frameStages : nullptr);
-        floorplans.update({app.rig.camera().position()});
+        floorplans.update({app.rig.camera().position()},
+                          zombies ? zombies->physicsSupportPositions() : std::vector<glm::vec3>{});
+        physicsScene.prewarmGround(app.rig.camera().position());
         if (interiorZombies)
             interiorZombies->update(floorplans, *zombies, collision, {app.rig.player().feet()}, options.dayNight);
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
@@ -2066,6 +2069,7 @@ int run(const Options& options) {
             if (zombies) {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::wounds);
                 zombies->prepareAttackPhysics(physicsScene);
+                zombies->prepareScenePhysics(physicsScene);
                 zombies->prepareWoundPhysics(step, app.displayedAnimationSeconds, &physicsScene);
             }
             playerBody.beforeStep(step);

@@ -1167,6 +1167,24 @@ reuse, which always requires an initial upload. Allocated storage remains until
 renderer destruction; it uses 64 bytes per bone per allocated slot, with spare
 capacity from growth, subject to the GPU's texture-buffer limit.
 
+Ground collision is shared in 100 × 100 m sections built from the published
+terrain/road triangles. The viewer and authoritative server prewarm nearby
+sections at spawn and as players move. Prepared sections remain resident for
+the session; crossing triangles are retained whole and shared between sections.
+Other static scene geometry keeps its smaller tiles. This preparation runs
+in memory during loading/movement and does not require regenerating the map.
+
+Runtime corpses and living physical attack rigs use these scene contacts.
+Their private flat fallback floor is removed after collision preparation;
+isolated physics fixtures retain the fallback. Each awake part prepares its
+own swept region before a fixed step, including detached or carried limbs.
+Sleeping parts retain support without repeating terrain extraction.
+
+Corpse parts keep already-generated interior floors resident when players
+leave, without activating new interiors or retaining distant interior rendering.
+Runtime collision uses stable geometry chunks, so changing an unrelated chunk
+does not replace a sleeping corpse's supporting collider.
+
 `PhysicsWorld` consumes body movement events after **every** fixed step,
 including the final pose when a body sleeps. `ZombieLayer::synchronizePhysics()`
 rebuilds a corpse's skinning palette only when its physics revision changes.

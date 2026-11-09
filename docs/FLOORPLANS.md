@@ -281,7 +281,13 @@ The interior stays resident while an observer is within 30 metres of the
 building's oriented footprint and vertical interior interval, even if the
 exterior doors close. Standalone and client observers are the local player;
 the server considers all connected players. Invalid observer positions are
-ignored. No observers means all interiors are evicted. Plans, room polygons,
+ignored. The viewer and authoritative server also retain an existing interior
+when a physical corpse part is within one metre of its footprint and vertical
+interior interval, including sleeping or carried parts. These support points
+do not generate new interiors. Distant rendering still streams out, while the
+supporting geometry and doors remain available to physics. Unchanged runtime
+collision chunks keep their bodies across changes elsewhere.
+With no observers or physical support, interiors are evicted. Plans, room polygons,
 CPU/GPU meshes, generated collision and interior door bodies are released.
 Reentry regenerates the same topology, coordinates, polygons and door IDs.
 The server resets generated door movement after a complete eviction, preserving

@@ -77,6 +77,7 @@ void ZombieLayer::stopActiveAttack(std::size_t id) {
 void ZombieLayer::prepareAttackPhysics(PhysicsScene& scene) {
     if (!physics_) return;
     for (const auto id : physics_->attacks) {
+        physics_->world.prepareScenePhysics(instances.at(id).ragdollHandle, scene);
         const auto feet = glm::vec3(instances.at(id).restRoot[3]);
         // Supported rigs cannot travel away from their root. Include floor
         // height even while both authored hands are above a flat scene's AABB.

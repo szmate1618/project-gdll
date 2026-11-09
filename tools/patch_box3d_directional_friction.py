@@ -11,7 +11,8 @@ import sys
 
 def apply(source: Path) -> None:
     for name in ('box3d-directional-friction.patch', 'box3d-mesh-refit.patch',
-                 'box3d-spring-torque.patch', 'box3d-wheel-motor.patch'):
+                 'box3d-spring-torque.patch', 'box3d-wheel-motor.patch',
+                 'box3d-mesh-seams.patch'):
         apply_patch(source, name)
 
 

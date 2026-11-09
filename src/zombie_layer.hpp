@@ -154,8 +154,13 @@ struct ZombieLayer {
     }
     // Sparse wounded actors only. Call before advancing the shared physics world.
     void prepareWoundPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
-    // Stream contacts for living attack rigs only; corpse ground is unchanged.
+    // Stream contacts for living attack rigs. Standalone fixtures keep fallback floors.
     void prepareAttackPhysics(PhysicsScene& scene);
+    // Prepare shared ground/building contacts for corpses before each fixed step.
+    void prepareScenePhysics(PhysicsScene& scene);
+    // Current physical part centers, including sleeping and detached parts, for
+    // retaining already-resident interiors. Does not activate new interiors.
+    std::vector<glm::vec3> physicsSupportPositions() const;
     std::optional<std::size_t> activeAttackOwner(b3BodyId body) const;
     std::vector<glm::mat4> woundContents() const;
     std::vector<glm::mat4> woundContents(const std::vector<std::size_t>& ids, std::size_t maxCount) const;

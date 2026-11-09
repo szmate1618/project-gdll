@@ -1,5 +1,22 @@
 # Box3D physics extensions
 
+## Ground mesh seams
+
+`box3d-mesh-seams.patch` adds `b3SetMeshEdgeFlags()` for applying source
+adjacency to an exclusively owned mesh before it is attached to shapes. It
+validates counts, versions and flag bits, then refreshes the mesh hash. The
+viewer reconstructs neighboring ground edges across section boundaries rather
+than duplicating collision triangles.
+
+Flat shared edges need consistent contact normals even when their neighboring
+face belongs to another mesh. The patch handles those tentative contacts and
+uses a conservative source-fan flag for smooth interior vertices; real open
+boundaries and sharp ridges retain their physical edges. The mesh version is
+advanced because the new fan flag also affects serialized mesh interpretation.
+Only triangles with newly restored external edges receive the adjacency marker;
+ordinary single-mesh contact handling, including wheel traction, stays unchanged.
+`viewer_physics_ground` covers section crossings and real boundary behavior.
+
 ## Wheel motor impulse correction
 
 `box3d-wheel-motor.patch` prevents the non-steering wheel joint from applying

@@ -13,6 +13,7 @@
 namespace viewer {
 
 class PhysicsWorld;
+class PhysicsScene;
 class ZombieDetachedParts;
 
 // World-space skeleton transforms and distal joint positions, in meters.
@@ -24,8 +25,8 @@ struct RagdollPose {
     std::array<glm::vec3, ragdollPartCount> tips{};
 };
 
-// Box3D-backed corpse and living attack rigs. Loose corpses retain their small
-// local floor. The scene additionally supplies contacts for driven attack rigs.
+// Box3D-backed corpse and living attack rigs. New rigs have a small flat
+// fallback floor until prepared against the shared scene collision.
 class ZombieRagdollWorld {
 public:
     ZombieRagdollWorld();
@@ -40,6 +41,10 @@ public:
     std::size_t create(glm::vec3 feet, float yaw, glm::vec3 impulse,
                        const RagdollPose& referencePose, const RagdollPose& currentPose);
     void step(float seconds);
+    // Call before each fixed solve. The scene must use this rig's PhysicsWorld.
+    // The first successful preparation replaces the rig's fallback floor;
+    // subsequent calls prepare only awake parts, including detached limbs.
+    void prepareScenePhysics(std::size_t handle, PhysicsScene& scene);
     bool valid(std::size_t handle) const;
     std::uint64_t poseRevision(std::size_t handle) const;
     bool sleeping(std::size_t handle) const;
