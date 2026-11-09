@@ -71,7 +71,7 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     for (std::size_t slot = 0; slot < weaponIds.size(); ++slot) {
         ranges_[slot].first = static_cast<GLint>(vertices.size());
         const auto model = loadModel(models / (std::string(weaponIds[slot]) + ".glb"));
-        poses_[slot] = slot >= 4 ? glm::rotate(glm::translate(glm::mat4(1), {.17f, -.17f, -.5f}),
+        poses_[slot] = slot == stakeSlot ? glm::translate(glm::mat4(1), {.22f, -.22f, -.8f}) : slot >= 4 ? glm::rotate(glm::translate(glm::mat4(1), {.17f, -.17f, -.5f}),
                                              glm::radians(-15.0f), glm::vec3(0, 0, 1)) :
                                   weaponViewPose(model, slot == 0, body);
         appendModel(model, slot == 2, vertices);

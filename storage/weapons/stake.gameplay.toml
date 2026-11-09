@@ -1,0 +1,13 @@
+name = "Stake"
+kind = "melee"
+ammo_type = "none"
+shot_interval_seconds = 0.55
+draw_time_seconds = 0.15
+reload_time_seconds = 0.0
+automatic = false
+has_scope = false
+pellets = 1
+magazine_capacity = 0
+ammo_per_shot = 0
+spread_degrees = 0.0
+muzzle_position = [0.0, 0.0, -0.75]

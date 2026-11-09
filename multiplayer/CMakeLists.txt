@@ -46,7 +46,7 @@ target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
 target_link_libraries(multiplayer_core PUBLIC viewer_sleep_world)
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC multiplayer_paths viewer_sword_combat viewer_fps viewer_zombies viewer_dogs viewer_interaction
-    viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds viewer_sun_lighting ${mp_transport})
+    viewer_objects viewer_stakes viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds viewer_sun_lighting ${mp_transport})
 target_compile_definitions(multiplayer_core PUBLIC MP_ROOT="${PROJECT_SOURCE_DIR}")
 target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
 if(GD_VIEWER)

@@ -91,9 +91,15 @@ void PhysicsWorld::unregisterStepCallbacks(const void* owner) {
 }
 bool PhysicsWorld::isGrabbed(b3BodyId body) const { return grabCounts_.count(b3StoreBodyId(body)) != 0; }
 void PhysicsWorld::beginGrab(b3BodyId body) {
+    for (const auto& callback : grabCallbacks_) callback.second(body);
     ++grabCounts_[b3StoreBodyId(body)];
     corpseSettling_->invalidate(body);
 }
+void PhysicsWorld::registerGrabCallback(const void* owner, std::function<void(b3BodyId)> callback) {
+    if (!owner || !callback || !grabCallbacks_.emplace(owner, std::move(callback)).second)
+        throw std::logic_error("Invalid or duplicate grab callback");
+}
+void PhysicsWorld::unregisterGrabCallback(const void* owner) { grabCallbacks_.erase(owner); }
 void PhysicsWorld::endGrab(b3BodyId body) {
     const auto found = grabCounts_.find(b3StoreBodyId(body));
     if (found != grabCounts_.end() && --found->second == 0) grabCounts_.erase(found);

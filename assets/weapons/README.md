@@ -152,3 +152,12 @@ python3 tools/prepare_molotov_model.py --output assets/weapons/molotov.json
 The weapon builder accepts `--molotov-source assets/weapons/molotov.json`;
 CMake generates `molotov.glb` with the other weapon assets. Fire is procedural
 shader geometry, with no downloaded textures. See [viewer behavior](../../docs/VIEWER.md).
+
+## Wooden stake
+
+`stake.json` is original geometry: a 150 cm wooden stake with a rectangular
+6 × 4 cm shaft, narrowing over its final 30 cm to a 6 × 4 mm frustum end.
+It is centered at the origin with its point along −Z. The closed mesh has
+20 triangles and uses a plain wood-colored material, without external textures.
+The builder accepts `--stake-source assets/weapons/stake.json`; CMake builds
+`stake.glb` for held and ground instances and includes it in client packages.

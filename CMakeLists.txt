@@ -461,7 +461,7 @@ add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}" "${VIEWER_TES
 
 set(VIEWER_WEAPON_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/assets/weapons")
 set(VIEWER_WEAPON_MODELS)
-foreach(weapon pistol submachine_gun shotgun sniper he_grenade molotov)
+foreach(weapon pistol submachine_gun shotgun sniper he_grenade molotov stake)
     list(APPEND VIEWER_WEAPON_MODELS "${VIEWER_WEAPON_ASSETS}/${weapon}.glb")
 endforeach()
 add_custom_command(
@@ -470,8 +470,9 @@ add_custom_command(
         --source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/models.json"
         --grenade-source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/he_grenade.json"
         --molotov-source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/molotov.json"
+        --stake-source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/stake.json"
         --output-dir "${VIEWER_WEAPON_ASSETS}"
-    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json assets/weapons/he_grenade.json assets/weapons/molotov.json
+    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json assets/weapons/he_grenade.json assets/weapons/molotov.json assets/weapons/stake.json
     COMMENT "Building the low-poly Durango weapon models (offline)"
     VERBATIM
 )
@@ -489,6 +490,10 @@ viewer_warnings(viewer_sun_lighting)
 add_library(viewer_sword_combat STATIC src/sword_combat.cpp src/axe_combat.cpp)
 target_link_libraries(viewer_sword_combat PUBLIC viewer_weapons viewer_zombies viewer_dogs)
 viewer_warnings(viewer_sword_combat)
+
+add_library(viewer_stakes STATIC src/stake_projectiles.cpp)
+target_link_libraries(viewer_stakes PUBLIC viewer_objects viewer_zombies)
+viewer_warnings(viewer_stakes)
 
 add_library(viewer_grenades STATIC src/grenades.cpp src/fire_effects.cpp src/fire_surfaces.cpp)
 target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewer_dogs viewer_objects viewer_sun_lighting)
@@ -537,7 +542,7 @@ viewer_warnings(viewer_scene_audio)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp src/frame_profile.cpp
     src/reticle_overlay.cpp)
 target_link_libraries(godollo_viewer PRIVATE viewer_sword_combat viewer_vegetation
-    viewer_renderer viewer_hud viewer_fps viewer_interaction viewer_objects viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
+    viewer_renderer viewer_hud viewer_fps viewer_interaction viewer_objects viewer_stakes viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -766,6 +771,11 @@ if(BUILD_TESTING AND GD_VIEWER)
         VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     viewer_warnings(test_weapons)
     add_test(NAME viewer_weapons COMMAND test_weapons)
+    add_executable(test_stakes tests/test_stakes.cpp)
+    target_link_libraries(test_stakes PRIVATE viewer_stakes)
+    target_compile_definitions(test_stakes PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_stakes)
+    add_test(NAME viewer_stakes COMMAND test_stakes)
     add_executable(test_ground_items tests/test_ground_items.cpp)
     target_link_libraries(test_ground_items PRIVATE viewer_objects)
     target_compile_definitions(test_ground_items PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")

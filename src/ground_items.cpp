@@ -31,6 +31,7 @@ bool insertGroundItem(const GroundItem& entry, PlayerInventory& inventory, Weapo
 GroundItems::GroundItems(std::shared_ptr<PhysicsWorld> world, bool replica)
     : bodies_(std::move(world)), nextId_(replica ? std::uint64_t(1) << 63 : 1), replica_(replica) {
     sizes_.fill(glm::vec3(.15f, .1f, .3f));
+    sizes_[stakeSlot] = {.06f, .04f, 1.5f};
 }
 void GroundItems::setModels(const std::array<Model, weaponIds.size()>& models) {
     for (std::size_t i = 0; i < models.size(); ++i) {
@@ -45,7 +46,7 @@ std::uint64_t GroundItems::add(const Item& item, int quantity, std::optional<Wea
     motion.rotation = rotation;
     motion.angularVelocity = angularVelocity;
     motion.acoustics = item.inventory().acoustics.empty() ? "crate" : item.inventory().acoustics;
-    constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f};
+    constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f,0,1.2f};
     motion.mass = weapon ? masses.at(weapon->slot) : .3f;
     motion.friction = 1;
     motion.continuous = true;

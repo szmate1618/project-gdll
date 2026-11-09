@@ -9,7 +9,7 @@
 
 namespace viewer {
 const char* equipmentIconClass(std::size_t equipment) {
-    constexpr std::array<const char*,equipmentSlotCount> icons{"pistol","smg","shotgun","sniper","grenade","molotov","fists","handling","sword","axe"};
+    constexpr std::array<const char*,equipmentSlotCount> icons{"pistol","smg","shotgun","sniper","grenade","molotov","stake","fists","handling","sword","axe"};
     return equipment<icons.size() ? icons[equipment] : "unconfirmed";
 }
 void populateActionHotbar(Rml::ElementDocument& document, const PlayerInventory& inventory) {
@@ -22,7 +22,7 @@ void populateActionHotbar(Rml::ElementDocument& document, const PlayerInventory&
         if (action.name.empty()) contents += "<div class='assignment-name'>Unassigned</div>";
         else {
             const auto* item = inventory.find(inventory.hotbar()[slot]);
-            const auto* itemStyle = item && item->hasTag("incendiary") ? "molotov" :
+            const auto* itemStyle = item && item->hasTag("stake") ? "stake" : item && item->hasTag("incendiary") ? "molotov" :
                 item && item->hasTag("grenade") ? "grenade" : "pistol";
             contents += "<span class='assignment-type'>" + std::string(action.skill ? "SKILL" : "ITEM") +
                 "</span><div class='assignment-square " + std::string(action.skill ? (action.equipment == handlingSlot ? "handling" : action.equipment == swordSlot ? "sword" : action.equipment == axeSlot ? "axe" : "punch") : itemStyle) +

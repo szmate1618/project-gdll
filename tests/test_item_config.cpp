@@ -50,8 +50,8 @@ struct Fixture {
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 6> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
-    require(inventory.owned.size() == 19 && inventory.quantities.size() == 13,
-        "All six weapons, twelve ammo stacks and the medical stack must have owned item definitions");
+    require(inventory.owned.size() == 20 && inventory.quantities.size() == 13,
+        "All seven equippable weapons, twelve ammo stacks and the medical stack must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–7");
         const auto& item = inventory.owned.at(expected[slot]);
@@ -64,7 +64,7 @@ void starterInventory() {
     require(inventory.hotbar[1] == "skill:punch" && inventory.skills.at("punch") == "Punch", "Punch shortcut must reference the registered skill");
     require(inventory.hotbar[0] == "skill:object_handling" && inventory.skills.at("object_handling") == "Object handling",
             "Slot 0 must contain the Object handling skill");
-    require(inventory.hotbar[8] == "skill:sword", "Slot 8 must create the sword melee weapon");
+    require(inventory.hotbar[8] == "stake" && inventory.owned.at("stake").hasTag("throwable"), "Slot 8 must select the owned throwable stake");
     require(inventory.hotbar[9] == "skill:axe", "Slot 9 must create the axe melee weapon");
     const auto& pistol = inventory.owned.at("pistol");
     require(pistol.inventory().width == 2 && pistol.inventory().height == 1, "Pistol must have a 2x1 cell footprint");

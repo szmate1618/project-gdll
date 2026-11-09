@@ -71,6 +71,7 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--grenade-source", type=Path)
     parser.add_argument("--molotov-source", type=Path)
+    parser.add_argument("--stake-source", type=Path)
     args = parser.parse_args()
     document = json.loads(args.source.read_text())
     if document["version"] != 1 or document["units"] != "meters" or document["axes"] != "X right, Y up, muzzle -Z":
@@ -89,6 +90,11 @@ def main():
         if molotov["id"] != "molotov":
             raise ValueError("Expected a molotov mesh")
         outputs["molotov"] = build_model(molotov)
+    if args.stake_source:
+        stake = json.loads(args.stake_source.read_text())
+        if stake["id"] != "stake":
+            raise ValueError("Expected a stake mesh")
+        outputs["stake"] = build_model(stake)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for name, data in outputs.items():
         target = args.output_dir / (name + ".glb")

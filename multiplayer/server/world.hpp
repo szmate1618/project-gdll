@@ -2,6 +2,7 @@
 #include "scene.hpp"
 #include "interior_objects.hpp"
 #include "physics_scene.hpp"
+#include "stake_projectiles.hpp"
 #include "player_interaction.hpp"
 #include "hand_inventory.hpp"
 #include "weapons.hpp"
@@ -88,6 +89,7 @@ private:
     ServerBirds birds_;
     VehicleSeats vehicleSeats_;
     viewer::PhysicsScene physicsScene_;
+    viewer::StakeProjectiles stakes_;
     viewer::InteriorObjects interiors_;
     viewer::ZombieDoorCollision zombieDoors_;
     viewer::MeleeCombat melee_;

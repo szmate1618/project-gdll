@@ -30,7 +30,7 @@ void definitionsAndQueries() {
     require(inventory.hasType("weapon") && !inventory.hasType("food"), "Type queries must use inventory component types");
     require(inventory.hasTag("long_gun") && !inventory.hasTag("gun"), "Category query must use exact tags");
     const auto rifles = inventory.findByTag("long_gun");
-    require(rifles.size() == 3 && inventory.findByType("weapon").size() == 6 && inventory.findByTag("food").empty(),
+    require(rifles.size() == 3 && inventory.findByType("weapon").size() == 7 && inventory.findByTag("food").empty(),
         "Item queries must return the matching owned items");
     for (const auto& found : rifles)
         require(found.item->hasTag("long_gun") && found.location.kind == viewer::InventoryLocationKind::Storage &&

@@ -1,0 +1,1 @@
+stake, melee, throwable, two_handed

@@ -52,8 +52,15 @@ int main(int argc, char** argv) {
         };
         require(changed(empty,ammo)>100,"Dropped ammo box did not render");
         require(changed(ammo,weapon)>100,"Dropped weapon model did not render");
+        ground.add(*inventory.find("stake"),0,viewer::WeaponItem{viewer::stakeSlot,0,0},
+                   {0,.65f,-.25f}, {}, glm::angleAxis(glm::radians(65.f),glm::vec3(1,0,0)));
+        renderer.render(camera);
+        require(changed(weapon,pixels())>100,"Stake model did not render");
         require(glGetError()==GL_NO_ERROR,"Ground item rendering generated a GL error");
-        if (argc>1) renderer.writeScreenshot(argv[1]);
+        if (argc>1) {
+            camera.setPosition({2,1.6f,2.6f}); camera.setOrientation(-125,-14);
+            renderer.render(camera); renderer.writeScreenshot(argv[1]);
+        }
         std::cout<<"Ground item rendering checks passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; glfwDestroyWindow(window); glfwTerminate(); return 1; }
     glfwDestroyWindow(window); glfwTerminate(); return 0;

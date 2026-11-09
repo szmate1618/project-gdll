@@ -24,6 +24,7 @@ public:
     void applyImpulse(glm::vec3 impulse, glm::vec3 point) const;
 private:
     friend class PhysicsGrab;
+    friend class StakeProjectiles;
     b3BodyId body() const;
     std::shared_ptr<PhysicsWorld> world_;
     b3BodyId body_;

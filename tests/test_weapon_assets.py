@@ -21,6 +21,29 @@ def weapon(name="pistol"):
 
 
 class WeaponAssetTests(unittest.TestCase):
+    def test_stake_is_a_closed_150cm_rectangular_solid_with_frustum_tip(self):
+        source = Path(__file__).resolve().parents[1] / "assets/weapons/stake.json"
+        model = json.loads(source.read_text())
+        part = model["parts"][0]
+        points = part["positions"]
+        self.assertAlmostEqual(max(p[2] for p in points) - min(p[2] for p in points), 1.5)
+        tip = [p for p in points if p[2] == -.75]
+        self.assertEqual(len(tip), 4)
+        self.assertEqual(len({(p[0], p[1]) for p in tip}), 4)
+        self.assertLess(max(abs(p[0]) for p in tip), .005)
+        edges = Counter()
+        volume = 0
+        for triangle in part["triangles"]:
+            a, b, c = (points[i] for i in triangle)
+            volume += (a[0]*(b[1]*c[2]-b[2]*c[1]) +
+                       a[1]*(b[2]*c[0]-b[0]*c[2]) + a[2]*(b[0]*c[1]-b[1]*c[0])) / 6
+            for start, end in zip(triangle, triangle[1:] + triangle[:1]):
+                edges[tuple(sorted((start, end)))] += 1
+        self.assertTrue(all(count == 2 for count in edges.values()))
+        self.assertGreater(volume, 0, "Stake faces must wind outward")
+        document, _ = read_glb(build_model(model))
+        self.assertEqual(len(document["meshes"]), 1)
+
     def test_octagonal_grenade_source_is_closed_and_reproducible(self):
         model = grenade_model()
         source = Path(__file__).resolve().parents[1] / "assets/weapons/he_grenade.json"

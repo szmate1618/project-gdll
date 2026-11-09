@@ -134,6 +134,7 @@ ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons, const viewer::
 }
 World::World(Scene& scene) : scene_(scene), birds_(scene), vehicleSeats_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
+    stakes_(*scene.groundItems,scene.physics,*scene.collision,&scene.zombies),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics), melee_(scene.physics) {
     viewer::SimulationClock::instance().reset();
     scene.zombies.setBloodParticlesEnabled(false);
@@ -505,6 +506,7 @@ void World::step() {
     }
     physicsScene_.prepare(*scene_.boxes);
     scene_.groundItems->prepare(physicsScene_,scene_.doors.get());
+    stakes_.setAnimationSeconds(now);
     scene_.grenades->prepare(physicsScene_, *scene_.doors);
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i)
         if (scene_.boxes->active(i)) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);

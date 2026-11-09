@@ -2322,12 +2322,12 @@ the selector opens and requires a fresh press after cancellation. Right-click
 continues to operate the equipped action, including scope zoom and grenade charging,
 while the selector stays open. Selecting the equipped action does nothing;
 Escape cancels the preview. The initial slots are 0 Object handling, 1 Punch, 2 pistol, 3 SMG,
-4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov cocktail, 8 Sword, and 9 Axe. `inventory.toml` accepts owned item IDs and
+4 shotgun, 5 sniper, 6 HE grenade, 7 Molotov cocktail, 8 Stake, and 9 Axe. `inventory.toml` accepts owned item IDs and
 `skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
 is not implemented. Punch equips the existing fists, which use no ammunition.
 
-**8**, then **left click** to confirm, equips the Sword melee skill and creates
-its weapon. The silver blade has a narrow hexagonal outline. Hold **left click**
+Assign `skill:sword` to a hotbar slot in `inventory.toml`, then select and
+confirm it with **left click** to equip the Sword melee skill. The silver blade has a narrow hexagonal outline. Hold **left click**
 and drag in any direction: dragging left snaps the sword right, then cuts left
 across your front. Right, up, down and diagonal drags work the same way. A
 12-pixel threshold filters jitter. Each cut has a 0.09 s windup, a 0.26 s cut,
@@ -2771,6 +2771,23 @@ Semi-auto clicks during cooldown are discarded. Configuration and inventory are
 read once at startup; gameplay changes live in memory and restart from the file.
 
 ### Discarding and picking up weapons
+
+The starter loadout includes a **1.5 m wooden stake**, with a rectangular
+6 × 4 cm shaft and a 30 cm rectangular-frustum point. Select **8**, confirm with
+left click, then press **F** to throw it. It follows its velocity point-first
+throughout flight. Its point embeds in ground/floors or in a zombie's struck
+bone; zombie attachments follow animation, movement and ragdoll handoff.
+A zombie impact applies high-calibre-equivalent damage once. Walls occlude
+hits behind them and side impacts retain ordinary prop collision.
+
+Use Object handling (**Alt** or **0**) and left-drag to pull it free, then use
+**F** to throw it again. **G** puts an aimed embedded stake in the backpack;
+**H** retrieves and equips it. Normal reach, line-of-sight, ownership and
+storage-space checks apply. The stake uses a 1×6 inventory footprint, starts
+in the backpack, and needs no ammunition. To restore the Sword shortcut,
+reassign a slot to `skill:sword` in `inventory.toml`. Multiplayer simulates
+flight and attachment on the server and sends the resulting ground-item
+poses to clients.
 
 Outside Object handling, **F** discards the equipped weapon with a 12.5 m/s
 forward launch, a small upward velocity, and a 14 rad/s spin about world Y.

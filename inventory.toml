@@ -9,6 +9,7 @@ sniper = 5
 shotgun = 6
 he_grenade = 1
 molotov = 1
+stake = 0
 
 [ammo.pistol_rounds_1]
 item = "pistol_rounds"
@@ -72,7 +73,7 @@ quantity = 4
 5 = "sniper"
 6 = "he_grenade"
 7 = "molotov"
-8 = "skill:sword"
+8 = "stake"
 9 = "skill:axe"
 
 # Item top-left positions in storage cells. References must name equipped gear.
@@ -172,4 +173,9 @@ y = 6
 [placements.bandages]
 storage = "backpack/tactical_backpack/main"
 x = 3
+y = 0
+
+[placements.stake]
+storage = "backpack/tactical_backpack/main"
+x = 4
 y = 0

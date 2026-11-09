@@ -24,7 +24,7 @@ void selection() {
     selection.highlight(0);
     require(selection.confirm(actions, 0) == viewer::handlingSlot, "Slot 0 must select the object-handling skill");
     selection.highlight(8);
-    require(selection.confirm(actions, 0) == viewer::swordSlot, "Slot 8 must select Sword");
+    require(selection.confirm(actions, 0) == viewer::stakeSlot, "Slot 8 must select the stored stake");
     selection.highlight(9);
     require(selection.confirm(actions, 0) == viewer::axeSlot, "Slot 9 must select Axe");
     selection.cycle(-1, actions, viewer::handlingSlot);

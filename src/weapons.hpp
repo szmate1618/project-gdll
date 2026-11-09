@@ -14,14 +14,15 @@
 namespace viewer {
 class PlayerInventory;
 class WeaponReload;
-inline constexpr std::array<const char*, 6> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
+inline constexpr std::array<const char*, 7> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov", "stake"};
+constexpr std::size_t stakeSlot = 6;
 constexpr std::size_t handlingSlot = weaponIds.size() + 1;
 constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
 constexpr std::size_t swordSlot = weaponIds.size() + 2;
 constexpr std::size_t axeSlot = swordSlot + 1;
 constexpr std::size_t equipmentSlotCount = axeSlot + 1;
 inline bool directionalMeleeSlot(std::size_t slot) { return slot == swordSlot || slot == axeSlot; }
-// Slots 0..5 are fixed weapon IDs. Ammo counts use rounds (shotgun shells),
+// Slots 0..6 are fixed equippable item IDs. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponState {
     WeaponConfig config;

@@ -71,7 +71,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
             self.write(f"storage/{name}", b"storage config\n")
         self.write("vehicles/car.toml", b"vehicle config\n")
-        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov"):
+        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov", "stake"):
             self.write(f"storage/weapons/{name}.inventory.toml", b"item definition\n")
             self.write(f"storage/weapons/{name}.gameplay.toml", b"weapon gameplay\n")
             self.write(f"storage/weapons/{name}.acoustics.toml", b"weapon acoustics\n")
@@ -308,7 +308,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                          "assets/pigeon/README.md", "assets/pigeon/sources.json"})
         expected.update({"doors.toml", "skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
         for suffix in ("inventory.toml", "gameplay.toml", "acoustics.toml", "tags.txt"):
-            expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov"))
+            expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade", "molotov", "stake"))
         for suffix in ("inventory.toml", "acoustics.toml", "tags.txt"):
             expected.update(f"storage/ammo/{name}.{suffix}" for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades", "molotovs"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))

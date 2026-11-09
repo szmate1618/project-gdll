@@ -30,6 +30,7 @@
 #include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "weapons.hpp"
+#include "stake_projectiles.hpp"
 #include "sword_combat.hpp"
 #include "axe_combat.hpp"
 #include "weapon_accuracy.hpp"
@@ -1878,6 +1879,7 @@ int run(const Options& options) {
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
     viewer::GroundItems groundItems(physics);
     groundItems.setModels(droppedModels);
+    viewer::StakeProjectiles stakes(groundItems,physics,collision,zombies ? &*zombies : nullptr);
     app.groundItems = &groundItems;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr, &dogs);
@@ -2082,6 +2084,7 @@ int run(const Options& options) {
                     doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
             physicsScene.prepare(boxes);
             groundItems.prepare(physicsScene, &doors);
+            stakes.setAnimationSeconds(app.displayedAnimationSeconds);
             grenades.prepare(physicsScene, doors);
 
             const double behaviorStart = glfwGetTime();

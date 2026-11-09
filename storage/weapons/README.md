@@ -200,7 +200,8 @@ grenade automatically retrieves another of the same ammo type.
 ```
 
 The starter hotbar uses 0 for Object handling, 1 for Punch, 2–6 for the five
-existing weapons, 7 for Molotov and 8 for the Sword skill. Slot 9 is empty.
+existing weapons, 7 for Molotov, 8 for Stake and 9 for the Axe skill. Sword can be assigned
+with `skill:sword` in `inventory.toml`.
 Shortcuts are references, so they add no ownership or storage capacity. Unknown
 or unowned IDs and invalid slot numbers are rejected. Inventory and Skills use
 the same player-owned model, loaded once at startup. Restart to apply
@@ -250,3 +251,16 @@ segments independently of the bullet query's joint precedence.
 Zombies receive high-calibre-equivalent damage;
 dogs receive 20 damage. The standalone viewer and multiplayer server share
 these checks, while clients predict the local sword motion.
+
+## Wooden stake
+
+`stake` is a transferable equippable item with `kind = "melee"`, no ammo and
+a 1×6 inventory footprint. The starter shortcut is 8. Throw it with F, or use
+Object handling's charged F throw. Its model is `assets/weapons/stake.json`,
+built offline with the other weapon GLBs: a 1.5 m rectangular wooden shaft
+with a 30 cm rectangular-frustum tip pointing along model-local −Z.
+
+`StakeProjectiles` runs once per shared physics step in the viewer/server,
+aligns free flight to velocity, sweeps the point against scene triangles and
+spatially selected zombies, and owns releasable embeddings. Grabbing releases
+the embedding synchronously; G/H use the ordinary ground-inventory transfers.

@@ -30,3 +30,5 @@
 .sword #weapon-icon, .selection-icon.sword { decorator: image(../data/assets/game-icons/hud/sword.png contain); image-color: #b9c8d5; }
 
 .axe #weapon-icon, .selection-icon.axe { decorator: image(../data/assets/game-icons/hud/axe.png contain); image-color: #b9c8d5; }
+
+.stake #weapon-icon, .selection-icon.stake { decorator: image(../data/assets/game-icons/hud/sword.png contain); image-color: #bd9c73; }

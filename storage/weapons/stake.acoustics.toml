@@ -1,0 +1,7 @@
+schema_version = 1
+material = "wood"
+hollowness = 0.0
+size = 1.5
+gain = 0.65
+min_speed = 0.70
+noise_db = 48.0

@@ -29,6 +29,9 @@ constexpr std::uint64_t zombieAttackBodyCategory = 1ull << 22;
 constexpr std::uint64_t detachedLimbCategory = 1ull << 23;
 // Classification only: these shapes retain their ordinary collision category.
 constexpr std::uint64_t hardImpactCategory = 1ull << 24;
+// No body uses this category. Embedded props accept ray queries while their
+// physical contact mask excludes the surface/bone they penetrate.
+constexpr std::uint64_t embeddedPropQueryCategory = 1ull << 25;
 class PhysicsImpacts;
 class CorpseSettling;
 
@@ -60,6 +63,10 @@ public:
     // Owners must unregister before destruction; callbacks must not change this list.
     void registerStepCallbacks(const void* owner, std::function<void()> prepare, std::function<void()> finish);
     void unregisterStepCallbacks(const void* owner);
+    // Called synchronously when a hand acquires a prop, before the next solve.
+    // Embeddings release here so even a grab-and-throw in one frame works.
+    void registerGrabCallback(const void* owner, std::function<void(b3BodyId)> callback);
+    void unregisterGrabCallback(const void* owner);
     bool isGrabbed(b3BodyId body) const;
 private:
     friend class PhysicsGrab;
@@ -74,6 +81,7 @@ private:
     std::unordered_map<std::uint64_t, std::uint64_t*> motionOwners_;
     struct StepCallbacks { std::function<void()> prepare, finish; };
     std::unordered_map<const void*, StepCallbacks> stepCallbacks_;
+    std::unordered_map<const void*, std::function<void(b3BodyId)>> grabCallbacks_;
     std::unordered_map<std::uint64_t, unsigned> grabCounts_; // Both hands may hold one body.
 };
 

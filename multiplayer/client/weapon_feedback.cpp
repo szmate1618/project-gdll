@@ -22,6 +22,7 @@ WeaponFeedback WeaponFeedbackPrediction::advance(const Command& command, double 
     if (!ready_ || !std::isfinite(now) || state_.slot >= viewer::weaponIds.size() || command.slot != state_.slot ||
         state_.vehicle != noVehicle || state_.weaponSwitchRemaining > 0) return result;
     auto weapon = definitions.state(state_.slot);
+    if (weapon.config.melee) return result;
     int outstanding = 0;
     for (const auto& shot : pending_) if (shot.slot == state_.slot) outstanding += shot.rounds;
     weapon.loaded = static_cast<int>(std::clamp<std::int64_t>(std::int64_t(state_.loaded) - outstanding,

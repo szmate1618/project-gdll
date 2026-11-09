@@ -30,7 +30,7 @@ bool DroppedWeapons::discard(Weapons& inventory, const Camera& camera, const Col
     motion.rotation = glm::normalize(glm::quat_cast(glm::mat3(glm::inverse(camera.view()))));
     motion.velocity = playerVelocity+direction*throwSpeed+glm::vec3(0,2,0);
     motion.angularVelocity = {0,spinSpeed,0};
-    constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f};
+    constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f,0,1.2f};
     motion.mass = masses[slot];
     motion.acoustics = weaponIds[slot];
     motion.friction = 1.0f;

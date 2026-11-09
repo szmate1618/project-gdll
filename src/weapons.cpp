@@ -145,7 +145,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     pendingGrenadePower_.reset();
     if (primary) grenadeChargeAt_.reset();
     pressed_ = false;
-    if (slot_ == handlingSlot || directionalMeleeSlot(slot_) || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (slot_ == handlingSlot || weapon.config.melee || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
         if (emptyClicked_) return WeaponFireResult::none;
         emptyClicked_ = true;
@@ -197,6 +197,7 @@ bool Weapons::pickUp(const WeaponItem& item) {
     return equip(item.slot);
 }
 std::string Weapons::status() const {
+    if (slot_ == stakeSlot) return "Stake | F to throw";
     if (slot_ == swordSlot) return "Sword | left click + drag to cut";
     if (slot_ == axeSlot) return "Axe | left click + drag to chop";
     if (slot_ == handlingSlot) return "Object handling";
