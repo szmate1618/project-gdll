@@ -94,7 +94,7 @@ color=[0.4,0.3,0.2]
 int main() {
     try {
         const std::filesystem::path items=std::filesystem::path(VIEWER_ITEM_ROOT)/"storage/items";
-        for (const auto* id : {"duct_tape","wire_spool","nail","broom"}) {
+        for (const auto* id : {"duct_tape","wire_spool","nail","broom","cleaver","knife"}) {
             const auto item=viewer::loadItem(items,id);
             const auto& config=item.inventory().model;
             require(!config.parts.empty() && config.massKg>0,"An authored item model was not loaded");

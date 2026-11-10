@@ -1,0 +1,47 @@
+schema_version = 2
+id = "cleaver"
+name = "Cleaver"
+type = "equipment"
+tags = ["crafting"]
+width = 2
+height = 3
+
+[model]
+mass_kg = 0.72
+
+# Local +Y runs from the wooden handle toward the blade. Total length: 0.32 m.
+[[model.parts]]
+name = "handle"
+shape = "box"
+material = "wood"
+center = [0.0, -0.06, 0.0]
+size = [0.032, 0.12, 0.024]
+color = [0.34, 0.19, 0.10]
+
+[[model.parts]]
+name = "ferrule"
+shape = "box"
+material = "steel"
+center = [0.0, 0.0, 0.0]
+size = [0.040, 0.010, 0.028]
+color = [0.45, 0.48, 0.50]
+
+[[model.parts]]
+name = "blade"
+shape = "box"
+material = "steel"
+center = [0.020, 0.10, 0.0]
+size = [0.080, 0.20, 0.004]
+color = [0.63, 0.67, 0.70]
+
+# Turn the frustum's taper toward +X to form the long, thin cutting edge.
+# Rotation is a w,x,y,z quaternion: -90 degrees around Z.
+[[model.parts]]
+name = "edge"
+shape = "frustum"
+material = "steel"
+center = [0.0725, 0.10, 0.0]
+size = [0.20, 0.025, 0.004]
+top_size = [0.20, 0.0008]
+rotation = [0.7071067812, 0.0, 0.0, -0.7071067812]
+color = [0.79, 0.82, 0.84]

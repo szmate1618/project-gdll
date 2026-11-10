@@ -18,7 +18,7 @@ inline viewer::InventoryContents contents(const std::filesystem::path& root) {
     auto result = viewer::loadInventoryContents(root);
     // These swap tests intentionally keep the original fixed set of items.
     for (const auto* id : {"molotov","molotovs_1","bandages","stake","canopy","support_stake","support_stake_2",
-                          "duct_tape","wire_spool","nails","broom"}) {
+                          "duct_tape","wire_spool","nails","broom","cleaver","knife"}) {
         result.owned.erase(id); result.placements.erase(id); result.quantities.erase(id);
     }
     result.hotbar[7].clear();

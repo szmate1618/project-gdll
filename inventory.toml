@@ -87,6 +87,12 @@ quantity = 20
 [equipment.broom]
 item = "broom"
 
+[equipment.cleaver]
+item = "cleaver"
+
+[equipment.knife]
+item = "knife"
+
 # Owned item IDs or skill:<ID> references registered in skills.toml.
 [hotbar]
 0 = "skill:object_handling"
@@ -238,3 +244,13 @@ y = 3
 storage = "backpack/tactical_backpack/main"
 x = 3
 y = 1
+
+[placements.cleaver]
+storage = "backpack/tactical_backpack/main"
+x = 0
+y = 5
+
+[placements.knife]
+storage = "backpack/tactical_backpack/main"
+x = 2
+y = 6

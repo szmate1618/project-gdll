@@ -52,8 +52,8 @@ struct Fixture {
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 6> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
-    require(inventory.owned.size() == 27 && inventory.quantities.size() == 16,
-        "Starting ownership must include weapons, consumables, shelter items and four crafting supplies");
+    require(inventory.owned.size() == 29 && inventory.quantities.size() == 16,
+        "Starting ownership must include weapons, consumables, shelter items and six crafting supplies");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–7");
         const auto& item = inventory.owned.at(expected[slot]);

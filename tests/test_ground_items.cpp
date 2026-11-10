@@ -162,7 +162,7 @@ int main() {
             viewer::Weapons modeledWeapons(root/"storage/weapons",root/"inventory.toml",true);
             auto modeledPhysics=std::make_shared<viewer::PhysicsWorld>();
             viewer::GroundItems modeled(modeledPhysics);
-            for (const auto* instance : {"duct_tape","wire_spool","nails","broom"}) {
+            for (const auto* instance : {"duct_tape","wire_spool","nails","broom","cleaver","knife"}) {
                 const auto* item=modeledInventory.find(instance);
                 require(item && !item->inventory().model.parts.empty(),"A modeled starter item is unavailable");
                 const auto location=modeledInventory.placements().at(instance);

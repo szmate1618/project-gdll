@@ -18,13 +18,15 @@ The starter backpack contains:
 | Spool of wire | 1×1 | 20 m | `crafting`, `bind` |
 | Nails | 1×1 | 20 | `crafting`, `nail` |
 | Broom | 1×6 | 1 | `crafting` |
+| Cleaver | 2×3 | 1 | `crafting` |
+| Knife | 1×3 | 1 | `crafting` |
 
 Tape and wire define `stackable = true`, `quantity_unit = "m"` and
 `max_stack = 50.0`. Their root inventory `quantity` is a length in metres and
 may be fractional; it is not a count of rolls or spools. Counted stacks such as
 nails omit `quantity_unit` and use an integer `max_stack` and `quantity`.
-The broom is a single, nonstackable item. The inventory cell footprint is
-separate from the model's physical dimensions.
+The broom, cleaver and knife are single, nonstackable items. The inventory cell
+footprint is separate from the model's physical dimensions.
 
 ## Primitive item models
 
@@ -48,6 +50,12 @@ metadata and identify nailable wood/cardboard surfaces; the separate acoustic
 profile describes the overall object's impacts. Collision uses each primitive
 separately, with rectangular boxes around frusta. The space beside the broom's
 narrow handle stays empty.
+
+The 32 cm cleaver has a dark wooden box handle, steel ferrule, rectangular steel
+blade and a rotated frustum cutting edge (48 triangles). The 30 cm knife has a
+brown wooden box handle, steel ferrule and a tapered steel blade (36 triangles).
+Their handles retain the `wood` material separately from the `steel` blades.
+Both use the same per-part collision and Set grip crafting path as the broom.
 
 Crafting retrieves one nail at a time. Its tip snaps onto a wood/cardboard hit,
 and rotation pivots at that point. A parked nail uses an enclosing sphere for

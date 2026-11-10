@@ -1604,7 +1604,7 @@ int main(int argc, char** argv) {
             std::set<std::string> listed;
             for (int index = 1; index < materials->GetNumChildren(); ++index)
                 listed.insert(materials->GetChild(index)->GetAttribute<Rml::String>("data-item", ""));
-            require(materials->GetNumChildren() == 5 && listed == std::set<std::string>{"duct_tape", "wire_spool", "nails", "broom"},
+            require(materials->GetNumChildren() == 7 && listed == std::set<std::string>{"duct_tape", "wire_spool", "nails", "broom", "cleaver", "knife"},
                 "Crafting must list tagged supplies once each and exclude ordinary inventory");
             require(materials->GetInnerRML().find("10 m") != std::string::npos &&
                     materials->GetInnerRML().find("20 m") != std::string::npos,
