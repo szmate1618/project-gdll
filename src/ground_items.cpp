@@ -31,8 +31,8 @@ std::vector<PropCollider> modelColliders(const Item& item,bool nailPreview=false
             size.x=std::max(size.x,part.topSize.x); size.z=std::max(size.z,part.topSize.y);
         }
         auto material = propMaterialId(part.material);
-        if (!item.crafted() && !material && item.hasTag("wood")) material = propMaterialId("wood");
-        else if (!item.crafted() && !material && item.hasTag("cardboard")) material = propMaterialId("cardboard");
+        if (!item.custom() && !material && item.hasTag("wood")) material = propMaterialId("wood");
+        else if (!item.custom() && !material && item.hasTag("cardboard")) material = propMaterialId("cardboard");
         parts.push_back({PropColliderShape::Box,part.center-center,size*.5f,material,part.rotation});
     }
     return parts;
@@ -72,6 +72,10 @@ void GroundItems::setModels(const std::array<Model, weaponIds.size()>& models) {
     for (std::size_t i = 0; i < models.size(); ++i) {
         centers_[i] = (models[i].boundsMin + models[i].boundsMax) * .5f;
         sizes_[i] = glm::max(models[i].boundsMax - models[i].boundsMin, glm::vec3(.04f));
+        auto& points=storageModelPoints_[i]; points.clear();
+        for (const auto& draw:models[i].draws)
+            for (const auto& vertex:models[i].primitives.at(draw.primitive).vertices)
+                points.push_back(glm::vec3(draw.transform*glm::vec4(vertex.position,1)));
     }
 }
 std::uint64_t GroundItems::add(const Item& item, int quantity, std::optional<WeaponItem> weapon,
@@ -284,10 +288,10 @@ bool GroundItems::discard(Weapons& weapons, PlayerInventory& inventory, const Ca
 }
 bool GroundItems::pickUp(Weapons& weapons, PlayerInventory& inventory, const Camera& camera, const CollisionWorld& collision) {
     const auto hit = raycastPhysicsProp(bodies_.physicsWorld(),camera.position(),camera.direction(),reach);
-    if (!hit || !collision.lineOfSight(camera.position(), hit->point)) return false;
-    const auto id = idOf(hit->prop);
-    return id && store(*id, inventory, weapons,
-                 camera.position() - glm::vec3(0,1.65f,0), false);
+    if (!hit || hit->prop.grabbed() || !collision.lineOfSight(camera.position(), hit->point)) return false;
+    if (const auto* item=find(hit->prop); item && !item->item.grips().empty())
+        return equipCrafted(weapons,inventory,camera,collision,hit->prop);
+    return storeProp(hit->prop,inventory,weapons,false);
 }
 bool GroundItems::store(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
     glm::vec3 reachOrigin, bool gripped, bool reserved) {
@@ -300,7 +304,17 @@ bool GroundItems::store(std::uint64_t id, PlayerInventory& inventory, Weapons& w
 }
 bool GroundItems::equip(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
     const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held) {
-    return equipImpl(weapons, inventory, camera, collision, velocity, held, false);
+    auto prop=held;
+    if (!prop) {
+        const auto hit=raycastPhysicsProp(bodies_.physicsWorld(),camera.position(),camera.direction(),reach);
+        if (!hit || !collision.lineOfSight(camera.position(),hit->point)) return false;
+        prop=hit->prop;
+    }
+    if (!prop->valid() || glm::distance(prop->center(),camera.position())>5 || (!held && prop->grabbed())) return false;
+    const auto* entry=find(*prop);
+    if (entry && entry->weapon) return equipImpl(weapons,inventory,camera,collision,velocity,held,false);
+    if (entry && !entry->item.grips().empty()) return equipCrafted(weapons,inventory,camera,collision,held);
+    return storeProp(*prop,inventory,weapons,held.has_value());
 }
 bool GroundItems::equipCrafted(Weapons& weapons,PlayerInventory& inventory,const Camera& camera,
     const CollisionWorld& collision,std::optional<PhysicsProp> held,bool reserved) {

@@ -117,12 +117,10 @@ bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, W
         return true;
     }
     const auto prop = interaction.heldProp();
-    const auto id = prop ? ground.idOf(*prop) : std::nullopt;
-    if (!id) { if (!interaction.craftingMode()) interaction.cancel(); return false; }
+    if (!prop) { if (!interaction.craftingMode()) interaction.cancel(); return false; }
     // The existing grip establishes reach even when cursor motion has lifted
     // the item beyond the ground query radius measured from the player feet.
-    const auto reachOrigin = prop->center();
-    if (ground.store(*id, inventory_, weapons, reachOrigin, true)) {
+    if (ground.storeProp(*prop,inventory_,weapons,true)) {
         interaction.cancel();
         return true;
     }
@@ -178,17 +176,15 @@ bool HandInventory::pickUp(PlayerInteraction& interaction, GroundItems& ground, 
     }
     if (interaction.grabbing()) {
         const auto prop = interaction.heldProp();
-        const auto id = prop ? ground.idOf(*prop) : std::nullopt;
-        if (!id) return false;
-        if (!ground.store(*id, inventory_, weapons, prop->center(), true)) {
+        if (!prop) return false;
+        if (!ground.storeProp(*prop,inventory_,weapons,true)) {
             ++rejectedStores_;
             return false;
         }
         interaction.cancel();
         return true;
     }
-    return ground.equipCrafted(weapons,inventory_,camera,collision) ||
-        ground.pickUp(weapons, inventory_, camera, collision);
+    return ground.pickUp(weapons, inventory_, camera, collision);
 }
 bool HandInventory::equip(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
     const Camera& camera, const CollisionWorld& collision, glm::vec3 velocity) {
@@ -201,7 +197,7 @@ bool HandInventory::equip(PlayerInteraction& interaction, GroundItems& ground, W
     }
     if (!groundId_ || !prop || !(ground.prop(*groundId_) == prop)) return false;
     const auto slot = std::find(weaponIds.begin(), weaponIds.end(), item_);
-    if (slot == weaponIds.end()) return false;
+    if (slot == weaponIds.end()) return pickUp(interaction,ground,weapons,camera,collision);
     const auto target = std::size_t(slot - weaponIds.begin());
     // Preview ownership stays reserved until a complete equip/swap can succeed.
     // Release only the copied inventory's item while checking the transaction.

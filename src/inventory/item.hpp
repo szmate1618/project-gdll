@@ -41,11 +41,16 @@ public:
     const WeaponConfig& gameplay() const { return gameplay_; }
     const std::vector<std::string>& tags() const { return tags_; }
     bool hasTag(std::string_view tag) const;
-    // Starting definition or source-object provenance. Crafted transfers also
-    // carry their complete model and grips independently of catalog lookup.
+    // Starting definition or source-object provenance. Custom transfers also
+    // carry their complete model and optional grips independently of catalog lookup.
     const std::string& prototype() const { return prototype_; }
     Item renamed(const std::string& id) const;
+    Item withFootprint(int width,int height) const;
+    // Mark a complete per-instance model; retain footprint, material tags and
+    // existing grips. Flattened geometry replaces special canopy deployment.
+    Item withModel(ItemModelConfig model) const;
     Item withCrafting(ItemModelConfig model, std::vector<ItemGrip> grips) const;
+    bool custom() const { return custom_; }
     const std::vector<ItemGrip>& grips() const { return grips_; }
     bool crafted() const { return !grips_.empty(); }
 private:
@@ -55,6 +60,7 @@ private:
     WeaponConfig gameplay_;
     std::vector<std::string> tags_;
     std::vector<ItemGrip> grips_;
+    bool custom_=false;
 };
 bool itemStacksCompatible(const Item& source, const Item& target);
 } // namespace viewer

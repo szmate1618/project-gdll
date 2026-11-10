@@ -45,9 +45,10 @@ template<int Count> toml::array array(glm::vec<Count,float,glm::defaultp> value)
 }
 toml::array array(glm::quat value) { return toml::array{double(value.w),double(value.x),double(value.y),double(value.z)}; }
 CraftedItemData read(const std::filesystem::path& path) {
-    if (std::filesystem::file_size(path)>128*1024) throw std::runtime_error("Crafted item file is too large");
+    if (std::filesystem::file_size(path)>2*1024*1024) throw std::runtime_error("Crafted item file is too large");
     const auto table=toml::parse_file(path.string());
-    if (table["schema_version"].value<int>()!=1) throw std::runtime_error("Unsupported crafted item schema");
+    const auto schema=table["schema_version"].value_or(0);
+    if (schema!=1 && schema!=2) throw std::runtime_error("Unsupported crafted item schema");
     CraftedItemData data;
     data.id=text(table,"id"); data.prototype=text(table,"prototype"); data.name=text(table,"name"); data.acoustics=text(table,"acoustics");
     data.width=table["width"].value_or(0); data.height=table["height"].value_or(0);
@@ -74,8 +75,18 @@ CraftedItemData read(const std::filesystem::path& path) {
         part.topSize=vector<2>(*entry,"top_size"); part.rotation=quaternion(*entry,"rotation");
         data.model.parts.push_back(std::move(part));
     }
+    if (model->contains("mesh")) {
+        const auto* mesh=(*model)["mesh"].as_array();
+        if (!mesh || mesh->size()>4095 || mesh->size()%3 || (schema==1 && !mesh->empty()))
+            throw std::runtime_error("Invalid custom item mesh");
+        for (const auto& node:*mesh) {
+            const auto* entry=node.as_table();
+            if (!entry) throw std::runtime_error("Invalid custom item vertex");
+            data.model.mesh.push_back({vector<3>(*entry,"position"),vector<3>(*entry,"normal"),vector<3>(*entry,"color")});
+        }
+    }
     const auto* grips=table["grips"].as_array();
-    if (!grips || grips->empty() || grips->size()>8) throw std::runtime_error("Invalid crafted item grips");
+    if (!grips || (schema==1 && grips->empty()) || grips->size()>8) throw std::runtime_error("Invalid crafted item grips");
     for (const auto& node:*grips) {
         const auto* entry=node.as_table();
         if (!entry) throw std::runtime_error("Invalid crafted item grip");
@@ -86,7 +97,7 @@ CraftedItemData read(const std::filesystem::path& path) {
 }
 
 CraftedItemData captureCraftedItem(const Item& item) {
-    if (!item.crafted()) throw std::invalid_argument("Item has no authored grip");
+    if (!item.custom()) throw std::invalid_argument("Item has no complete custom definition");
     const auto& inventory=item.inventory();
     CraftedItemData data{item.id(),item.prototype(),inventory.name,inventory.acoustics,inventory.width,inventory.height,
         item.tags(),inventory.model,item.grips()};
@@ -103,20 +114,23 @@ Item restoreCraftedItem(const CraftedItemData& data) {
     ItemInventoryConfig inventory;
     inventory.name=data.name; inventory.type="equipment"; inventory.width=data.width; inventory.height=data.height;
     inventory.acoustics=data.acoustics;
-    return Item(data.prototype,std::move(inventory),WeaponConfig{},data.tags).withCrafting(data.model,data.grips).renamed(data.id);
+    auto item=Item(data.prototype,std::move(inventory),WeaponConfig{},data.tags);
+    return (data.grips.empty() ? item.withModel(data.model) : item.withCrafting(data.model,data.grips)).renamed(data.id);
 }
 void saveCraftedItem(const std::filesystem::path& path,const Item& item) {
     const auto data=captureCraftedItem(item);
-    toml::array tags,parts,grips;
+    toml::array tags,parts,mesh,grips;
     for (const auto& tag:data.tags) tags.push_back(tag);
     for (const auto& part:data.model.parts)
         parts.push_back(toml::table{{"name",part.name},{"shape",part.shape==ItemModelShape::Box ? "box" : "frustum"},
             {"material",part.material},{"center",array(part.center)},{"size",array(part.size)},{"color",array(part.color)},
             {"top_size",array(part.topSize)},{"rotation",array(part.rotation)}});
+    for (const auto& vertex:data.model.mesh)
+        mesh.push_back(toml::table{{"position",array(vertex.position)},{"normal",array(vertex.normal)},{"color",array(vertex.color)}});
     for (const auto& grip:data.grips) grips.push_back(toml::table{{"position",array(grip.position)},{"rotation",array(grip.rotation)}});
-    toml::table table{{"schema_version",1},{"id",data.id},{"prototype",data.prototype},{"name",data.name},{"acoustics",data.acoustics},
+    toml::table table{{"schema_version",2},{"id",data.id},{"prototype",data.prototype},{"name",data.name},{"acoustics",data.acoustics},
         {"width",data.width},{"height",data.height},{"tags",std::move(tags)},
-        {"model",toml::table{{"mass_kg",double(data.model.massKg)},{"parts",std::move(parts)}}},{"grips",std::move(grips)}};
+        {"model",toml::table{{"mass_kg",double(data.model.massKg)},{"parts",std::move(parts)},{"mesh",std::move(mesh)}}},{"grips",std::move(grips)}};
     if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     auto temporary=path;
     temporary += "."+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".tmp";

@@ -22,8 +22,17 @@ struct ItemModelPart {
     glm::quat rotation{1,0,0,0}; // Part-local orientation in the item frame.
 };
 
+struct ItemModelVertex {
+    glm::vec3 position{0}; // Model-local metres, sharing the primitive/grip frame.
+    glm::vec3 normal{0,1,0};
+    glm::vec3 color{1};
+};
+
 struct ItemModelConfig {
     float massKg = .3f; // One physical inventory stack's mass, in kilograms.
     std::vector<ItemModelPart> parts; // Empty preserves the generic item model.
+    // Optional flat triangle list, at most 4095 vertices. Replaces primitive
+    // visuals; parts still define the physical collision geometry.
+    std::vector<ItemModelVertex> mesh;
 };
 } // namespace viewer

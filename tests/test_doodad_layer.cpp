@@ -36,6 +36,7 @@ std::array<viewer::Model,viewer::doodadKindCount> models() {
     for (auto& primitive:model.primitives) for (auto& vertex:primitive.vertices)
         vertex.position=vertex.position*.1f+glm::vec3(0,.05f,0);
     model.boundsMin={-.05f,0,-.05f}; model.boundsMax={.05f,.1f,.05f};
+    model.draws.emplace_back();
     return {model,model,model};
 }
 struct Fixture {
@@ -195,6 +196,43 @@ void movingAcrossCellsAndReconstructingLayer() {
     require(!old || glm::distance(glm::vec3(old->transform[3]),original.position)>50,
             "Returning to the source cell must never regenerate a moved object at its old position");
 }
+void capturedGeometryAndAcquisition() {
+    Fixture f;
+    const auto candidate=f.generator.generate({0,0}).front();
+    {
+        viewer::DoodadLayer layer(f.physics,f.generator,f.state,f.assets);
+        const auto eye=candidate.position+glm::vec3(0,1.7f,0);
+        layer.update(eye,f.scene,f.doors);
+        const auto* rendered=instance(layer,candidate.id);
+        require(rendered,"The acquisition fixture must render its deterministic source");
+        const auto sourceTransform=rendered->transform;
+        const auto center=(rendered->minimum+rendered->maximum)*.5f;
+        const auto hit=viewer::raycastPhysicsProp(f.physics,center+glm::vec3(0,.5f,0),{0,-1,0},1);
+        require(hit.has_value(),"The acquisition fixture must expose its grabbable body");
+        const auto captured=layer.captureItem(hit->prop);
+        const auto& asset=f.assets[static_cast<std::size_t>(candidate.kind)];
+        require(captured && captured->model.mesh.size()==36 && captured->model.parts.size()==1 &&
+                captured->model.massKg>0 && instance(layer,candidate.id),
+                "Doodad capture must retain its visual triangles and physical box without removing the source");
+        const auto& mesh=asset.primitives[0];
+        const auto& vertex=mesh.vertices[mesh.indices[0]];
+        const auto expected=glm::vec3(sourceTransform*asset.draws[0].transform*glm::vec4(vertex.position,1));
+        const auto actual=captured->pose.center+captured->pose.rotation*captured->model.mesh[0].position;
+        require(glm::distance(actual,expected)<1e-5f &&
+                glm::distance(captured->model.mesh[0].color,glm::vec3(asset.materials[0].baseColor)*glm::vec3(vertex.color))<1e-6f,
+                "Doodad capture must preserve the exact asset origin, instance scale, rotation and material colors");
+        const auto bodies=layer.activeBodyCount();
+        require(layer.eraseItem(hit->prop) && !hit->prop.valid() && !layer.eraseItem(hit->prop) &&
+                !instance(layer,candidate.id) && f.state.removed(candidate.id) && layer.activeBodyCount()+1==bodies,
+                "Acquisition must remove the owning body and render instance and leave a persistent source tombstone");
+        layer.update(eye,f.scene,f.doors);
+        layer.update({512,1.7f,512},f.scene,f.doors); layer.update(eye,f.scene,f.doors);
+        require(!instance(layer,candidate.id),"Streaming away and returning must not regenerate an acquired doodad");
+    }
+    viewer::DoodadLayer restored(f.physics,f.generator,f.state,f.assets);
+    restored.update(candidate.position+glm::vec3(0,1.7f,0),f.scene,f.doors);
+    require(!instance(restored,candidate.id),"Reconstructing the layer must preserve acquisition removal");
+}
 }
 int main() {
     try {
@@ -202,6 +240,7 @@ int main() {
         heldBodySurvivesEviction();
         cumulativePersistenceMargins();
         movingAcrossCellsAndReconstructingLayer();
+        capturedGeometryAndAcquisition();
         std::cout<<"Doodad streaming and shared-physics checks passed\n";
         return 0;
     } catch (const std::exception& error) {

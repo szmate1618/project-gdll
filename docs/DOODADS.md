@@ -96,7 +96,10 @@ unused `--doodad-save FILE` path; `--no-doodads` also allows startup without
 loading or changing saved props. Keep the original save for its matching world;
 do not change its hashes to force it into a different map.
 IDs are hexadecimal strings, preserving every bit independently of JSON number
-precision. Writing uses a temporary file, validates it, then replaces the last
+precision. Acquired props leave persistent removed IDs so streaming or restarting
+cannot regenerate their original forest instances. Version 2 records these
+removals alongside moved poses; version 1 saves remain readable.
+Writing uses a temporary file, validates it, then replaces the last
 good save atomically on Linux. Save files are ignored by Git and are valuable
 player state. A crash can lose changes since the last autosave.
 

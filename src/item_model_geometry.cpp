@@ -8,7 +8,7 @@
 
 namespace viewer {
 ItemModelBounds itemModelBounds(const ItemModelConfig& config) {
-    if (config.parts.empty()) return {};
+    if (config.parts.empty() && config.mesh.empty()) return {};
     ItemModelBounds bounds{glm::vec3(std::numeric_limits<float>::infinity()),
         glm::vec3(-std::numeric_limits<float>::infinity())};
     for (const auto& part : config.parts) {
@@ -19,6 +19,10 @@ ItemModelBounds itemModelBounds(const ItemModelConfig& config) {
         bounds.minimum = glm::min(bounds.minimum, part.center - half);
         bounds.maximum = glm::max(bounds.maximum, part.center + half);
     }
+    for (const auto& vertex : config.mesh) {
+        bounds.minimum=glm::min(bounds.minimum,vertex.position);
+        bounds.maximum=glm::max(bounds.maximum,vertex.position);
+    }
     return bounds;
 }
 
@@ -26,6 +30,20 @@ Model buildItemModel(const ItemModelConfig& config) {
     Model model;
     const auto bounds = itemModelBounds(config);
     model.boundsMin = bounds.minimum; model.boundsMax = bounds.maximum;
+    if (!config.mesh.empty()) {
+        Primitive primitive;
+        primitive.material=0;
+        model.materials.emplace_back();
+        model.materials.back().baseColor=glm::vec4(1);
+        primitive.vertices.reserve(config.mesh.size()); primitive.indices.reserve(config.mesh.size());
+        for (const auto& vertex:config.mesh) {
+            primitive.indices.push_back(static_cast<std::uint32_t>(primitive.vertices.size()));
+            primitive.vertices.push_back({vertex.position,vertex.normal,{},glm::vec4(vertex.color,1)});
+        }
+        model.draws.push_back({0,glm::mat4(1),"object"});
+        model.primitives.push_back(std::move(primitive));
+        return model;
+    }
     for (const auto& part : config.parts) {
         const auto half = part.size * .5f;
         const auto top = part.shape == ItemModelShape::Frustum ? part.topSize * .5f : glm::vec2(half.x, half.z);
@@ -64,6 +82,9 @@ Model buildItemModel(const ItemModelConfig& config) {
 std::string itemModelGeometryKey(const ItemModelConfig& config) {
     std::string key;
     const auto append = [&](const auto& value) { key.append(reinterpret_cast<const char*>(&value), sizeof(value)); };
+    append(config.parts.size()); append(config.mesh.size());
+    for (const auto& vertex:config.mesh)
+        for (int axis=0;axis<3;++axis) { append(vertex.position[axis]); append(vertex.normal[axis]); append(vertex.color[axis]); }
     for (const auto& part : config.parts) {
         append(part.shape);
         for (int axis = 0; axis < 3; ++axis) { append(part.center[axis]); append(part.size[axis]); append(part.color[axis]); }

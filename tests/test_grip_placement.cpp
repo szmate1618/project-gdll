@@ -194,6 +194,103 @@ void finishedAssemblyPreservesEveryPart() {
     requirePrimitiveColliders(bodyOf(fixture.world,*fixture.items.prop(saved.entry.id)),item.inventory().model);
 }
 
+void mixedVisualAssemblyPreservesBothSources() {
+    Fixture fixture;
+    viewer::ItemModelConfig sourceModel; sourceModel.massKg=1.5f;
+    const glm::vec3 offset{.16f,.04f,.01f};
+    sourceModel.parts.push_back({"solid",viewer::ItemModelShape::Box,"wood",offset,{.34f,.32f,.22f},{.1f,.1f,.1f},{1,1},
+        glm::angleAxis(.23f,glm::vec3(0,0,1))});
+    const glm::vec3 points[]={{-.1f,-.1f,.04f},{.11f,-.1f,.04f},{0,.13f,.04f},{.02f,.01f,-.08f}};
+    const int faces[][3]={{0,1,2},{0,3,1},{1,3,2},{2,3,0}};
+    for (int face=0;face<4;++face) {
+        const auto normal=glm::normalize(glm::cross(points[faces[face][1]]-points[faces[face][0]],points[faces[face][2]]-points[faces[face][0]]));
+        for (int corner=0;corner<3;++corner)
+            sourceModel.mesh.push_back({offset+points[faces[face][corner]],normal,{.2f+face*.15f,.25f+corner*.1f,.7f-face*.1f}});
+    }
+    viewer::ItemInventoryConfig config; config.name="Colored shard"; config.type="equipment";
+    config.width=config.height=1; config.acoustics="crate";
+    const auto sourceItem=viewer::Item("world_mesh",config,{}, {"wood","crafting"}).withModel(sourceModel).renamed("imported_shard");
+    const glm::vec3 origin{0,1.2f,0}; const auto q=glm::angleAxis(.47f,glm::normalize(glm::vec3(1,2,-1)));
+    const auto sourceId=fixture.items.add(sourceItem,0,{},origin,{},q); const auto source=*fixture.items.prop(sourceId);
+    const auto sourcePose=fixture.items.poses().front();
+    const auto sourceBounds=viewer::itemModelBounds(sourceItem.inventory().model);
+    const auto sourceCenter=(sourceBounds.minimum+sourceBounds.maximum)*.5f;
+    std::vector<viewer::ItemModelVertex> expected;
+    for (const auto& vertex:sourceItem.inventory().model.mesh)
+        expected.push_back({origin+q*(vertex.position-sourceCenter),q*vertex.normal,vertex.color});
+    const viewer::PropCollider collider{viewer::PropColliderShape::Box,{}, {.09f,.05f,.08f},viewer::propMaterialId("cardboard"),
+        glm::angleAxis(-.5f,glm::vec3(0,1,0))};
+    viewer::BoxSpawnMotion motion; motion.mass=.4f; motion.rotation=q*glm::angleAxis(.6f,glm::normalize(glm::vec3(2,-1,1)));
+    const auto boxIndex=fixture.boxes.addCompound(origin+q*glm::vec3(.65f,.15f,.02f),{collider},motion);
+    const auto box=fixture.boxes.prop(boxIndex); const auto boxPose=fixture.boxes.pose(boxIndex);
+    viewer::ItemModelConfig primitiveModel;
+    primitiveModel.parts.push_back({"box",viewer::ItemModelShape::Box,"cardboard",collider.center,collider.halfExtents*2.f,
+        {.48f,.34f,.22f},{1,1},collider.rotation});
+    const auto primitiveVisual=viewer::buildItemModel(primitiveModel);
+    for (const auto& draw:primitiveVisual.draws) {
+        const auto& primitive=primitiveVisual.primitives.at(draw.primitive);
+        for (const auto index:primitive.indices) {
+            const auto& vertex=primitive.vertices.at(index);
+            expected.push_back({boxPose.center+boxPose.rotation*vertex.position,boxPose.rotation*vertex.normal,
+                glm::vec3(primitiveVisual.materials.at(primitive.material).baseColor)*glm::vec3(vertex.color)});
+        }
+    }
+    require(expected.size()==48,"The visual fixture must combine four custom triangles with twelve primitive triangles");
+    join(fixture.world,bodyOf(fixture.world,source),bodyOf(fixture.world,box));
+    const auto camera=cameraAt(origin+q*glm::vec3(0,0,.8f),origin);
+    const auto id=fixture.grips.begin(camera); fixture.grips.move(id,camera);
+    fixture.grips.rotate(id,glm::angleAxis(.3f,glm::normalize(glm::vec3(-1,1,1)))*fixture.grips.rotation(id));
+    const auto preview=fixture.grips.previews().front(); fixture.grips.release(id); fixture.grips.finish(id);
+    require(!source.valid() && !box.valid() && !fixture.boxes.active(boxIndex) && fixture.items.count()==1 && fixture.savedCount()==1 &&
+            b3World_GetCounters(fixture.world->id()).jointCount==0,
+        "Finishing the mixed visual assembly must replace both source owners and their joint exactly once");
+    const auto saved=fixture.items.poses().front(); const auto& item=saved.entry.item; const auto& model=item.inventory().model;
+    require(item.custom() && item.crafted() && item.prototype()==sourceItem.prototype() && model.mesh.size()==48 && model.parts.size()==2 &&
+            item.inventory().height>sourceItem.inventory().height,
+        "The completed mixed assembly must include both visual sources, both colliders, and an inferred compound footprint");
+    const auto bounds=viewer::itemModelBounds(model); const auto center=(bounds.minimum+bounds.maximum)*.5f;
+    std::vector<bool> matched(expected.size()/3,false);
+    for (std::size_t triangle=0;triangle<model.mesh.size();triangle+=3) {
+        bool found=false;
+        for (std::size_t candidate=0;candidate<expected.size() && !found;candidate+=3) {
+            if (matched[candidate/3]) continue;
+            for (int cyclic=0;cyclic<3 && !found;++cyclic) {
+                bool same=true;
+                for (int corner=0;corner<3;++corner) {
+                    const auto& vertex=model.mesh[triangle+corner]; const auto& before=expected[candidate+(corner+cyclic)%3];
+                    same&=glm::distance(saved.body.center+saved.body.rotation*(vertex.position-center),before.position)<2e-5f &&
+                        glm::distance(saved.body.rotation*vertex.normal,before.normal)<2e-5f && glm::distance(vertex.color,before.color)<1e-6f;
+                }
+                if (same) { matched[candidate/3]=true; found=true; }
+            }
+        }
+        require(found,"Merging custom and primitive visuals must preserve every world-space triangle, normal, winding and color");
+    }
+    require(glm::distance(saved.body.center+saved.body.rotation*(item.grips()[0].position-center),preview.position)<2e-5f &&
+            sameRotation(saved.body.rotation*item.grips()[0].rotation,preview.rotation),
+        "Recentering mixed visuals must preserve the authored palm frame");
+    requirePrimitiveColliders(bodyOf(fixture.world,*fixture.items.prop(saved.entry.id)),model);
+    const auto reloaded=viewer::loadCraftedItem(fixture.directory/(item.id()+".toml"));
+    require(reloaded.custom() && reloaded.crafted() && reloaded.prototype()==item.prototype() && reloaded.grips().size()==1 &&
+            reloaded.inventory().width==item.inventory().width && reloaded.inventory().height==item.inventory().height &&
+            reloaded.inventory().model.parts.size()==2 && reloaded.inventory().model.mesh.size()==48 &&
+            reloaded.grips()[0].position==item.grips()[0].position && sameRotation(reloaded.grips()[0].rotation,item.grips()[0].rotation),
+        "Saved mixed assemblies must reload their inferred footprint, collision parts, visual triangles and authored grip");
+    for (std::size_t vertex=0;vertex<model.mesh.size();++vertex) {
+        const auto& actual=reloaded.inventory().model.mesh[vertex]; const auto& before=model.mesh[vertex];
+        require(actual.position==before.position && actual.color==before.color && glm::distance(actual.normal,before.normal)<1e-6f,
+            "Saving and loading the merged mesh must retain its local positions, normals and colors");
+    }
+    Fixture native;
+    const auto broom=viewer::loadItem(root/"storage/items","broom"); native.broom();
+    const auto nativeId=native.grips.begin(cameraAt({0,1,.8f},{0,1,0}));
+    native.grips.move(nativeId,cameraAt({0,1,.8f},{0,1,0})); native.grips.finish(nativeId);
+    const auto nativePose=native.items.poses().front();
+    require(nativePose.entry.item.inventory().width==broom.inventory().width && nativePose.entry.item.inventory().height==broom.inventory().height &&
+            sourcePose.entry.item.inventory().width==1 && sourcePose.entry.item.inventory().height==1,
+        "Inferring a compound footprint must leave a standalone authored item's native footprint unchanged");
+}
+
 void genericBoxAndCancellation() {
     Fixture fixture;
     const auto index=fixture.boxes.add({0,1,0},{.4f,.3f,.2f}); const auto original=fixture.boxes.prop(index);
@@ -234,7 +331,8 @@ void unsupportedJoinedOwnerDoesNotDuplicate() {
 
 int main() {
     try {
-        palmAttachmentRotationAndRelease(); finishedAssemblyPreservesEveryPart(); genericBoxAndCancellation(); unsupportedJoinedOwnerDoesNotDuplicate();
+        palmAttachmentRotationAndRelease(); finishedAssemblyPreservesEveryPart(); mixedVisualAssemblyPreservesBothSources();
+        genericBoxAndCancellation(); unsupportedJoinedOwnerDoesNotDuplicate();
         std::cout<<"Grip placement and assembly persistence checks passed\n";
     } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

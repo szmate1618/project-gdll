@@ -181,6 +181,23 @@ std::vector<glm::mat4> ZombieCavityPhysics::contents() const {
                 result.push_back(entry->objects.pose(i).transform());
     return result;
 }
+std::optional<PropItemGeometry> ZombieCavityPhysics::captureItem(const PhysicsProp& prop) const {
+    for (const auto& [id,regions]:impl_->entries) {
+        (void)id;
+        for (const auto& entry:regions) if (entry)
+            if (auto result=captureBoxPropItem(entry->objects,prop,"Zombie contents",{.5f,.025f,.035f})) return result;
+    }
+    return {};
+}
+bool ZombieCavityPhysics::eraseItem(const PhysicsProp& prop) {
+    for (const auto& [id,regions]:impl_->entries) {
+        (void)id;
+        for (const auto& entry:regions) if (entry) if (const auto index=entry->objects.indexOf(prop)) {
+            entry->objects.remove(*index); return true;
+        }
+    }
+    return false;
+}
 
 std::vector<glm::mat4> ZombieCavityPhysics::contentsForIds(const std::vector<std::size_t>& ids,
         std::size_t maxCount) const {

@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "inventory/inventory_config.hpp"
 #include "inventory/item_config.hpp"
+#include "inventory/crafted_item.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
@@ -104,6 +105,75 @@ int main(int argc, char** argv) {
         };
         verifyBindings(viewer::SceneDepthMode::Conventional24);
         if (renderer.reversedDepthSupported()) verifyBindings(viewer::SceneDepthMode::Reversed32);
+
+        // A lifted prop can retain its source visuals without a melee grip.
+        // Use two colored triangles with a large empty gap inside one physical
+        // box: drawing the collider instead would fill that entire gap.
+        viewer::CraftedItemData meshData;
+        meshData.id="lifted_mesh"; meshData.prototype="synthetic_prop";
+        meshData.name="Lifted colored prop"; meshData.acoustics="crate";
+        meshData.width=meshData.height=2; meshData.tags={"wood"};
+        viewer::ItemModelPart collider;
+        collider.name="physical_box"; collider.material="wood"; collider.size={.8f,.8f,.08f}; collider.color={1,1,1};
+        meshData.model.parts.push_back(collider);
+        const auto triangle=[&](float x,glm::vec3 color) {
+            for (const auto point : {glm::vec3(x-.16f,-.3f,.02f),glm::vec3(x+.16f,-.3f,.02f),glm::vec3(x,.3f,.02f)})
+                meshData.model.mesh.push_back({point,{0,0,1},color});
+        };
+        triangle(-.2f,{1,.02f,.02f}); triangle(.2f,{.02f,.02f,1});
+        const auto custom=viewer::restoreCraftedItem(viewer::captureCraftedItem(viewer::restoreCraftedItem(meshData)));
+        require(custom.grips().empty() && custom.inventory().model.mesh.size()==6 && custom.hasTag("wood"),
+                "An ungripped custom prop lost its visual/material metadata during restoration");
+        auto whiteData=viewer::captureCraftedItem(custom);
+        for (auto& vertex:whiteData.model.mesh) vertex.color={1,1,1};
+        const auto white=viewer::restoreCraftedItem(whiteData);
+        auto boxData=whiteData; boxData.model.mesh.clear();
+        const auto physical=viewer::restoreCraftedItem(boxData);
+        auto recoloredData=meshData;
+        for (auto& vertex:recoloredData.model.mesh) vertex.color={.02f,1,.02f};
+        const auto recolored=viewer::restoreCraftedItem(recoloredData);
+        viewer::GroundItems customSource(std::make_shared<viewer::PhysicsWorld>());
+        viewer::GroundItems whiteSource(std::make_shared<viewer::PhysicsWorld>());
+        viewer::GroundItems physicalSource(std::make_shared<viewer::PhysicsWorld>());
+        viewer::GroundItems recoloredSource(std::make_shared<viewer::PhysicsWorld>());
+        viewer::GroundItems hiddenSource(std::make_shared<viewer::PhysicsWorld>());
+        customSource.add(custom,0,{}, {0,.6f,0}); whiteSource.add(white,0,{}, {0,.6f,0});
+        physicalSource.add(physical,0,{}, {0,.6f,0}); recoloredSource.add(recolored,0,{}, {0,.6f,0});
+        hiddenSource.add(custom,0,{}, {0,-.5f,0});
+        camera.setPosition({0,.6f,2}); camera.setOrientation(-90,0);
+        const auto verifyCustomMesh=[&](viewer::SceneDepthMode depthMode) {
+            renderer.setSceneDepthMode(depthMode);
+            renderer.setGroundItems(replacement,models); renderer.render(camera); const auto backdrop=pixels();
+            renderer.setGroundItems(customSource,models); renderer.render(camera); const auto colored=pixels();
+            std::size_t red=0,blue=0;
+            for (std::size_t i=0;i<colored.size();i+=3) {
+                if (std::abs(int(colored[i])-backdrop[i])+std::abs(int(colored[i+1])-backdrop[i+1])+
+                    std::abs(int(colored[i+2])-backdrop[i+2])<=12) continue;
+                if (colored[i]>colored[i+1]+20 && colored[i]>colored[i+2]+20) ++red;
+                if (colored[i+2]>colored[i]+20 && colored[i+2]>colored[i+1]+20) ++blue;
+            }
+            require(red>300 && blue>300,"Custom prop triangles lost their independent source colors");
+            renderer.setGroundItems(whiteSource,models); renderer.render(camera); const auto whitePixels=pixels();
+            renderer.setGroundItems(physicalSource,models); renderer.render(camera); const auto boxPixels=pixels();
+            require(changed(backdrop,colored)>500 && changed(backdrop,boxPixels)>changed(backdrop,colored)*2,
+                    "Custom prop rendering used the physical box instead of its sparse visual mesh");
+            std::size_t sampleCount=0,matchingMaterial=0;
+            for (std::size_t i=0;i<colored.size();i+=3) {
+                if (std::abs(int(colored[i])-backdrop[i])+std::abs(int(colored[i+1])-backdrop[i+1])+
+                    std::abs(int(colored[i+2])-backdrop[i+2])<=12) continue;
+                ++sampleCount;
+                if (std::abs(int(whitePixels[i])-boxPixels[i])+std::abs(int(whitePixels[i+1])-boxPixels[i+1])+
+                    std::abs(int(whitePixels[i+2])-boxPixels[i+2])<12) ++matchingMaterial;
+            }
+            require(matchingMaterial*10>sampleCount*9,
+                    "Custom mesh vertex colors received an extra fallback material tint");
+            renderer.setGroundItems(recoloredSource,models); renderer.render(camera);
+            require(changed(colored,pixels())>500,"Recolored custom geometry reused stale cached vertex colors");
+            renderer.setGroundItems(hiddenSource,models); renderer.render(camera);
+            require(changed(backdrop,pixels())==0,"Custom prop visuals rendered through the opaque floor");
+        };
+        verifyCustomMesh(viewer::SceneDepthMode::Conventional24);
+        if (renderer.reversedDepthSupported()) verifyCustomMesh(viewer::SceneDepthMode::Reversed32);
         renderer.setGroundItems(materials,models);
         require(glGetError()==GL_NO_ERROR,"Ground item rendering generated a GL error");
         if (argc>1) {

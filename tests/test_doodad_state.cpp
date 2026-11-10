@@ -98,9 +98,37 @@ void mismatchDiagnostics() {
     original.load(files.save);
     require(original.contains(5),"Rejected save lost the original world's moved prop");
 }
+void acquiredTombstones() {
+    Files files;
+    viewer::DoodadState state("map:forest");
+    const viewer::DoodadPlacement moved{0xfedcba9876543210ull,viewer::DoodadKind::Branch,{80,0,-65},{1,0,0,0},1};
+    state.set(moved); state.remove(moved.id); state.remove(19);
+    require(state.contains(moved.id) && state.removed(moved.id) && state.changes().empty() && state.inCell({5,-5}).empty(),
+            "Acquisition must remove the moved destination and suppress the deterministic source globally");
+    const auto revision=state.revision(); state.remove(moved.id);
+    require(state.revision()==revision,"Repeating an acquisition tombstone must not dirty state");
+    state.save(files.save);
+    viewer::DoodadState loaded("map:forest"); loaded.load(files.save);
+    require(loaded.removed(moved.id) && loaded.removed(19) && loaded.changes().empty(),
+            "Persistent acquisition must preserve exact 64-bit removed identities");
+    const auto loadedRevision=loaded.revision(); loaded.load(files.save);
+    require(loaded.revision()==loadedRevision,"Reloading identical tombstones must not dirty state");
+    auto duplicate=files.read(); duplicate["removed"].push_back(duplicate["removed"][0]); files.write(duplicate);
+    rejects([&] { loaded.load(files.save); },"Duplicate acquisition tombstones were accepted");
+    require(loaded.removed(moved.id),"An invalid removal save damaged the last good state");
+    state.set(moved); state.save(files.save);
+    loaded.load(files.save);
+    require(!loaded.removed(moved.id) && loaded.changes().count(moved.id) && loaded.removed(19),
+            "Explicitly restoring a placement must update its destination and clear only its tombstone");
+    auto legacy=files.read(); legacy["version"]=1; legacy.erase("removed"); files.write(legacy);
+    loaded.load(files.save);
+    require(loaded.contains(moved.id) && !loaded.removed(19),"Existing version-one moved-pose saves must remain loadable");
+    auto overlap=files.read(); overlap["version"]=2; overlap["removed"]={overlap["changes"][0]["id"]}; files.write(overlap);
+    rejects([&] { loaded.load(files.save); },"A moved and removed identity must not coexist in one saved state");
+}
 }
 int main() {
-    try {relocation();validation();mismatchDiagnostics();}
+    try {relocation();validation();mismatchDiagnostics();acquiredTombstones();}
     catch(const std::exception& error) {std::cerr<<error.what()<<'\n';return 1;}
     std::cout<<"Doodad state checks passed\n";
 }

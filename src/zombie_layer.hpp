@@ -17,6 +17,7 @@
 #include "blood_mist.hpp"
 #include "blood_spurt.hpp"
 #include "noise.hpp"
+#include "prop_item_geometry.hpp"
 
 #include <memory>
 #include <deque>
@@ -164,6 +165,8 @@ struct ZombieLayer {
     std::optional<std::size_t> activeAttackOwner(b3BodyId body) const;
     std::vector<glm::mat4> woundContents() const;
     std::vector<glm::mat4> woundContents(const std::vector<std::size_t>& ids, std::size_t maxCount) const;
+    std::optional<PropItemGeometry> capturePropItem(const PhysicsProp&) const;
+    bool erasePropItem(const PhysicsProp&);
     void setWoundMask(std::size_t zombie, const std::vector<std::uint8_t>& mask);
     void setReplicatedWoundContents(std::vector<glm::mat4> transforms);
     std::size_t explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world);

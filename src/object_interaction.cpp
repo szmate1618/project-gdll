@@ -11,7 +11,7 @@
 namespace viewer {
 namespace {
 constexpr float metersPerPixel = .004f;
-constexpr float maxLiftForce = 180; // N: cannot suspend >18.4 kg.
+constexpr float maxLiftForce = ObjectInteraction::maximumLiftForce;
 constexpr float extraDragForce = 240; // N of additional joint budget for unliftable props.
 constexpr float radiansPerPixel = .005f;
 }

@@ -734,9 +734,10 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             std::cout << "Acquired item | " << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_H && (app.capture || app.equipmentCursor) && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
+        app.interaction.finishSetGrip();
         if (app.handInventory.equip(app.interaction, *app.groundItems, app.weapons, app.handlingCamera(), app.world, app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
-            std::cout << "Equipped picked up weapon | " << app.weapons.status() << '\n';
+            std::cout << "Acquired item | " << app.weapons.status() << '\n';
         }
     } else if (key == GLFW_KEY_L) {
         app.flashlight = !app.flashlight;
@@ -2013,6 +2014,14 @@ int run(const Options& options) {
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
     viewer::GroundItems groundItems(physics);
     groundItems.setModels(droppedModels);
+    groundItems.calibrateStorage(app.inventory);
+    groundItems.setWorldBoxes(boxes);
+    if (doodads) groundItems.registerPropSource(&*doodads,[&](const viewer::PhysicsProp& prop) {
+        return doodads->captureItem(prop);
+    },[&](const viewer::PhysicsProp& prop) { return doodads->eraseItem(prop); });
+    if (zombies) groundItems.registerPropSource(&*zombies,[&](const viewer::PhysicsProp& prop) {
+        return zombies->capturePropItem(prop);
+    },[&](const viewer::PhysicsProp& prop) { return zombies->erasePropItem(prop); });
     viewer::StakeProjectiles stakes(groundItems,physics,collision,zombies ? &*zombies : nullptr);
     app.groundItems = &groundItems;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,

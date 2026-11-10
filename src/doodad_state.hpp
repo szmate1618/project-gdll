@@ -15,13 +15,16 @@ public:
     void load(const std::filesystem::path& path);
     void save(const std::filesystem::path& path) const;
     void set(const DoodadPlacement& placement);
+    void remove(std::uint64_t id); // Persistent acquisition tombstone, never regenerated.
     bool contains(std::uint64_t id) const;
+    bool removed(std::uint64_t id) const { return removed_.count(id)!=0; }
     std::vector<DoodadPlacement> inCell(DoodadCell cell) const;
     std::uint64_t revision() const { return revision_; }
     const std::map<std::uint64_t,DoodadPlacement>& changes() const { return changes_; }
 private:
     std::string identity_;
     std::map<std::uint64_t,DoodadPlacement> changes_;
+    std::set<std::uint64_t> removed_;
     std::map<DoodadCell,std::set<std::uint64_t>> cells_;
     std::uint64_t revision_ = 0;
 };

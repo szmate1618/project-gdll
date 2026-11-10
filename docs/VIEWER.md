@@ -219,7 +219,7 @@ outside Crafting keeps its hold-to-grab, release-to-drop behavior.
 an inventory item. Drag its green, half-transparent PSX hand onto a prop. The
 palm heel meets the surface; release left mouse to keep the marker attached,
 and hold right mouse while moving to rotate it around that contact point.
-Closing Crafting, selecting another item/tool, or pressing G finishes the edit.
+Closing Crafting, selecting another item/tool, or pressing G/H finishes the edit.
 The joined prop parts become one equippable item with their materials, primitive
 orientations, and local grip preserved. Its complete definition is saved under
 `userdata/crafted_items/` beside the executable. Returning the tool to a drawer
@@ -2128,7 +2128,7 @@ build directory when run by CTest.
 | R | Reload equipped weapon from its matching reserve ammo |
 | F | Object handling: tap to drop a held object or push, hold to charge a throw/push (maximum 2 seconds); otherwise discard the equipped weapon |
 | G | Pick up a held or targeted equippable item; equip crafted items with a saved grip |
-| H | Pick up and equip a held or targeted weapon, dropping the current weapon |
+| H | Pick up a held or targeted item; equip weapons or items with a saved grip |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s forward, 4.5 backward, 5.25 sideways |
 | Mouse wheel | Scroll up for the next assigned hotbar action, down for the previous |
 | F1 | Open / close the Inventory visual prototype |
@@ -2199,6 +2199,15 @@ backpack's main grid for a suitable position. If none fits, it drops to the
 ground. A rejected return highlights the scrolling list in red for 1.4 seconds
 and displays “Can’t store item”. Home, focus loss, changing actions and opening a full page end the grip;
 Tab and hover-closing the drawer preserve it.
+
+G, H, and returning a freehand object to the backpack also acquire liftable world
+props such as crates, branches, stones, bottles, and loose wound contents. They
+become ordinary inventory items with their shape, materials, and mass preserved.
+Their storage footprint uses an oriented bounding box, ignores the thinnest
+dimension, and rounds the other dimensions up using a scale fitted from existing
+items. Turning an object does not change its storage cost. Authored item sizes
+stay unchanged. H equips a weapon or an item with a saved grip; otherwise it
+stores the object. Objects that are too heavy or do not fit remain in the world.
 
 The **Sleep** tab sits above Inventory and is available with any equipped action.
 Press **Tab** to free the cursor, then click Sleep to open the panel. It stays

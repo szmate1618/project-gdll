@@ -4,6 +4,7 @@
 #include "zombie_skeleton.hpp"
 #include "zombie_cavity_physics.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -86,6 +87,50 @@ struct Wire {
         for (auto& value : values) item(value);
     }
 };
+void itemMesh(Wire& w,std::vector<viewer::ItemModelVertex>& mesh) {
+    auto count=static_cast<std::uint32_t>(mesh.size()); w.integer(count);
+    if ((!w.reading && mesh.size()>4095) || count>4095 || count%3) throw std::runtime_error("Invalid custom mesh size");
+    if (!count) { if (w.reading) mesh.clear(); return; }
+    std::array<std::vector<glm::vec3>,3> dictionaries;
+    std::vector<std::array<std::uint16_t,3>> indices;
+    bool interned=false;
+    if (!w.reading) {
+        std::array<std::map<std::array<std::uint32_t,3>,std::uint16_t>,3> lookup;
+        for (const auto& vertex:mesh) {
+            const std::array<glm::vec3,3> values{vertex.position,vertex.normal,vertex.color};
+            auto& entry=indices.emplace_back();
+            for (std::size_t stream=0;stream<values.size();++stream) {
+                std::array<std::uint32_t,3> bits{};
+                // Float-bit keys retain signed zero and every original bit;
+                // position, normal and color seams share independent streams.
+                for (int axis=0;axis<3;++axis) std::memcpy(&bits[axis],&values[stream][axis],sizeof(float));
+                const auto [found,inserted]=lookup[stream].emplace(bits,static_cast<std::uint16_t>(dictionaries[stream].size()));
+                if (inserted) dictionaries[stream].push_back(values[stream]);
+                entry[stream]=found->second;
+            }
+        }
+        const auto dictionaryValues=dictionaries[0].size()+dictionaries[1].size()+dictionaries[2].size();
+        interned=12+dictionaryValues*12+indices.size()*6<mesh.size()*36;
+    }
+    w.flag(interned);
+    if (w.reading) mesh.resize(count);
+    if (!interned) {
+        for (auto& vertex:mesh) { w.vector(vertex.position); w.vector(vertex.normal); w.vector(vertex.color); }
+        return;
+    }
+    for (auto& dictionary:dictionaries) {
+        w.list(dictionary,count,[&](glm::vec3& value) { w.vector(value); });
+        if (dictionary.empty()) throw std::runtime_error("Empty custom mesh dictionary");
+    }
+    if (w.reading) indices.resize(count);
+    for (std::size_t vertex=0;vertex<indices.size();++vertex) {
+        for (std::size_t stream=0;stream<3;++stream) {
+            w.integer(indices[vertex][stream]);
+            if (indices[vertex][stream]>=dictionaries[stream].size()) throw std::runtime_error("Invalid custom mesh dictionary index");
+        }
+        if (w.reading) mesh[vertex]={dictionaries[0][indices[vertex][0]],dictionaries[1][indices[vertex][1]],dictionaries[2][indices[vertex][2]]};
+    }
+}
 void craftedItem(Wire& w,std::optional<viewer::CraftedItemData>& data) {
     bool present=data.has_value(); w.flag(present);
     if (!present) { if (w.reading) data.reset(); return; }
@@ -107,6 +152,7 @@ void craftedItem(Wire& w,std::optional<viewer::CraftedItemData>& data) {
         w.number(part.topSize.x); w.number(part.topSize.y);
         w.number(part.rotation.w); w.number(part.rotation.x); w.number(part.rotation.y); w.number(part.rotation.z);
     });
+    itemMesh(w,item.model.mesh);
     w.list(item.grips,8,[&](viewer::ItemGrip& grip) {
         w.vector(grip.position);
         w.number(grip.rotation.w); w.number(grip.rotation.x); w.number(grip.rotation.y); w.number(grip.rotation.z);
@@ -608,6 +654,7 @@ void payload(Wire& w, Snapshot& s) {
         for (auto& item : p.ammoItemIds) w.text(item,128);
         w.flag(p.handInventoryActive); w.flag(p.holdingProp); w.number(p.handAccessRemaining);
         craftedItem(w,p.equippedCrafted);
+        if (p.equippedCrafted && p.equippedCrafted->grips.empty()) throw std::runtime_error("Custom combat equipment has no authored grip");
         if (p.slot==viewer::craftedSlot && !p.equippedCrafted) throw std::runtime_error("Custom equipment slot has no authored item");
         w.integer(p.handStoreRejections);
         if (p.handAccessRemaining < 0 || (!p.handInventoryActive && p.handAccessRemaining != 0))

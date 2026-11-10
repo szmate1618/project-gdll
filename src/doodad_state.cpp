@@ -41,7 +41,7 @@ float number(const Json& value) {
 DoodadState::DoodadState(std::string identity) : identity_(std::move(identity)) {
     if (identity_.empty()) throw std::invalid_argument("Doodad state requires map identity");
 }
-bool DoodadState::contains(std::uint64_t id) const { return changes_.find(id)!=changes_.end(); }
+bool DoodadState::contains(std::uint64_t id) const { return changes_.find(id)!=changes_.end() || removed(id); }
 void DoodadState::set(const DoodadPlacement& placement) {
     validate(placement);
     const auto cell=doodadCellAt(placement.position);
@@ -54,7 +54,19 @@ void DoodadState::set(const DoodadPlacement& placement) {
         if (old->second.empty()) cells_.erase(old);
     }
     changes_[placement.id]=placement;
+    removed_.erase(placement.id);
     cells_[cell].insert(placement.id);
+    ++revision_;
+}
+void DoodadState::remove(std::uint64_t id) {
+    if (removed(id)) return;
+    if (const auto previous=changes_.find(id); previous!=changes_.end()) {
+        auto cell=cells_.find(doodadCellAt(previous->second.position));
+        cell->second.erase(id);
+        if (cell->second.empty()) cells_.erase(cell);
+        changes_.erase(previous);
+    }
+    removed_.insert(id);
     ++revision_;
 }
 std::vector<DoodadPlacement> DoodadState::inCell(DoodadCell cell) const {
@@ -78,7 +90,8 @@ void DoodadState::load(const std::filesystem::path& path) {
                 "\nSaved: " + saved.dump() + "\nExpected: " + expected.dump());
     };
     expect("schema", "godollo.doodad_state");
-    expect("version", 1);
+    const auto version=document.at("version");
+    if (version!=1 && version!=2) expect("version",2);
     expect("generation_version", 1);
     expect("seed", doodadGenerationSeed);
     expect("cell_size_m", doodadCellSize);
@@ -102,7 +115,17 @@ void DoodadState::load(const std::filesystem::path& path) {
         if (loaded.contains(placement.id)) throw std::runtime_error("Duplicate saved doodad ID");
         loaded.set(placement);
     }
-    bool changed=changes_.size()!=loaded.changes_.size();
+    if (version==2) {
+        const auto& removed=document.at("removed");
+        if (!removed.is_array() || removed.size()>1000000 || changes.size()+removed.size()>1000000)
+            throw std::runtime_error("Invalid saved doodad removals");
+        for (const auto& record:removed) {
+            const auto id=readId(record);
+            if (loaded.contains(id)) throw std::runtime_error("Duplicate saved doodad ID");
+            loaded.remove(id);
+        }
+    }
+    bool changed=changes_.size()!=loaded.changes_.size() || removed_!=loaded.removed_;
     if (!changed) {
         auto current=changes_.begin();
         for (const auto& entry:loaded.changes_) {
@@ -112,6 +135,7 @@ void DoodadState::load(const std::filesystem::path& path) {
     }
     if (!changed) return;
     changes_.swap(loaded.changes_);
+    removed_.swap(loaded.removed_);
     cells_.swap(loaded.cells_);
     ++revision_;
 }
@@ -125,8 +149,11 @@ void DoodadState::save(const std::filesystem::path& path) const {
             {"position",{p.position.x,p.position.y,p.position.z}},
             {"rotation_xyzw",{p.rotation.x,p.rotation.y,p.rotation.z,p.rotation.w}},{"scale",p.scale}});
     }
-    const Json document={{"schema","godollo.doodad_state"},{"version",1},{"generation_version",1},
-        {"seed",doodadGenerationSeed},{"cell_size_m",doodadCellSize},{"identity",identity_},{"changes",std::move(records)}};
+    Json removed=Json::array();
+    for (const auto id:removed_) removed.push_back(idText(id));
+    const Json document={{"schema","godollo.doodad_state"},{"version",2},{"generation_version",1},
+        {"seed",doodadGenerationSeed},{"cell_size_m",doodadCellSize},{"identity",identity_},
+        {"changes",std::move(records)},{"removed",std::move(removed)}};
     if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     const auto temporary=std::filesystem::path(path.u8string()+".tmp");
     {

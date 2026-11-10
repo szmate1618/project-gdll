@@ -2,6 +2,7 @@
 
 #include "doodad_placement.hpp"
 #include "model.hpp"
+#include "prop_item_geometry.hpp"
 #include <array>
 #include <memory>
 
@@ -39,6 +40,8 @@ public:
     std::uint64_t revision() const;
     std::size_t cellCount() const;
     std::size_t activeBodyCount() const;
+    std::optional<PropItemGeometry> captureItem(const PhysicsProp&) const;
+    bool eraseItem(const PhysicsProp&); // Commit acquisition after storage accepts it.
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

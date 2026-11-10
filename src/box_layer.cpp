@@ -294,7 +294,7 @@ void BoxLayer::setPose(std::size_t index, glm::vec3 center, glm::quat q) {
 glm::vec3 BoxLayer::velocity(std::size_t index) const {
     return active(index) ? vector(b3Body_GetLinearVelocity(impl_->entries.at(index)->body)) : glm::vec3(0);
 }
-float BoxLayer::mass(std::size_t index) const { return prop(index).mass(); }
+float BoxLayer::mass(std::size_t index) const { return impl_->entries.at(index)->mass; }
 BoxPointState BoxLayer::pointState(std::size_t index, glm::vec3 localPoint) const { return prop(index).pointState(localPoint); }
 void BoxLayer::applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point) { prop(index).applyImpulse(impulse,point); }
 void BoxLayer::dampOnGroundContact(float linearDamping, float angularDamping) {

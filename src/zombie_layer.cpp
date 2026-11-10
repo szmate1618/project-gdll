@@ -450,6 +450,12 @@ std::vector<glm::mat4> ZombieLayer::woundContents() const {
     if (replicatedWoundContents_) return *replicatedWoundContents_;
     return physics_ ? physics_->cavities.contents() : std::vector<glm::mat4>{};
 }
+std::optional<PropItemGeometry> ZombieLayer::capturePropItem(const PhysicsProp& prop) const {
+    return physics_ ? physics_->cavities.captureItem(prop) : std::nullopt;
+}
+bool ZombieLayer::erasePropItem(const PhysicsProp& prop) {
+    return physics_ && physics_->cavities.eraseItem(prop);
+}
 
 std::vector<glm::mat4> ZombieLayer::woundContents(const std::vector<std::size_t>& ids,
         std::size_t maxCount) const {

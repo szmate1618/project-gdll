@@ -206,6 +206,11 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     for (std::size_t i = 0; i < groundModels.size(); ++i)
         groundModels[i] = viewer::loadModel(weaponModelDirectory() / (std::string(viewer::weaponIds[i]) + ".glb"));
     groundItems->setModels(groundModels);
+    groundItems->calibrateStorage(initialInventory);
+    groundItems->setWorldBoxes(*boxes);
+    groundItems->registerPropSource(&zombies,[this](const viewer::PhysicsProp& prop) {
+        return zombies.capturePropItem(prop);
+    },[this](const viewer::PhysicsProp& prop) { return zombies.erasePropItem(prop); });
     grenades = std::make_unique<viewer::Grenades>(physics);
 
     vehicles = std::make_unique<viewer::VehicleLayer>(physics, viewer::loadVehicleConfigs(resourceRoot() / "vehicles"));

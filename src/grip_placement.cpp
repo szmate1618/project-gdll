@@ -3,9 +3,11 @@
 #include "ground_items.hpp"
 #include "item_model_geometry.hpp"
 #include "inventory/crafted_item.hpp"
+#include "inventory/item_footprint.hpp"
 #include "object_interaction.hpp"
 #include "physics_world.hpp"
 #include <box3d/box3d.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <chrono>
 #include <map>
@@ -140,6 +142,10 @@ struct GripPlacement::Impl {
     }
     void save(Editor& editor) {
         const auto bodies=assembly(editor.target,*world);
+        const bool hasVisualMesh=std::any_of(bodies.begin(),bodies.end(),[&](b3BodyId body) {
+            const auto* source=items.find(PhysicsProp(world,body));
+            return source && !source->item.inventory().model.mesh.empty();
+        });
         const auto origin=vector(b3Body_GetPosition(editor.target));
         const auto q=quatFromPhysics(b3Body_GetRotation(editor.target)); const auto inverse=glm::conjugate(q);
         auto base=items.find(PhysicsProp(world,editor.target)) ? items.find(PhysicsProp(world,editor.target))->item : genericItem();
@@ -150,7 +156,19 @@ struct GripPlacement::Impl {
             if (!owned(body)) throw std::runtime_error("The assembly contains an unsupported prop");
             const auto bodyQ=quatFromPhysics(b3Body_GetRotation(body));
             const auto offset=inverse*(vector(b3Body_GetPosition(body))-origin); const auto localQ=inverse*bodyQ;
-            for (auto part:parts(body)) {
+            auto localParts=parts(body);
+            if (hasVisualMesh) {
+                ItemModelConfig visual; visual.parts=localParts;
+                if (const auto* source=items.find(PhysicsProp(world,body)); source && !source->item.inventory().model.mesh.empty()) {
+                    visual.mesh=source->item.inventory().model.mesh;
+                    const auto bounds=itemModelBounds(source->item.inventory().model);
+                    for (auto& vertex:visual.mesh) vertex.position-=(bounds.minimum+bounds.maximum)*.5f;
+                }
+                const auto transform=glm::translate(glm::mat4(1),offset)*glm::mat4_cast(localQ);
+                const auto vertices=propItemVisual(buildItemModel(visual),transform);
+                model.mesh.insert(model.mesh.end(),vertices.begin(),vertices.end());
+            }
+            for (auto part:localParts) {
                 part.center=offset+localQ*part.center; part.rotation=glm::normalize(localQ*part.rotation);
                 part.name="part_"+std::to_string(model.parts.size()); model.parts.push_back(std::move(part));
             }
@@ -164,8 +182,13 @@ struct GripPlacement::Impl {
         model.massKg=std::max(.001f,model.massKg);
         const auto bounds=itemModelBounds(model); const auto center=(bounds.minimum+bounds.maximum)*.5f;
         for (auto& part:model.parts) part.center-=center;
+        for (auto& vertex:model.mesh) vertex.position-=center;
         const ItemGrip grip{editor.localPoint-center,editor.localRotation};
         auto item=base.withCrafting(model,{grip});
+        if (bodies.size()!=1 || !items.find(PhysicsProp(world,editor.target))) {
+            const auto footprint=estimateItemFootprint(itemModelFootprintPoints(model),items.storageCellsPerMetre_);
+            item=item.withFootprint(footprint.width,footprint.height);
+        }
         if (!base.crafted()) item=item.renamed("crafted_"+std::to_string(std::chrono::system_clock::now().time_since_epoch().count())+"_"+std::to_string(next++));
         // Validate and publish the durable definition before replacing any body.
         saveCraftedItem(saveDirectory/(item.id()+".toml"),item);

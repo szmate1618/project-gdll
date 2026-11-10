@@ -15,6 +15,8 @@ enum class Hand { Left, Right, Throw }; // Grip, rotate, and charged throw/push 
 // One persistent prop grip. The ordinary BoxLayer must outlive the grip.
 class ObjectInteraction {
 public:
+    static constexpr float maximumLiftForce=180.f; // N of vertical lift; heavier props can only be dragged.
+    static constexpr float maximumLiftMass=maximumLiftForce/9.8f;
     bool press(const Camera& camera, BoxLayer& boxes, const CollisionWorld& world);
     bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop);
     void cancel(); // Releases input; crafting poses remain parked.

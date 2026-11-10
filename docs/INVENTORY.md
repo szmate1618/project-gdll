@@ -16,6 +16,8 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 | Score backpack obstruction/support and calculate adjusted access times | `src/inventory/inventory_access.hpp/.cpp` |
 | Pick up, rotate, place, swap and cancel a placement transaction | `src/inventory/inventory_drag.hpp/.cpp` |
 | Own physical ground items and validate transfers within two metres | `src/ground_items.hpp/.cpp` |
+| Acquire lifted world props atomically and calibrate inferred footprints | `src/ground_item_acquisition.cpp` |
+| Estimate oriented dimensions and storage cells from existing items | `src/inventory/item_footprint.hpp/.cpp` |
 | Serialize dynamic inventory ownership and ground replicas | `multiplayer/inventory_state.hpp/.cpp` |
 | Draw storage grids and item details | `src/gui/inventory_view.hpp/.cpp` |
 | Convert pointer/wheel input and hit tests into inventory operations | `src/gui/inventory_interaction.hpp/.cpp` |
@@ -36,6 +38,32 @@ optional inline `tags` array, falling back to `<id>.tags.txt` when absent.
 Inline tags are authoritative; the two sources are never combined.
 Combat's `Weapons` uses the same gameplay parser; there is no second inventory
 interpretation of the gameplay schema.
+
+All acquired objects use the same `Item` and `PlayerInventory` representation.
+G, H, and returning a freehand prop to the backpack use one acquisition path.
+Known items retain their configured footprint, stack, ammunition, model, and grip
+metadata. Liftable crates, forest doodads, and loose wound contents receive an
+in-memory custom definition when acquired; a saved grip is optional. H equips
+weapons or gripped items and otherwise stores the object in the backpack.
+
+For an unknown prop, an approximate minimum-volume oriented box is fitted to its
+visual geometry, or its primitive geometry when no separate visual mesh exists.
+The shortest dimension is ignored. The other two dimensions are rounded upward
+to grid cells, with at least one cell per axis and ordinary 90-degree storage
+rotation. A scale is fitted from the native loadout's physical models and authored
+cell counts, including loaded weapon models; one-cell axes do not act as exact
+physical measurements. A fixture without usable references retains the original
+1.30 m / six-cell broom scale. Oversized footprints are rejected rather than
+shrunk to fit a bag. Already-authored items keep their explicit dimensions.
+
+Sources provide a read-only geometry capture and an ownership-aware removal
+callback. The callback runs only after a candidate inventory insertion succeeds;
+failed fits leave the source and inventory intact. Generic acquisition uses the
+same 180 N lifting budget as Object handling. Doodads retain their original
+colored triangle geometry and record removal tombstones so streaming cannot
+respawn an acquired object. Custom definitions travel in multiplayer without
+requiring a catalog entry. Primitive collision parts remain separate from an
+optional flat-colored visual mesh.
 
 `Item::withCrafting()` creates an immutable, nonstackable equippable definition
 from primitive geometry and local `ItemGrip` frames. Positions are metres in the

@@ -106,9 +106,11 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, const Command& co
             }
             break;
         case viewer::InventoryDragActionKind::EquipGround:
-            if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending())
+            if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending()) {
+                player.interaction.finishSetGrip();
                 player.handInventory.equip(player.interaction, *scene.groundItems, player.weapons,
                     camera, *scene.collision, player.velocity);
+            }
             break;
         case viewer::InventoryDragActionKind::DiscardEquipped:
             if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending() &&

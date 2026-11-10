@@ -43,6 +43,7 @@ struct DoodadLayer::Impl {
     DoodadState& state;
     BoxLayer bodies;
     std::array<glm::vec3,doodadKindCount> centers, sizes;
+    std::array<std::vector<ItemModelVertex>,doodadKindCount> visuals;
     std::set<DoodadCell> cells;
     std::map<std::uint64_t,Entry> entries;
     std::vector<std::uint64_t> bodyIds;
@@ -59,6 +60,7 @@ struct DoodadLayer::Impl {
                 throw std::invalid_argument("Doodads require finite, nonempty model bounds");
             centers[i]=(models[i].boundsMin+models[i].boundsMax)*.5f;
             sizes[i]=models[i].boundsMax-models[i].boundsMin;
+            visuals[i]=propItemVisual(models[i],glm::translate(glm::mat4(1),-centers[i]));
         }
     }
     void sync() {
@@ -183,4 +185,31 @@ const std::vector<DoodadRenderInstance>& DoodadLayer::instances() const { return
 std::uint64_t DoodadLayer::revision() const { return impl_->revision; }
 std::size_t DoodadLayer::cellCount() const { return impl_->cells.size(); }
 std::size_t DoodadLayer::activeBodyCount() const { return impl_->bodies.count(); }
+std::optional<PropItemGeometry> DoodadLayer::captureItem(const PhysicsProp& prop) const {
+    const auto& data=*impl_;
+    const auto index=data.bodies.indexOf(prop);
+    if (!index) return {};
+    const auto& entry=data.entries.at(data.bodyIds[*index]);
+    const auto kind=static_cast<std::size_t>(entry.pose.kind);
+    constexpr std::array<const char*,doodadKindCount> names{"Branch","Stone","Beer bottle"};
+    constexpr std::array<const char*,doodadKindCount> acoustics{"branch","stone","beer_bottle"};
+    auto result=captureBoxPropItem(data.bodies,prop,names[kind]);
+    if (!result) return {};
+    result->acoustics=acoustics[kind];
+    result->model.mesh=data.visuals[kind];
+    for (auto& vertex:result->model.mesh) vertex.position*=entry.pose.scale;
+    return result;
+}
+bool DoodadLayer::eraseItem(const PhysicsProp& prop) {
+    auto& data=*impl_;
+    const auto index=data.bodies.indexOf(prop);
+    if (!index) return false;
+    data.sync();
+    const auto id=data.bodyIds[*index];
+    data.state.remove(id);
+    data.retire(*index);
+    data.entries.erase(id);
+    data.dirty=true; data.rebuild();
+    return true;
+}
 } // namespace viewer

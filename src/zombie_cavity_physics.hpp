@@ -1,5 +1,6 @@
 #pragma once
 #include "zombie_wounds.hpp"
+#include "prop_item_geometry.hpp"
 #include <memory>
 
 namespace viewer {
@@ -22,6 +23,8 @@ public:
     void removeContentsBelow(float cutoffY);
     std::vector<std::pair<std::size_t,ZombieWoundRegion>> ids() const;
     std::vector<glm::mat4> contents() const;
+    std::optional<PropItemGeometry> captureItem(const PhysicsProp&) const;
+    bool eraseItem(const PhysicsProp&);
     // Gather only interested owners, in caller order, with a strict transport
     // budget. Does not enumerate unrelated world cavities or allocate them.
     std::vector<glm::mat4> contentsForIds(const std::vector<std::size_t>& ids,

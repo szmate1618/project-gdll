@@ -4,6 +4,8 @@
 #include "inventory/inventory_drag.hpp"
 #include "weapons.hpp"
 #include "grip_preview.hpp"
+#include "prop_item_geometry.hpp"
+#include <functional>
 #include <cstdint>
 #include <set>
 #include <map>
@@ -28,8 +30,8 @@ struct GroundItemPose {
     BoxPose body;
     std::vector<BoxPose> panels{}; // Canopy only; 36 row-major articulated poses.
 };
-// Shared world ownership of equippable items. Grid coordinates are presentation
-// only; ground-query reach is measured in world metres from player feet to the item's bounds.
+// Shared world ownership of items and acquisition of borrowed liftable props.
+// Grid coordinates are presentation only; ground-query reach uses world metres.
 class GroundItems {
 public:
     static constexpr float reach = 2;
@@ -37,6 +39,14 @@ public:
     ~GroundItems();
     bool pending(std::uint64_t id) const { return replica_ && id >= (std::uint64_t(1) << 63); }
     void setModels(const std::array<Model, weaponIds.size()>& models);
+    // Native authored footprints calibrate inferred world props once per loadout.
+    void calibrateStorage(const PlayerInventory& inventory);
+    using PropCapture = std::function<std::optional<PropItemGeometry>(const PhysicsProp&)>;
+    using PropRemoval = std::function<bool(const PhysicsProp&)>;
+    // Sources are borrowed for acquisition; capture is read-only, removal runs
+    // only after a complete candidate inventory transaction has succeeded.
+    void registerPropSource(const void* owner,PropCapture capture,PropRemoval remove);
+    void setWorldBoxes(BoxLayer& boxes);
     std::uint64_t add(const Item& item, int quantity, std::optional<WeaponItem> weapon,
         glm::vec3 center, glm::vec3 velocity = {}, glm::quat rotation = {1,0,0,0}, glm::vec3 angularVelocity = {});
     bool drop(PlayerInventory& inventory, InventoryDrag& drag, Weapons& weapons,
@@ -49,10 +59,10 @@ public:
     std::vector<GroundItemPose> poses() const;
     bool discard(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
         const CollisionWorld& collision, glm::vec3 velocity);
-    // Quick pickup uses backpack space and leaves the selected equipment alone.
+    // G stores ordinary items; a saved grip also enables custom melee equipment.
     bool pickUp(Weapons& weapons, PlayerInventory& inventory, const Camera& camera, const CollisionWorld& collision);
-    // Equip a nearby or already gripped weapon, dropping the selected weapon.
-    // A rejected swap leaves both ownership and the grip untouched.
+    // H equips weapons/gripped items and stores other liftable objects. A rejected
+    // weapon swap leaves both ownership and the grip untouched.
     bool equip(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
         const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held = {});
     bool equipCrafted(Weapons&,PlayerInventory&,const Camera&,const CollisionWorld&,
@@ -79,6 +89,8 @@ public:
     void reserve(std::uint64_t id, bool reserved);
 private:
     friend class HandInventory;
+    friend class GripPlacement;
+    bool storeProp(const PhysicsProp&,PlayerInventory&,Weapons&,bool gripped);
     bool store(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
         glm::vec3 reachOrigin, bool gripped, bool reserved = false);
     bool takeImpl(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
@@ -95,6 +107,12 @@ private:
     bool replica_ = false;
     std::set<std::uint64_t> reserved_; // Physical previews still owned by a hand transaction.
     std::array<glm::vec3, weaponIds.size()> centers_{}, sizes_{};
+    std::array<std::vector<glm::vec3>,weaponIds.size()> storageModelPoints_;
+    struct PropSource { const void* owner; PropCapture capture; PropRemoval remove; };
+    std::vector<PropSource> propSources_;
+    float storageCellsPerMetre_=6.f/1.3f; // Starter broom scale before a native loadout is available.
+    bool storageCalibrated_=false;
+    std::uint64_t nextItemId_=1;
     std::unique_ptr<NailPlacement> nails_; // Destroy callbacks before entries/canopies/bodies_.
     std::unique_ptr<BindingPlacement> bindings_;
     std::optional<std::vector<glm::vec3>> bindingLinesOverride_;
