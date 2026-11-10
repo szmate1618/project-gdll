@@ -132,6 +132,9 @@ jobs:
           Copy-Item multiplayer/windows/run-game.cmd $package
           Copy-Item build/assets/weapons "$package/assets" -Recurse
           Copy-Item assets/weapons/README.md "$package/assets/weapons"
+          New-Item -ItemType Directory -Force "$package/assets/crafting/grip_hand"
+          Copy-Item build/assets/crafting/grip_hand.glb "$package/assets/crafting"
+          Copy-Item assets/crafting/grip_hand/README.md, assets/crafting/grip_hand/LICENSE.txt "$package/assets/crafting/grip_hand"
           New-Item -ItemType Directory -Force "$package/assets/pigeon"
           Copy-Item assets/pigeon/flock.json "$package/assets/pigeon"
           Copy-Item build/audio "$package/assets" -Recurse

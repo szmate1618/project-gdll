@@ -72,6 +72,7 @@ public:
     std::shared_ptr<PhysicsWorld> physicsWorld() const;
     std::optional<std::size_t> indexOf(const PhysicsProp& prop) const;
     PhysicsProp prop(std::size_t index) const;
+    const std::vector<PropCollider>& colliders(std::size_t index) const;
     BoxPose pose(std::size_t index) const;
     // Apply a server pose without advancing local physics. Size is immutable.
     void setPose(std::size_t index, glm::vec3 center, glm::quat rotation);

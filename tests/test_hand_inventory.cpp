@@ -1,6 +1,7 @@
 #include "hand_inventory.hpp"
 #include "inventory/inventory_config.hpp"
 #include "collision_world.hpp"
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -188,6 +189,67 @@ int main() {
             require(!fullHand.store(craftInteraction,craftGround,craftWeapons) && craftInteraction.grabbing(),
                     "A rejected crafting store must retain the suspended grip");
             craftInteraction.cancel();
+        }
+        {
+            // G owns the equipped custom item even when the backpack has no
+            // room. Dropping and reacquiring it must retain the saved palm.
+            auto customInventory=viewer::PlayerInventory(storage,fullContents);
+            viewer::Weapons customWeapons(root/"storage/weapons",root/"inventory.toml",false);
+            viewer::GroundItems customGround(physics);
+            viewer::PlayerInteraction customInteraction;
+            viewer::HandInventory customHand(customInventory);
+            auto starting=viewer::loadPlayerInventory(root);
+            const auto model=starting.find("broom")->inventory().model;
+            const viewer::ItemGrip grip{{.025f,.3f,-.015f},glm::angleAxis(.5f,glm::vec3(0,1,0))};
+            const auto custom=starting.find("pistol")->withCrafting(model,{grip}).renamed("crafted_world_pickup");
+            const auto id=customGround.add(custom,0,{},camera.position()+camera.direction()*.7f);
+            require(customInteraction.grip(camera,boxes,*customGround.prop(id)),"Could not grip a world custom item");
+            require(customHand.pickUp(customInteraction,customGround,customWeapons,camera,collision) &&
+                    !customInteraction.grabbing() && customGround.count()==0 && customWeapons.slot()==viewer::craftedSlot &&
+                    customWeapons.craftedItem() && !customInventory.owns(custom.id()) && customInventory.items().size()==1,
+                    "G must equip a gripped custom item despite a full backpack");
+            require(customGround.discard(customWeapons,customInventory,camera,collision,{}) &&
+                    !customWeapons.craftedItem() && customGround.count()==1,
+                    "Dropping a custom item must transfer the complete held copy back to the ground");
+            const auto droppedPoses=customGround.poses();
+            const auto& dropped=droppedPoses[0].entry;
+            require(dropped.item.id()==custom.id() && dropped.item.grips().size()==1 && !dropped.weapon &&
+                    glm::distance(dropped.item.grips()[0].position,grip.position)<1e-6f &&
+                    std::abs(glm::dot(dropped.item.grips()[0].rotation,grip.rotation))>.999999f &&
+                    dropped.item.inventory().model.parts.size()==model.parts.size(),
+                    "Custom drops must retain primitive geometry and the exact grip frame");
+            require(customInteraction.grip(camera,boxes,*customGround.prop(dropped.id)) &&
+                    customHand.pickUp(customInteraction,customGround,customWeapons,camera,collision) &&
+                    customWeapons.craftedItem()->grips().size()==1 && customGround.count()==0,
+                    "A dropped crafted tool must equip again with its saved grip");
+        }
+        {
+            auto starting=viewer::loadPlayerInventory(root);
+            const auto custom=starting.find("pistol")->withCrafting(starting.find("broom")->inventory().model,
+                {{{.02f,.3f,0},glm::quat(1,0,0,0)}}).renamed("crafted_reserved_preview");
+            auto contents=fullContents;
+            contents.owned.emplace(custom.id(),custom); contents.placements.emplace(custom.id(),original);
+            viewer::PlayerInventory customInventory(storage,contents);
+            viewer::Weapons customWeapons(root/"storage/weapons",root/"inventory.toml",false);
+            customWeapons.synchronizeOwnership(customInventory,viewer::handlingSlot,0);
+            viewer::GroundItems customGround(physics);
+            viewer::PlayerInteraction customInteraction;
+            viewer::HandInventory customHand(customInventory);
+            require(customHand.begin(custom.id()),"Could not retrieve a reserved custom preview");
+            customHand.update(customHand.duration(),camera,customInteraction,boxes,customGround,customWeapons,collision);
+            require(customHand.active() && customInventory.held() && customInteraction.grabbing() && customGround.count()==1,
+                    "Retrieving a custom tool must create an ordinary reserved physical preview");
+            require(customHand.pickUp(customInteraction,customGround,customWeapons,camera,collision) &&
+                    !customHand.active() && !customInventory.held() && !customInteraction.grabbing() && customGround.count()==0 &&
+                    !customInventory.owns(custom.id()) && customWeapons.slot()==viewer::craftedSlot &&
+                    customWeapons.craftedItem() && customWeapons.craftedItem()->id()==custom.id(),
+                    "G must commit a reserved custom preview exactly once into the equipped hand slot when the backpack is full");
+            customInventory=viewer::PlayerInventory(storage,contents);
+            require(customHand.begin(custom.id()),"Could not retrieve the equipped custom item for release");
+            customHand.update(customHand.duration(),camera,customInteraction,boxes,customGround,customWeapons,collision);
+            customHand.release(customInteraction,customGround,customWeapons);
+            require(!customInventory.owns(custom.id()) && !customWeapons.craftedItem() && customGround.count()==1,
+                    "Releasing a retrieved equipped custom item must not retain a second equipped copy");
         }
         std::cout << "Hand inventory checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

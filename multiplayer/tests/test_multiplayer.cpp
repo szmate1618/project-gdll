@@ -6,6 +6,7 @@
 #include "server/world.hpp"
 #include "zombie_animation.hpp"
 #include "simulation_clock.hpp"
+#include "binding_placement.hpp"
 #include "zombie_replication_fixture.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -203,6 +204,43 @@ void protocol() {
     rejects([&] { encode(Hello{"wrong"}); }, "Invalid content hash accepted");
     s.players.pop_back(); s.zombies.resize(maxZombieUpdatesPerSnapshot + 1);
     rejects([&] { encode(s); }, "Oversized entity count accepted");
+}
+void bindingLineProtocol() {
+    using namespace multiplayer;
+    Snapshot snapshot; snapshot.tick=1;
+    snapshot.bindingLines={{1,2,3},{4,5,6},{-1,.25f,0},{.125f,8,-2}};
+    const auto bytes=encode(snapshot);
+    require(std::get<Snapshot>(decode(bytes.data(),bytes.size())).bindingLines==snapshot.bindingLines,
+        "Binding snapshots must retain complete world-space endpoint pairs exactly");
+    const auto countOffset=bytes.size()-snapshot.bindingLines.size()*12-4;
+    const auto writeInteger=[](std::vector<std::uint8_t>& data,std::size_t offset,std::uint32_t value) {
+        for(int byte=0;byte<4;++byte) data[offset+byte]=static_cast<std::uint8_t>(value>>(8*byte));
+    };
+    auto odd=snapshot; odd.bindingLines.pop_back();
+    rejects([&] { encode(odd); },"An unpaired binding endpoint was encoded");
+    auto malformed=bytes; malformed.resize(malformed.size()-12);
+    writeInteger(malformed,countOffset,3);
+    rejects([&] { decode(malformed.data(),malformed.size()); },"An unpaired binding endpoint was decoded");
+    for(const float value : {std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}) {
+        auto invalid=snapshot; invalid.bindingLines[0].x=value;
+        rejects([&] { encode(invalid); },"A nonfinite binding endpoint was encoded");
+    }
+    malformed=bytes; writeInteger(malformed,countOffset+4,0x7fc00000u);
+    rejects([&] { decode(malformed.data(),malformed.size()); },"A nonfinite binding endpoint was decoded");
+    Snapshot full; full.bindingLines.resize(maxBindingLineVertices,glm::vec3(0));
+    const auto maximum=encode(full);
+    require(std::get<Snapshot>(decode(maximum.data(),maximum.size())).bindingLines.size()==maxBindingLineVertices,
+        "The bounded maximum binding geometry must round trip");
+    full.bindingLines.resize(maxBindingLineVertices+2);
+    rejects([&] { encode(full); },"Oversized binding geometry was encoded");
+    malformed=maximum; const auto maximumCount=maximum.size()-maxBindingLineVertices*12-4;
+    malformed.resize(malformed.size()+24);
+    writeInteger(malformed,maximumCount,static_cast<std::uint32_t>(maxBindingLineVertices+2));
+    rejects([&] { decode(malformed.data(),malformed.size()); },"Oversized binding geometry was decoded");
+    snapshot.bindingLines.clear();
+    const auto cleared=encode(snapshot);
+    require(std::get<Snapshot>(decode(cleared.data(),cleared.size())).bindingLines.empty(),
+        "An empty binding snapshot must clear stale replicated lines");
 }
 void playerHealthProtocol() {
     using namespace multiplayer;
@@ -970,6 +1008,46 @@ void serverCraftingGestures(const std::filesystem::path& asset) {
                 glm::distance(completed[index].body.center,settled[index].body.center)<.001f,
             "Nails completed after Crafting closes must remain parked with single-item quantities");
 }
+void serverBindingSnapshots(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
+    Scene scene(options); scene.model=ground();
+    scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model);
+    scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye={0,1.7f,1};
+    World world(scene); const auto id=world.join();
+    const glm::vec3 center{0,1.4f,0};
+    const auto toolId=scene.groundItems->add(*scene.initialInventory.find("duct_tape"),10000,std::nullopt,center);
+    const auto tool=*scene.groundItems->prop(toolId);
+    scene.boxes->add(center+glm::vec3(-.07f,0,0),glm::vec3(.1f));
+    scene.boxes->add(center+glm::vec3(.07f,0,0),glm::vec3(.1f));
+    auto& controller=scene.groundItems->bindings();
+    controller.update(tool,world.players().at(id).camera);
+    const auto source=scene.groundItems->bindingLines();
+    require(!source.empty() && source.size()%2==0,
+        "The binding controller fixture must intersect the nearby physical parts");
+    const auto snapshot=world.snapshot(id);
+    require(snapshot.bindingLines==source,"Server snapshots must include the actual controller's binding intersections");
+    const auto bytes=encode(snapshot);
+    const auto decoded=std::get<Snapshot>(decode(bytes.data(),bytes.size()));
+    auto replicaPhysics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::GroundItems replica(replicaPhysics,true);
+    replica.setBindingLines(decoded.bindingLines);
+    require(replica.bindingLines()==source,"A replicated binding preview must preserve the server's world-space intersections");
+    controller.cancel(tool);
+    const auto cleared=world.snapshot(id);
+    replica.setBindingLines(cleared.bindingLines);
+    require(cleared.bindingLines.empty() && replica.bindingLines().empty(),
+        "Cancelling an authoritative binding preview must clear its replica's lines");
+
+    const auto eye=world.players().at(id).camera.position();
+    const std::vector<glm::vec3> visible={eye,eye+glm::vec3(.2f,0,0),
+        eye-glm::vec3(90,0,0),eye+glm::vec3(90,0,0)};
+    auto fixtures=visible;
+    fixtures.push_back(eye+glm::vec3(1000,0,0)); fixtures.push_back(eye+glm::vec3(1001,0,0));
+    scene.groundItems->setBindingLines(std::move(fixtures));
+    require(world.snapshot(id).bindingLines==visible,
+        "Binding snapshot interest must preserve nearby complete segments and long segments crossing the observer");
+}
 void serverAutomaticObjectThrows(const std::filesystem::path& asset) {
     using namespace multiplayer;
     for (const bool grab : {false, true}) {
@@ -1555,9 +1633,9 @@ void inputRecovery(const std::filesystem::path& asset) {
 }
 int main(int argc, char** argv) {
     try {
-        protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
+        protocol(); bindingLineProtocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverCraftingGestures(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverMolotov(argv[1],true); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverCraftingGestures(argv[1]); serverBindingSnapshots(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverMolotov(argv[1],true); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

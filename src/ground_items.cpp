@@ -6,9 +6,13 @@
 #include "physics_scene.hpp"
 #include "item_model_geometry.hpp"
 #include "nail_placement.hpp"
+#include "binding_placement.hpp"
+#include "grip_placement.hpp"
+#include "application_paths.hpp"
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <stdexcept>
 
 namespace viewer {
 namespace {
@@ -27,9 +31,9 @@ std::vector<PropCollider> modelColliders(const Item& item,bool nailPreview=false
             size.x=std::max(size.x,part.topSize.x); size.z=std::max(size.z,part.topSize.y);
         }
         auto material = propMaterialId(part.material);
-        if (!material && item.hasTag("wood")) material = propMaterialId("wood");
-        else if (!material && item.hasTag("cardboard")) material = propMaterialId("cardboard");
-        parts.push_back({PropColliderShape::Box,part.center-center,size*.5f,material});
+        if (!item.crafted() && !material && item.hasTag("wood")) material = propMaterialId("wood");
+        else if (!item.crafted() && !material && item.hasTag("cardboard")) material = propMaterialId("cardboard");
+        parts.push_back({PropColliderShape::Box,part.center-center,size*.5f,material,part.rotation});
     }
     return parts;
 }
@@ -120,6 +124,7 @@ bool GroundItems::drop(PlayerInventory& inventory, InventoryDrag& drag, Weapons&
             weapon = WeaponItem{i, state.loaded, state.readyAt};
         }
     add(item, inventory.quantity(item.id()), weapon, center);
+    if (weapons.craftedItem() && weapons.craftedItem()->id()==item.id()) weapons.clearCrafted();
     if (weapon) weapons.discard(weapon->slot);
     drag.release();
     weapons.syncAmmo(inventory);
@@ -214,6 +219,38 @@ NailPlacement& GroundItems::nails() {
     if (!nails_) nails_=std::make_unique<NailPlacement>(*this,bodies_.physicsWorld());
     return *nails_;
 }
+BindingPlacement& GroundItems::bindings() {
+    if (!bindings_) bindings_=std::make_unique<BindingPlacement>(*this,bodies_.physicsWorld());
+    return *bindings_;
+}
+GripPlacement& GroundItems::grips(BoxLayer* boxes,const std::filesystem::path& directory) {
+    if (!grips_) grips_=std::make_unique<GripPlacement>(*this,bodies_.physicsWorld(),
+        directory.empty() ? userDataDirectory()/"crafted_items" : directory);
+    grips_->setBoxes(boxes); return *grips_;
+}
+const std::vector<GripPreviewPose>& GroundItems::gripPreviews() const {
+    static const std::vector<GripPreviewPose> empty;
+    if (gripPreviewsOverride_) return *gripPreviewsOverride_;
+    return grips_ ? grips_->previews() : empty;
+}
+void GroundItems::setGripPreviews(std::vector<GripPreviewPose> poses) {
+    if (poses.size()>32) throw std::invalid_argument("Too many grip previews");
+    for (const auto& pose:poses) if (!std::isfinite(pose.position.x) || !std::isfinite(pose.position.y) ||
+        !std::isfinite(pose.position.z) || !std::isfinite(glm::length(pose.rotation)) || std::abs(glm::length(pose.rotation)-1)>.001f)
+        throw std::invalid_argument("Invalid grip preview");
+    gripPreviewsOverride_=std::move(poses);
+}
+const std::vector<glm::vec3>& GroundItems::bindingLines() const {
+    static const std::vector<glm::vec3> empty;
+    if (bindingLinesOverride_) return *bindingLinesOverride_;
+    return bindings_ ? bindings_->lines() : empty;
+}
+void GroundItems::setBindingLines(std::vector<glm::vec3> lines) {
+    if (lines.size()%2 || lines.size()>2048 || std::any_of(lines.begin(),lines.end(),[](glm::vec3 point) {
+        return !std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z);
+    })) throw std::invalid_argument("Invalid binding intersection lines");
+    bindingLinesOverride_=std::move(lines);
+}
 bool GroundItems::erase(std::uint64_t id) {
     for (std::size_t i = 0; i < entries_.size(); ++i)
         if (entries_[i].id == id) { remove(i); return true; }
@@ -221,6 +258,16 @@ bool GroundItems::erase(std::uint64_t id) {
 }
 bool GroundItems::discard(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
     const CollisionWorld& collision, glm::vec3 velocity) {
+    if (weapons.slot()==craftedSlot && weapons.craftedItem() && !inventory.held()) {
+        const auto item=*weapons.craftedItem();
+        const auto center=camera.position()+camera.direction()*.75f;
+        if (!collision.lineOfSight(camera.position(),center)) return false;
+        InventoryDrag drag(inventory);
+        if (inventory.owns(item.id()) && !drag.pickUp(item.id())) return false;
+        add(item,0,{},center,velocity+camera.direction()*4.f,glm::normalize(glm::quat_cast(glm::mat3(glm::inverse(camera.view())))));
+        if (drag.held()) drag.release();
+        weapons.clearCrafted(); return true;
+    }
     if (weapons.slot() >= weaponIds.size() || weapons.reloading() || inventory.held()) return false;
     const auto slot = weapons.slot();
     const auto* item = inventory.find(weaponIds[slot]);
@@ -254,6 +301,30 @@ bool GroundItems::store(std::uint64_t id, PlayerInventory& inventory, Weapons& w
 bool GroundItems::equip(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
     const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held) {
     return equipImpl(weapons, inventory, camera, collision, velocity, held, false);
+}
+bool GroundItems::equipCrafted(Weapons& weapons,PlayerInventory& inventory,const Camera& camera,
+    const CollisionWorld& collision,std::optional<PhysicsProp> held,bool reserved) {
+    if (inventory.held() || weapons.reloading()) return false;
+    auto prop=held;
+    if (!prop) {
+        const auto hit=raycastPhysicsProp(bodies_.physicsWorld(),camera.position(),camera.direction(),reach);
+        if (!hit || !collision.lineOfSight(camera.position(),hit->point)) return false;
+        prop=hit->prop;
+    }
+    const auto id=idOf(*prop); if (!id || pending(*id) || (reserved_.count(*id) && !reserved)) return false;
+    const auto* source=find(*prop);
+    if (!source || source->item.grips().empty() || glm::distance(prop->center(),camera.position())>5 || (!held && prop->grabbed())) return false;
+    const auto item=source->item;
+    const auto old=weapons.craftedItem() ? std::optional<Item>(*weapons.craftedItem()) : std::nullopt;
+    auto candidate=weapons;
+    if (!candidate.equipCrafted(item)) return false;
+    // Prefer backpack ownership, but a full backpack must still allow the
+    // equipped hand slot to own this complete immutable custom definition.
+    if (!store(*id,inventory,candidate,prop->center(),held.has_value(),reserved)) erase(*id);
+    if (old && old->id()!=item.id() && !inventory.owns(old->id()))
+        add(*old,0,{},camera.position()+camera.direction()*.8f);
+    weapons=std::move(candidate);
+    return true;
 }
 bool GroundItems::equipImpl(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
     const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held, bool reserved) {
@@ -347,9 +418,12 @@ void GroundItems::synchronize(const std::vector<GroundItemPose>& poses) {
                 canopies_.emplace(pose.entry.id,std::make_unique<Canopy>(bodies_.prop(index),true));
             entries_.push_back(pose.entry);
         } else {
+            const bool changedModel=itemModelGeometryKey(entries_[index].item.inventory().model)!=
+                itemModelGeometryKey(pose.entry.item.inventory().model);
             entries_[index]=pose.entry;
-            if (pose.entry.item.hasTag("nail") && !pose.entry.item.inventory().model.parts.empty() &&
-                previewSphere(pose.entry.item,bodies_.pose(index).halfExtents)!=previewSphere(pose.entry.item,pose.body.halfExtents))
+            if (!pose.entry.item.inventory().model.parts.empty() && (changedModel ||
+                (pose.entry.item.hasTag("nail") && previewSphere(pose.entry.item,bodies_.pose(index).halfExtents)!=
+                    previewSphere(pose.entry.item,pose.body.halfExtents))))
                 bodies_.replaceColliders(index,modelColliders(pose.entry.item,previewSphere(pose.entry.item,pose.body.halfExtents)));
         }
         bodies_.setPose(index,pose.body.center,pose.body.rotation);

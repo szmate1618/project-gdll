@@ -37,7 +37,8 @@ join address in the menu. Direct startup is also available with `--single-player
 firewall rules and router port forwarding remain manual. Remote peers must use
 the same scene and options. The executable/launcher retain their existing client
 names for compatibility. The package contains the game,
-shaders, the five first-person weapon models and their attribution,
+shaders, first-person weapon models and their attribution, the Set grip hand
+and its CC0 provenance in `assets/crafting/grip_hand/`,
 weapon/inventory configuration, forest configuration, a small sample
 scene, and third-party library notices. It includes the client libraries found
 at build time, except glibc, the C++ runtime, and the OpenGL dispatch/driver stack; those come from

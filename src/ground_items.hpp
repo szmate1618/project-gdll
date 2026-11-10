@@ -3,6 +3,7 @@
 #include "box_layer.hpp"
 #include "inventory/inventory_drag.hpp"
 #include "weapons.hpp"
+#include "grip_preview.hpp"
 #include <cstdint>
 #include <set>
 #include <map>
@@ -14,6 +15,8 @@ class CollisionWorld;
 class PhysicsScene;
 class Canopy;
 class NailPlacement;
+class BindingPlacement;
+class GripPlacement;
 struct GroundItem {
     std::uint64_t id;
     Item item;
@@ -52,6 +55,8 @@ public:
     // A rejected swap leaves both ownership and the grip untouched.
     bool equip(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
         const CollisionWorld& collision, glm::vec3 velocity, std::optional<PhysicsProp> held = {});
+    bool equipCrafted(Weapons&,PlayerInventory&,const Camera&,const CollisionWorld&,
+        std::optional<PhysicsProp> held={},bool reserved=false);
     void removeBelow(float cutoffY);
     void prepare(PhysicsScene& scene, DoorLayer* doors = nullptr);
     // Replace a replica's complete visible set. Never advances replica physics.
@@ -63,6 +68,13 @@ public:
     const GroundItem* find(const PhysicsProp& prop) const;
     void setNailPreviewSphere(const PhysicsProp& prop, bool enabled);
     NailPlacement& nails(); // Lazy authoritative placement controller; owned before its bodies.
+    BindingPlacement& bindings();
+    const std::vector<glm::vec3>& bindingLines() const;
+    void setBindingLines(std::vector<glm::vec3> lines); // Accepted replica snapshot or preview fixture.
+    // An explicit directory selects durable definition storage on first use.
+    GripPlacement& grips(BoxLayer* editingBoxes=nullptr,const std::filesystem::path& saveDirectory={});
+    const std::vector<GripPreviewPose>& gripPreviews() const;
+    void setGripPreviews(std::vector<GripPreviewPose>);
     bool erase(std::uint64_t id); // Invalidates any grip on this body.
     void reserve(std::uint64_t id, bool reserved);
 private:
@@ -84,5 +96,9 @@ private:
     std::set<std::uint64_t> reserved_; // Physical previews still owned by a hand transaction.
     std::array<glm::vec3, weaponIds.size()> centers_{}, sizes_{};
     std::unique_ptr<NailPlacement> nails_; // Destroy callbacks before entries/canopies/bodies_.
+    std::unique_ptr<BindingPlacement> bindings_;
+    std::optional<std::vector<glm::vec3>> bindingLinesOverride_;
+    std::unique_ptr<GripPlacement> grips_;
+    std::optional<std::vector<GripPreviewPose>> gripPreviewsOverride_;
 };
 }

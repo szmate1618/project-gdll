@@ -46,6 +46,9 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
     auto& axe = weapons_[axeSlot];
     axe.owned = enableMelee;
     axe.config = loadItem(definitions, "axe").gameplay();
+    weapons_[craftedSlot].config = axe.config;
+    weapons_[craftedSlot].config.id = "crafted";
+    weapons_[craftedSlot].config.name = "Crafted item";
     const auto table = toml::parse_file(inventory.string());
     const auto* guns = table["weapons"].as_table();
     const auto* ammo = table["ammo"].as_table();
@@ -98,9 +101,28 @@ bool Weapons::equip(std::size_t slot) {
     cancelTrigger();
     return true;
 }
+bool Weapons::equipCrafted(const Item& item) {
+    if (reloading_ || item.grips().empty() || item.inventory().model.parts.empty()) return false;
+    synchronizeCrafted(&item);
+    return equip(craftedSlot);
+}
+void Weapons::synchronizeCrafted(const Item* item) {
+    if (!item || item->grips().empty() || item->inventory().model.parts.empty()) { clearCrafted(); return; }
+    craftedItem_ = *item;
+    auto& state = weapons_[craftedSlot];
+    state.owned = true;
+    state.config.name = item->inventory().name;
+}
+void Weapons::clearCrafted() {
+    craftedItem_.reset();
+    weapons_[craftedSlot].owned = false;
+    crafted_.cancel();
+    if (slot_ == craftedSlot) { slot_ = handlingSlot; cancelTrigger(); }
+}
 void Weapons::trigger(bool held) {
     sword_.trigger(slot_ == swordSlot && held);
     axe_.trigger(slot_ == axeSlot && held);
+    crafted_.trigger(slot_ == craftedSlot && held);
     if (held && !held_) pressed_ = true;
     if (!held) emptyClicked_ = false;
     held_ = held;
@@ -124,6 +146,7 @@ void Weapons::cancelPrimaryTrigger() {
     held_ = pressed_ = emptyClicked_ = false;
     sword_.cancel();
     axe_.cancel();
+    crafted_.cancel();
 }
 void Weapons::cancelTrigger() {
     cancelPrimaryTrigger();
@@ -163,7 +186,7 @@ void Weapons::synchronizeOwnership(const PlayerInventory& inventory, std::size_t
         weapons_[i].owned = inventory.owns(weaponIds[i]);
         if (i == equipped) weapons_[i].loaded = std::clamp(loaded, 0, weapons_[i].config.magazineCapacity);
     }
-    if (equipped < weapons_.size()) slot_ = equipped;
+    if (equipped < weapons_.size() && weapons_[equipped].owned) slot_ = equipped;
     syncAmmo(inventory);
 }
 void Weapons::syncAmmo(const PlayerInventory& inventory) {
@@ -200,6 +223,7 @@ std::string Weapons::status() const {
     if (slot_ == stakeSlot) return "Stake | F to throw";
     if (slot_ == swordSlot) return "Sword | left click + drag to cut";
     if (slot_ == axeSlot) return "Axe | left click + drag to chop";
+    if (slot_ == craftedSlot) return weapons_[craftedSlot].config.name + " | left click + drag to swing";
     if (slot_ == handlingSlot) return "Object handling";
     if (slot_ == punchSlot) return "Fists";
     const auto& weapon = equipped();

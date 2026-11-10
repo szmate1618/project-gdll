@@ -19,6 +19,7 @@ int frameHeight = 720;
 bool scaledDisplay = false;
 std::chrono::steady_clock::time_point sessionOrigin;
 std::uint64_t latestCommand = 0, localFireCommand = 0, shotsBeforeLocalFire = 0;
+std::uint64_t gripPickupCommand = 0;
 double localFireSeconds = 0;
 std::uint8_t localFireSlot = 1;
 bool holdFireAcknowledgement = false;
@@ -78,6 +79,7 @@ void capture(const char* name) {
 namespace multiplayer {
 const std::filesystem::path& resourceRoot() { return fixture; }
 std::filesystem::path weaponModelDirectory() { return VIEWER_WEAPON_ASSETS; }
+std::filesystem::path gripModelPath() { return VIEWER_GRIP_MODEL; }
 std::filesystem::path audioDirectory() { return VIEWER_AUDIO_DIR; }
 Network::Network(float, float) {}
 // The frame script begins after discovery; transport startup has its own integration test.
@@ -93,6 +95,14 @@ bool Network::send(HSteamNetConnection, const Message& message, bool) {
     if (const auto* commands = std::get_if<Commands>(&message)) {
         for (const auto& command : commands->commands) {
             latestCommand = std::max(latestCommand, command.sequence);
+            if (!gripPickupCommand && std::any_of(command.inventoryActions.begin(), command.inventoryActions.end(),
+                    [](const auto& action) { return action.kind==viewer::InventoryDragActionKind::PickUpBackpack; })) {
+                const auto& in=input(glfwGetCurrentContext());
+                require(command.preserveEquippedSlot && in.groundSlotRequest &&
+                        in.groundSlotRequest->first==command.sequence && in.groundSlotRequest->second==command.slot,
+                        "A real predicted G command must register its authoritative equipment acknowledgement");
+                gripPickupCommand=command.sequence;
+            }
             if (holdFireAcknowledgement && !localFireCommand && command.left && command.slot == localFireSlot) {
                 localFireCommand = command.sequence;
                 localFireSeconds = sessionSeconds();
@@ -176,6 +186,25 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
             in.holdingProp = false; in.firstMouse = true;
             key(window, GLFW_KEY_G, 0, GLFW_PRESS, 0); key(window, GLFW_KEY_G, 0, GLFW_REPEAT, 0);
+            const auto gripPickup=command(in, window, false, 0);
+            require(gripPickup.inventoryActions.size()==1 && gripPickup.preserveEquippedSlot &&
+                    gripPickup.inventoryActions.front().kind==viewer::InventoryDragActionKind::PickUpBackpack,
+                    "G alone must preserve the authoritative slot while a crafted-item pickup is pending");
+            in.groundSlotRequest={{101,in.slot}};
+            auto crafted=authoritative; crafted.slot=viewer::craftedSlot; crafted.resolved=100;
+            in.acknowledgeGroundSlot(crafted);
+            require(in.slot==viewer::handlingSlot && in.groundSlotRequest,
+                    "An unacknowledged G pickup must retain its requested slot");
+            crafted.resolved=101; crafted.inventoryDragging=true;
+            in.acknowledgeGroundSlot(crafted);
+            require(in.slot==viewer::handlingSlot && in.groundSlotRequest &&
+                    command(in,window,false,0).preserveEquippedSlot,
+                    "G must await completion of a timed inventory transfer before accepting its slot");
+            crafted.inventoryDragging=false; in.acknowledgeGroundSlot(crafted);
+            require(in.slot==viewer::craftedSlot && !in.groundSlotRequest,
+                    "G acknowledgement must retain the newly equipped crafted item");
+            in.slot=viewer::handlingSlot;
+            key(window, GLFW_KEY_G, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_H, 0, GLFW_PRESS, 0);
             const auto pickup = command(in, window, false, 0);
             require(pickup.inventoryActions.size() == 2 &&
@@ -200,6 +229,13 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             const auto cancelled = command(in, window, false, 0);
             require(cancelled.cancelInteraction && !cancelled.throwHeld,
                     "Opening and closing a menu between commands lost throw cancellation");
+            // Let the real prediction/send path process one G request rather
+            // than consuming every shortcut through the direct callback checks.
+            key(window, GLFW_KEY_G, 0, GLFW_PRESS, 0);
+            require(in.inventoryActions.size()==1 &&
+                    in.inventoryActions.front().kind==viewer::InventoryDragActionKind::PickUpBackpack,
+                    "The scripted G shortcut must reach the next prediction step");
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
             authoritative.slot = 3;
             break;
         }
@@ -208,6 +244,9 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             authoritative.slot = 3;
             break;
         case 9:
+            // receive() runs before prediction. The delay in frame 7 enters
+            // frame 8's timestep, whose command is sent after that receive.
+            require(gripPickupCommand!=0, "The client never sent the predicted G equipment request");
             require(in.canScope, "Confirmed sniper did not enable scope");
             in.capture = true;
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);

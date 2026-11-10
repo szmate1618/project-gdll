@@ -74,7 +74,7 @@ std::array<b3Vec3, 8> partPoints(const ItemModelPart& part, glm::quat q) {
         for (int corner = 0; corner < 4; ++corner) {
             const glm::vec3 point((corner & 1 ? .5f : -.5f) * footprint.x,
                 (level ? .5f : -.5f) * part.size.y, (corner & 2 ? .5f : -.5f) * footprint.y);
-            result[static_cast<std::size_t>(level * 4 + corner)] = vector(q * (part.center + point));
+            result[static_cast<std::size_t>(level * 4 + corner)] = vector(q * (part.center + part.rotation*point));
         }
     }
     return result;

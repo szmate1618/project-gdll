@@ -35,6 +35,7 @@ void HandInventory::release(PlayerInteraction& interaction, GroundItems& ground,
             const auto item = drag_.held()->item;
             for (std::size_t slot = 0; slot < weaponIds.size(); ++slot)
                 if (item == weaponIds[slot]) weapons.discard(slot);
+            if (weapons.craftedItem() && weapons.craftedItem()->id()==item) weapons.clearCrafted();
             drag_.release();
         } else drag_.cancel();
     } else drag_.cancel();
@@ -83,6 +84,7 @@ bool HandInventory::finishCraftingPlacement(PlayerInteraction& interaction, Grou
     if (!singleNail_) {
         for (std::size_t slot = 0; slot < weaponIds.size(); ++slot)
             if (item_ == weaponIds[slot]) weapons.discard(slot);
+        if (weapons.craftedItem() && weapons.craftedItem()->id()==item_) weapons.clearCrafted();
         drag_.release();
     }
     item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
@@ -91,6 +93,7 @@ bool HandInventory::finishCraftingPlacement(PlayerInteraction& interaction, Grou
     return true;
 }
 bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons) {
+    if (interaction.settingGrip()) { interaction.cancel(); return true; }
     if (active() && groundId_ && !(interaction.heldProp() == ground.prop(*groundId_)))
         release(interaction, ground, weapons);
     if (active()) {
@@ -129,6 +132,28 @@ bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, W
 }
 bool HandInventory::pickUp(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
     const Camera& camera, const CollisionWorld& collision) {
+    const auto gripped=interaction.heldProp();
+    if (gripped) if (const auto* entry=ground.find(*gripped); entry && !entry->item.grips().empty()) {
+        if (active()) {
+            if (!groundId_ || !(ground.prop(*groundId_)==gripped)) return false;
+            auto candidateInventory=inventory_;
+            auto candidateWeapons=weapons;
+            InventoryDrag candidateDrag(candidateInventory);
+            if (!singleNail_ && !candidateDrag.release()) return false;
+            if (!ground.equipCrafted(candidateWeapons,candidateInventory,camera,collision,gripped,true)) {
+                ++rejectedStores_; return false;
+            }
+            if (!singleNail_) drag_.release();
+            inventory_=std::move(candidateInventory); weapons=std::move(candidateWeapons);
+            interaction.cancel();
+            item_.clear(); groundId_.reset(); remaining_=duration_=0;
+            singleNail_=finishWhenRetrieved_=false;
+            return true;
+        }
+        if (!ground.equipCrafted(weapons,inventory_,camera,collision,gripped)) { ++rejectedStores_; return false; }
+        interaction.cancel();
+        return true;
+    }
     if (active() && singleNail_) return store(interaction, ground, weapons);
     if (active()) {
         const auto prop = interaction.heldProp();
@@ -162,7 +187,8 @@ bool HandInventory::pickUp(PlayerInteraction& interaction, GroundItems& ground, 
         interaction.cancel();
         return true;
     }
-    return ground.pickUp(weapons, inventory_, camera, collision);
+    return ground.equipCrafted(weapons,inventory_,camera,collision) ||
+        ground.pickUp(weapons, inventory_, camera, collision);
 }
 bool HandInventory::equip(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
     const Camera& camera, const CollisionWorld& collision, glm::vec3 velocity) {

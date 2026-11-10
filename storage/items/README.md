@@ -54,6 +54,12 @@ and rotation pivots at that point. A parked nail uses an enclosing sphere for
 selection. Clicking it drives it 9.9 cm inward; the actual nail parts determine
 which intersected bodies receive revolute hinges around its shaft.
 
+The `bind` tag also activates tape/wire binding while dragging in Crafting.
+Five vertical 30 × 30 cm planes, spaced 1 cm apart, show their geometry
+intersections as amber lines. They pull intersected bodies together through
+ordinary physics contacts; release leaves rope constraints holding the reached
+separation. The probing planes themselves stay invisible.
+
 ## Shelter equipment
 
 - `canopy`: 2×2 packed cells, unfolding into a 3×3 m sheet of 36 rigid panels.

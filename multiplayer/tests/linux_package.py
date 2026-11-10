@@ -111,6 +111,15 @@ def main():
                 raise RuntimeError("Package is missing a generated weapon model: " + str(model))
         if not (package / "assets/weapons/README.md").is_file():
             raise RuntimeError("Package is missing weapon attribution")
+        grip = package / "assets/crafting/grip_hand.glb"
+        if not grip.is_file() or grip.read_bytes()[:4] != b"glTF":
+            raise RuntimeError("Package is missing the Set grip hand model")
+        for name in ("README.md", "LICENSE.txt"):
+            if not (package / "assets/crafting/grip_hand" / name).is_file():
+                raise RuntimeError("Package is missing the Set grip hand provenance: " + name)
+        for name in ("grip.vert", "grip.frag"):
+            if not (package / "shaders" / name).is_file():
+                raise RuntimeError("Package is missing a Set grip shader: " + name)
         if not (package / "assets/pigeon/flock.json").is_file():
             raise RuntimeError("Package is missing the animated pigeon meshes")
         client, asset = package / "run-client.sh", package / "assets/test.glb"
@@ -151,17 +160,17 @@ def main():
                     if rendered.returncode or not screenshot.is_file() or "OpenGL renderer:" not in rendered.stdout:
                         raise RuntimeError("Packaged graphical client failed:\n" + rendered.stdout + rendered.stderr)
                     # A broken relocated package must not silently load the
-                    # development checkout's copy of a missing weapon.
-                    weapon = package / "assets/weapons/pistol.glb"
-                    saved_weapon = weapon.with_suffix(".saved.glb")
-                    weapon.rename(saved_weapon)
-                    try:
-                        broken = subprocess.run([client, *common, "--hidden", "--seconds", ".2"],
-                                                cwd=destination, capture_output=True, text=True, timeout=30, env=environment)
-                        if broken.returncode == 0 or "pistol.glb" not in broken.stdout + broken.stderr:
-                            raise RuntimeError("Client ignored missing packaged weapon:\n" + broken.stdout + broken.stderr)
-                    finally:
-                        saved_weapon.rename(weapon)
+                    # development checkout's copy of a missing model.
+                    for model in (package / "assets/weapons/pistol.glb", grip):
+                        saved_model = model.with_suffix(".saved.glb")
+                        model.rename(saved_model)
+                        try:
+                            broken = subprocess.run([client, *common, "--hidden", "--seconds", ".2"],
+                                                    cwd=destination, capture_output=True, text=True, timeout=30, env=environment)
+                            if broken.returncode == 0 or model.name not in broken.stdout + broken.stderr:
+                                raise RuntimeError("Client ignored a missing packaged model:\n" + broken.stdout + broken.stderr)
+                        finally:
+                            saved_model.rename(model)
             finally:
                 server.terminate()
                 try:

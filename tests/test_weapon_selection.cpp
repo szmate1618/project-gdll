@@ -33,6 +33,9 @@ void selection() {
     require(selection.selected() == 0, "Wheel must wrap from the axe to object handling");
     selection.close(); selection.cycle(1, {}, 0);
     require(!selection.open(), "An empty hotbar must not create a selection");
+    selection.cycle(1,actions,viewer::craftedSlot);
+    require(selection.confirm(actions,viewer::craftedSlot)==viewer::handlingSlot,
+            "An item held outside the hotbar must still allow cycling to object handling");
 }
 void transitions() {
     auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
@@ -75,6 +78,15 @@ void transitions() {
             "Axe must use gesture melee without ammunition or a dropped equippable");
     const auto separate = viewer::weaponSwitchTiming(inventory, weapons.state(0).config, weapons.state(4).config);
     near(separate->storageAccess, 1.0, "Holster and vest pouch must each charge their access time");
+    const auto* broom=inventory.find("broom");
+    const auto custom=broom->withCrafting(broom->inventory().model,{{}}).renamed("hand_owned_custom");
+    require(!inventory.owns(custom.id()) && weapons.equipCrafted(custom),"Could not equip a custom item owned only by the hand slot");
+    require(switching.begin(weapons,inventory,viewer::handlingSlot,210) && switching.update(weapons,211) &&
+            weapons.slot()==viewer::handlingSlot && weapons.craftedItem(),
+            "A hand-owned custom item must switch away without an inventory definition or placement");
+    require(switching.begin(weapons,inventory,viewer::craftedSlot,212) && switching.update(weapons,213) &&
+            switching.begin(weapons,inventory,0,214) && switching.update(weapons,220) && weapons.slot()==0,
+            "The retained custom slot must support ordinary timed switches in both directions");
 }
 void sharedStorageAndBothAdjustments() {
     const auto original = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);

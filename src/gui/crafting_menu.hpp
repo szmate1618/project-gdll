@@ -37,6 +37,7 @@ private:
     std::string signature_;
     bool expanded_ = true, claimed_ = false;
     bool retrieving_ = false;
+    bool gripTool_ = false;
     std::optional<HudScreen> requested_;
     std::vector<InventoryDragAction> actions_;
 };

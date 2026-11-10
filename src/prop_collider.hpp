@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/vec3.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <string_view>
 
@@ -24,5 +25,6 @@ struct PropCollider {
     glm::vec3 center{0};
     glm::vec3 halfExtents{.5f};
     std::uint64_t materialId = 0;
+    glm::quat rotation{1,0,0,0};
 };
 } // namespace viewer

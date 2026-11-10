@@ -14,8 +14,10 @@ ItemModelBounds itemModelBounds(const ItemModelConfig& config) {
     for (const auto& part : config.parts) {
         const auto top = part.shape == ItemModelShape::Frustum ? part.topSize : glm::vec2(part.size.x, part.size.z);
         const glm::vec3 extent(std::max(part.size.x, top.x), part.size.y, std::max(part.size.z, top.y));
-        bounds.minimum = glm::min(bounds.minimum, part.center - extent * .5f);
-        bounds.maximum = glm::max(bounds.maximum, part.center + extent * .5f);
+        const auto axes=glm::mat3_cast(part.rotation);
+        const auto half=(glm::abs(axes[0])*extent.x+glm::abs(axes[1])*extent.y+glm::abs(axes[2])*extent.z)*.5f;
+        bounds.minimum = glm::min(bounds.minimum, part.center - half);
+        bounds.maximum = glm::max(bounds.maximum, part.center + half);
     }
     return bounds;
 }
@@ -48,7 +50,7 @@ Model buildItemModel(const ItemModelConfig& config) {
             constexpr std::array<glm::vec2, 4> uv{{{0,0}, {1,0}, {1,1}, {0,1}}};
             const auto first = static_cast<std::uint32_t>(primitive.vertices.size());
             for (std::size_t index = 0; index < face.size(); ++index)
-                primitive.vertices.push_back({part.center + corners[face[index]], normal, uv[index], glm::vec4(1)});
+                primitive.vertices.push_back({part.center + part.rotation*corners[face[index]], part.rotation*normal, uv[index], glm::vec4(1)});
             for (const auto index : {0u, 1u, 2u, 0u, 2u, 3u}) primitive.indices.push_back(first + index);
         }
         Material material; material.baseColor = glm::vec4(part.color, 1);
@@ -66,6 +68,7 @@ std::string itemModelGeometryKey(const ItemModelConfig& config) {
         append(part.shape);
         for (int axis = 0; axis < 3; ++axis) { append(part.center[axis]); append(part.size[axis]); append(part.color[axis]); }
         if (part.shape == ItemModelShape::Frustum) { append(part.topSize.x); append(part.topSize.y); }
+        append(part.rotation.x); append(part.rotation.y); append(part.rotation.z); append(part.rotation.w);
         key += part.name; key.push_back('\0'); key += part.material; key.push_back('\0');
     }
     return key;

@@ -82,10 +82,11 @@ int main(int argc, char** argv) {
         // the same submitted triangle count at every animation phase.
         viewer::WeaponMotion motion;
         GLuint query; glGenQueries(1, &query);
-        const auto render = [&](std::size_t slot, const viewer::WeaponMotionPose& pose, const std::string& phase) {
+        const auto render = [&](std::size_t slot, const viewer::WeaponMotionPose& pose, const std::string& phase,
+                                const viewer::Item* crafted=nullptr) {
             glClearDepth(1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glBeginQuery(GL_PRIMITIVES_GENERATED, query);
-            overlay.draw(slot, width, height, {}, pose);
+            overlay.draw(slot, width, height, {}, pose, crafted);
             glEndQuery(GL_PRIMITIVES_GENERATED);
             GLuint triangles = 0; glGetQueryObjectuiv(query, GL_QUERY_RESULT, &triangles);
             std::vector<unsigned char> result(pixels.size());
@@ -110,6 +111,38 @@ int main(int argc, char** argv) {
         if (axeRest.second != 32 || axeRest.second != axeCut.second || axeRest.first == axeCut.first ||
             axeRest.first == swordRest.first || axeCut.first != axeStop.first)
             throw std::runtime_error("Axe must render its own head and handle and hold the blocked cut pose");
+        viewer::ItemInventoryConfig inventory;
+        inventory.name="Custom test tool"; inventory.type="equipment"; inventory.width=inventory.height=1;
+        viewer::ItemModelConfig customModel;
+        viewer::ItemModelPart part;
+        part.name="handle"; part.material="wood"; part.center={0,.25f,0}; part.size={.04f,.6f,.04f};
+        part.color={.6f,.35f,.12f}; customModel.parts.push_back(part);
+        part.name="head"; part.material="metal"; part.center={-.08f,.55f,0}; part.size={.28f,.12f,.12f};
+        part.color={.3f,.7f,.9f}; customModel.parts.push_back(part);
+        const viewer::Item base("custom_overlay",inventory,{}, {"crafting"});
+        const auto custom=base.withCrafting(customModel,{{}});
+        const auto customRest=render(viewer::craftedSlot,{},"custom-rest",&custom);
+        const auto customCut=render(viewer::craftedSlot,viewer::swordMotion({{-1,0},.22f}),"custom-cut",&custom);
+        if (customRest.second!=24 || customRest.second!=customCut.second || customRest.first==customCut.first ||
+            customRest.first==axeRest.first)
+            throw std::runtime_error("Custom equipment must render and swing its saved parts instead of the axe mesh");
+        const auto movedGrip=base.withCrafting(customModel,{{{.08f,.12f,0},glm::angleAxis(.5f,glm::vec3(0,1,0))}});
+        const auto changedGrip=render(viewer::craftedSlot,{},"custom-grip",&movedGrip);
+        if (changedGrip.first==customRest.first || changedGrip.second!=customRest.second ||
+            render(viewer::craftedSlot,{},"custom-repeat",&custom)!=customRest)
+            throw std::runtime_error("Alternating saved grips must retain distinct correctly aligned custom meshes");
+        viewer::Camera remoteCamera;
+        remoteCamera.setPosition({0,1.5f,0}); remoteCamera.setOrientation(-90,0);
+        for (const bool occluded:{false,true}) {
+            glClearDepth(occluded ? 0 : 1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+            overlay.drawWorld(viewer::craftedSlot,remoteCamera,float(width)/height,glm::inverse(remoteCamera.view()),{}, {},&custom);
+            glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());
+            std::size_t foreground=0;
+            for (std::size_t index=0;index<pixels.size();index+=3)
+                if (pixels[index]!=pixels[0] || pixels[index+1]!=pixels[1] || pixels[index+2]!=pixels[2]) ++foreground;
+            if (occluded ? foreground!=0 : foreground<100)
+                throw std::runtime_error("Remote crafted equipment must use the actual mesh and retain world depth");
+        }
         for (std::size_t slot=0;slot<4;++slot) {
             const auto rest = render(slot, {}, "rest");
             motion.fire(slot,10);

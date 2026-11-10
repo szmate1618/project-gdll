@@ -23,13 +23,16 @@ glm::vec3 colliderEnvelope(const std::vector<PropCollider>& parts) {
     if (parts.empty() || parts.size()>64) throw std::invalid_argument("A prop requires 1–64 collider parts");
     glm::vec3 half(0);
     for (const auto& part : parts) {
-        if (!finite(part.center) || !finite(part.halfExtents) ||
+        if (!finite(part.center) || !finite(part.halfExtents) || !std::isfinite(glm::length(part.rotation)) ||
+            std::abs(glm::length(part.rotation)-1)>.001f ||
             glm::any(glm::lessThanEqual(part.halfExtents,glm::vec3(0))) ||
             (part.shape!=PropColliderShape::Box && part.shape!=PropColliderShape::Sphere) ||
             (part.shape==PropColliderShape::Sphere &&
                 (std::abs(part.halfExtents.x-part.halfExtents.y)>1e-6f || std::abs(part.halfExtents.x-part.halfExtents.z)>1e-6f)))
             throw std::invalid_argument("Invalid prop collider part");
-        half=glm::max(half,glm::abs(part.center)+part.halfExtents);
+        const auto axes=glm::mat3_cast(part.rotation);
+        const auto extent=glm::abs(axes[0])*part.halfExtents.x+glm::abs(axes[1])*part.halfExtents.y+glm::abs(axes[2])*part.halfExtents.z;
+        half=glm::max(half,glm::abs(part.center)+extent);
     }
     if (glm::any(glm::greaterThan(half,glm::vec3(2)))) throw std::invalid_argument("Prop colliders exceed the 4 metre body limit");
     return half;
@@ -60,7 +63,8 @@ void createColliders(b3BodyId body, const std::vector<PropCollider>& parts, floa
             shape=b3CreateSphereShape(body,&definition,&sphere);
         } else {
             const auto h=part.halfExtents;
-            const auto hull=b3MakeOffsetBoxHull(h.x,h.y,h.z,vector(part.center));
+            const auto q=part.rotation;
+            const auto hull=b3MakeTransformedBoxHull(h.x,h.y,h.z,{vector(part.center),{{q.x,q.y,q.z},q.w}});
             shape=b3CreateHullShape(body,&definition,&hull.base);
         }
         if (!b3Shape_IsValid(shape)) throw std::runtime_error("Cannot create prop collider");
@@ -176,6 +180,7 @@ std::uint64_t BoxLayer::revision() const { return impl_->revision; }
 void BoxLayer::wake() { for (const auto& entry : impl_->entries) if (B3_IS_NON_NULL(entry->body)) b3Body_SetAwake(entry->body,true); }
 std::shared_ptr<PhysicsWorld> BoxLayer::physicsWorld() const { return impl_->world; }
 PhysicsProp BoxLayer::prop(std::size_t index) const { return {impl_->world,impl_->entries.at(index)->body}; }
+const std::vector<PropCollider>& BoxLayer::colliders(std::size_t index) const { return impl_->entries.at(index)->parts; }
 std::optional<std::size_t> BoxLayer::indexOf(const PhysicsProp& prop) const {
     if (prop.valid())
         for (const auto& entry : impl_->entries)
@@ -353,7 +358,7 @@ std::vector<BoxLayer::ColliderPose> BoxLayer::queryColliders(glm::vec3 minimum,g
         const auto& entry=*impl_->entries[body.index];
         if (physicalOnly && impl_->world->isCraftingHeld(entry.body)) continue;
         for (const auto& part:entry.parts) {
-            const BoxPose box{body.index,body.center+body.rotation*part.center,part.halfExtents,body.rotation};
+            const BoxPose box{body.index,body.center+body.rotation*part.center,part.halfExtents,body.rotation*part.rotation};
             // Box3D already selected conservative broadphase candidates. Let
             // each part's narrow query decide contact: a second exact AABB
             // test can round a reach-boundary ray endpoint outside its face.

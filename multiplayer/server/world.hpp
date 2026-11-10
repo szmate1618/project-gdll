@@ -20,6 +20,7 @@
 #include "melee_combat.hpp"
 #include "sword_combat.hpp"
 #include "axe_combat.hpp"
+#include "crafted_combat.hpp"
 #include "vehicle_zombie_collision.hpp"
 #include "sleep_watch.hpp"
 #include <map>
@@ -37,6 +38,7 @@ struct ServerPlayer {
     viewer::Weapons weapons;
     viewer::SwordCombat swordCombat;
     viewer::AxeCombat axeCombat;
+    viewer::CraftedCombat craftedCombat;
     viewer::PlayerInventory inventory;
     viewer::InventoryDrag inventoryDrag;
     viewer::HandInventory handInventory;

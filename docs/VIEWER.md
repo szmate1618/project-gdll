@@ -215,12 +215,38 @@ parts do not push nearby objects or obstruct the player. F explicitly drops or
 throws the selected item back into ordinary physics. Regular Object handling
 outside Crafting keeps its hold-to-grab, release-to-drop behavior.
 
+**Set grip** is always at the top of the Crafting drawer and does not consume
+an inventory item. Drag its green, half-transparent PSX hand onto a prop. The
+palm heel meets the surface; release left mouse to keep the marker attached,
+and hold right mouse while moving to rotate it around that contact point.
+Closing Crafting, selecting another item/tool, or pressing G finishes the edit.
+The joined prop parts become one equippable item with their materials, primitive
+orientations, and local grip preserved. Its complete definition is saved under
+`userdata/crafted_items/` beside the executable. Returning the tool to a drawer
+or cancelling the interaction discards the preview.
+
+Press **G** on the finished item to acquire and equip it, including when the
+backpack is full. Close Crafting to use the normal axe-style left-click and drag
+swing controls. Rendering and melee contacts use the saved geometry and grip;
+**F** drops that same item for another player to pick up.
+
 Retrieving nails in Crafting takes one nail from the counted stack. Move its tip
 onto a wood or cardboard part to snap it to the surface. Right-drag changes its angle about
 the pinned tip. Click the pinned nail without dragging to drive it into the
 surface; dragging the nail again repositions it instead. The nail moves 9.9 cm
 inward and connects every intersected body with a revolute hinge around its
 shaft. The remaining nails stay in storage.
+
+Dragging an item tagged `bind` in Crafting activates five invisible vertical
+30 × 30 cm rectangles at the item, facing the camera horizontally and spaced
+1 cm apart. Amber lines show their intersections with physical geometry.
+Each rectangle pulls its intersected movable objects together with bounded
+spring forces; fixed geometry stays in place and ordinary collisions stop
+objects passing through each other. Releasing creates rope constraints at the
+reached separation. Connected objects keep colliding and cannot pull apart
+beyond that tied length. Cancelling removes the preview and temporary pulls.
+Previously suspended objects keep their placed height while tightening and
+remain suspended after release; an ordinary grab frees the connected bundle.
 
 Map tool buttons brighten on hover, retain a coral bottom edge while focused,
 and mark the active measurement tool with a coral left edge. The radial signal
@@ -2101,7 +2127,7 @@ build directory when run by CTest.
 | Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0 (also available on number-row 0) |
 | R | Reload equipped weapon from its matching reserve ammo |
 | F | Object handling: tap to drop a held object or push, hold to charge a throw/push (maximum 2 seconds); otherwise discard the equipped weapon |
-| G | Pick up a held or targeted equippable item into the backpack if it fits |
+| G | Pick up a held or targeted equippable item; equip crafted items with a saved grip |
 | H | Pick up and equip a held or targeted weapon, dropping the current weapon |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s forward, 4.5 backward, 5.25 sideways |
 | Mouse wheel | Scroll up for the next assigned hotbar action, down for the previous |

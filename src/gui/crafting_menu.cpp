@@ -16,6 +16,7 @@ void CraftingMenu::close() {
     pressed_.clear();
     claimed_ = false;
     retrieving_ = false;
+    gripTool_ = false;
     requested_.reset();
 }
 bool CraftingMenu::contains(const char* id) const {
@@ -38,12 +39,14 @@ std::string CraftingMenu::itemAtPointer() const {
         auto* row=list->GetChild(index);
         const auto origin=row->GetAbsoluteOffset(Rml::BoxArea::Border), size=row->GetBox().GetSize(Rml::BoxArea::Border);
         if (pointer_.x>=origin.x && pointer_.x<origin.x+size.x && pointer_.y>=origin.y && pointer_.y<origin.y+size.y)
-            return row->GetAttribute<Rml::String>("data-item","");
+            return row->HasAttribute("data-tool") ? "tool:set_grip" : row->GetAttribute<Rml::String>("data-item","");
     }
     return {};
 }
 void CraftingMenu::populate() {
     std::ostringstream markup;
+    markup<<"<div class=\"crafting-item crafting-tool\" data-tool=\"set-grip\"><div class=\"crafting-item-name\">Set grip</div>"
+          <<"<div class=\"crafting-item-tags\">TOOL</div></div>";
     const auto encode = [](const std::string& value) { return Rml::StringUtilities::EncodeRml(value); };
     for (const auto& [id, item] : inventory_.items()) {
         const bool crafting = item.hasTag("crafting"), bind = item.hasTag("bind");
@@ -76,9 +79,9 @@ std::vector<HudPointerEvent> CraftingMenu::process(const HudState& state,const s
         const bool inMenu = contains("crafting-drawer") || contains("crafting-header-surface") || contains("crafting-footer") ||
             (inside && (pointer_.x<edge || pointer_.x>=dimensions.x-edge));
         if (event.action == HudPointerAction::Cancel) {
-            if (retrieving_) actions_.push_back({InventoryDragActionKind::HandRelease,"",""});
-            const bool owned=retrieving_;
-            retrieving_=false;
+            if (retrieving_ || gripTool_) actions_.push_back({InventoryDragActionKind::HandRelease,"",""});
+            const bool owned=retrieving_ || gripTool_;
+            retrieving_=gripTool_=false;
             pressed_.clear(); claimed_ = false;
             if (owned) continue;
         }
@@ -86,6 +89,11 @@ std::vector<HudPointerEvent> CraftingMenu::process(const HudState& state,const s
             claimed_ = true;
             pressed_ = control();
             const auto item=itemAtPointer();
+            if (!state.mouseCaptured && item=="tool:set_grip" && state.weaponSwitchRemaining<=0 && state.reloadRemaining<=0) {
+                actions_.push_back({InventoryDragActionKind::SetGripBegin,"",""});
+                gripTool_=true;
+                continue;
+            }
             if (!state.mouseCaptured && !item.empty() && !state.handInventoryActive &&
                 state.weaponSwitchRemaining<=0 && state.reloadRemaining<=0) {
                 actions_.push_back({InventoryDragActionKind::HandPickUp,item,""});
@@ -96,6 +104,11 @@ std::vector<HudPointerEvent> CraftingMenu::process(const HudState& state,const s
         if (event.action == HudPointerAction::Release && claimed_) {
             const auto pressed = std::exchange(pressed_, {});
             claimed_ = false;
+            if (std::exchange(gripTool_,false)) {
+                actions_.push_back({contains("crafting-list") || contains("equipment-list") ?
+                    InventoryDragActionKind::HandRelease : InventoryDragActionKind::HandEndDrag,"",""});
+                continue;
+            }
             if (std::exchange(retrieving_,false)) {
                 actions_.push_back({contains("crafting-list") || contains("equipment-list") ?
                     InventoryDragActionKind::HandStore : InventoryDragActionKind::HandEndDrag,"",""});

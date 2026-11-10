@@ -3,6 +3,8 @@
 #include "model.hpp"
 #include "sword_geometry.hpp"
 #include "axe_geometry.hpp"
+#include "crafted_melee_geometry.hpp"
+#include "item_model_geometry.hpp"
 #include "shader_program.hpp"
 #include <array>
 #include <cmath>
@@ -85,6 +87,7 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     poses_[axeSlot] = swordRestPose();
     appendModel(makeAxeModel(), false, vertices);
     ranges_[axeSlot].count = static_cast<GLsizei>(vertices.size()) - ranges_[axeSlot].first;
+    poses_[craftedSlot] = swordRestPose();
     program_ = createShaderProgram(shaders / "weapon.vert", shaders / "weapon.frag");
     transform_ = glGetUniformLocation(program_, "uTransform");
     pose_ = glGetUniformLocation(program_, "uPose");
@@ -108,6 +111,10 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
 }
 
 WeaponOverlay::~WeaponOverlay() {
+    for (const auto& [key,mesh]:craftedMeshes_) {
+        (void)key;
+        glDeleteBuffers(1,&mesh.buffer); glDeleteVertexArrays(1,&mesh.vao);
+    }
     glDeleteBuffers(1, &buffer_); glDeleteVertexArrays(1, &vao_); glDeleteProgram(program_);
 }
 
@@ -116,7 +123,14 @@ glm::vec3 WeaponOverlay::muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle,
 }
 
 void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash,
-                         const WeaponMotionPose& motion) {
+                         const WeaponMotionPose& motion,const Item* crafted) {
+    if (slot==craftedSlot) {
+        if (width<=0 || height<=0 || !prepareCrafted(crafted)) return;
+        const WeaponDrawState restore(true);
+        const auto projection=glm::perspective(glm::radians(60.f),static_cast<float>(width)/height,.01f,5.f);
+        drawCrafted(sceneLocalProjection(projection),animatedWeaponPose(swordRestPose(),motion),flash);
+        return;
+    }
     if (slot >= ranges_.size() || ranges_[slot].count == 0 || width <= 0 || height <= 0) return;
     const WeaponDrawState restore(true);
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
@@ -125,12 +139,63 @@ void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFl
 }
 
 void WeaponOverlay::drawWorld(std::size_t slot, const Camera& camera, float aspect, const glm::mat4& eyeToWorld,
-                              const MuzzleFlashLight& worldFlash, const WeaponMotionPose& motion) {
+                              const MuzzleFlashLight& worldFlash, const WeaponMotionPose& motion,const Item* crafted) {
+    if (slot==craftedSlot) {
+        if (!std::isfinite(aspect) || aspect<=0 || !prepareCrafted(crafted)) return;
+        const WeaponDrawState restore(false);
+        const auto view=camera.view();
+        drawCrafted(sceneProjection(camera,aspect),view*eyeToWorld*animatedWeaponPose(swordRestPose(),motion),worldFlash.transformed(view));
+        return;
+    }
     if (slot >= ranges_.size() || ranges_[slot].count == 0 || !std::isfinite(aspect) || aspect <= 0) return;
     const WeaponDrawState restore(false);
     const auto view = camera.view();
     const auto pose = view * eyeToWorld * animatedWeaponPose(poses_[slot], motion);
     drawGeometry(slot, sceneProjection(camera, aspect), pose, worldFlash.transformed(view), motion.pumpTravel);
+}
+bool WeaponOverlay::prepareCrafted(const Item* item) {
+    activeCrafted_=nullptr;
+    if (!item || item->grips().empty() || item->inventory().model.parts.empty()) return false;
+    auto key=itemModelGeometryKey(item->inventory().model);
+    const auto& grip=item->grips().front();
+    key.append(reinterpret_cast<const char*>(&grip.position.x),sizeof(float)*3);
+    for (const float component:{grip.rotation.x,grip.rotation.y,grip.rotation.z,grip.rotation.w})
+        key.append(reinterpret_cast<const char*>(&component),sizeof(component));
+    if (const auto found=craftedMeshes_.find(key); found!=craftedMeshes_.end()) {
+        activeCrafted_=&found->second;
+        return activeCrafted_->count>0;
+    }
+    auto model=buildItemModel(item->inventory().model);
+    const auto toGrip=craftedItemToGrip(*item);
+    for (auto& draw:model.draws) draw.transform=toGrip*draw.transform;
+    std::vector<OverlayVertex> vertices;
+    appendModel(model,false,vertices);
+    GLint previousVao=0,previousBuffer=0;
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&previousVao); glGetIntegerv(GL_ARRAY_BUFFER_BINDING,&previousBuffer);
+    CraftedMesh mesh;
+    glGenVertexArrays(1,&mesh.vao); glGenBuffers(1,&mesh.buffer);
+    glBindVertexArray(mesh.vao); glBindBuffer(GL_ARRAY_BUFFER,mesh.buffer);
+    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(OverlayVertex)),vertices.data(),GL_STATIC_DRAW);
+    for (GLuint attribute=0;attribute<4;++attribute) glEnableVertexAttribArray(attribute);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(OverlayVertex),nullptr);
+    glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(OverlayVertex),reinterpret_cast<void*>(offsetof(OverlayVertex,normal)));
+    glVertexAttribPointer(2,3,GL_FLOAT,GL_FALSE,sizeof(OverlayVertex),reinterpret_cast<void*>(offsetof(OverlayVertex,color)));
+    glVertexAttribPointer(3,1,GL_FLOAT,GL_FALSE,sizeof(OverlayVertex),reinterpret_cast<void*>(offsetof(OverlayVertex,pump)));
+    glBindVertexArray(static_cast<GLuint>(previousVao)); glBindBuffer(GL_ARRAY_BUFFER,static_cast<GLuint>(previousBuffer));
+    mesh.count=static_cast<GLsizei>(vertices.size());
+    activeCrafted_=&craftedMeshes_.emplace(std::move(key),mesh).first->second;
+    return activeCrafted_->count>0;
+}
+void WeaponOverlay::drawCrafted(const glm::mat4& projection,const glm::mat4& modelToEye,const MuzzleFlashLight& flash) {
+    glUseProgram(program_); glBindVertexArray(activeCrafted_->vao);
+    const auto transform=projection*modelToEye;
+    glUniformMatrix4fv(transform_,1,GL_FALSE,glm::value_ptr(transform));
+    glUniformMatrix4fv(pose_,1,GL_FALSE,glm::value_ptr(modelToEye));
+    glUniform1f(pumpTravel_,0);
+    glUniform3fv(flashPosition_,1,glm::value_ptr(flash.position));
+    glUniform3fv(flashColor_,1,glm::value_ptr(flash.color));
+    glUniform1f(flashRange_,flash.range);
+    glDrawArrays(GL_TRIANGLES,0,activeCrafted_->count);
 }
 
 void WeaponOverlay::drawGeometry(std::size_t slot, const glm::mat4& projection, const glm::mat4& modelToEye,

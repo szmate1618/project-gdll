@@ -46,6 +46,13 @@ void eyeMount() {
     require(axeHit && axeHeld && axeRecover && axeHit->motion.localTransform == axeHeld->motion.localTransform &&
             axeRecover->motion.localTransform != axeHeld->motion.localTransform,
             "Remote axe must hold its authoritative contact angle until recovery");
+    player.slot=static_cast<std::uint8_t>(viewer::craftedSlot);
+    const auto craftedHit=playback.sample(player,10),craftedHeld=playback.sample(player,10.1),craftedRecover=playback.sample(player,10.3);
+    require(craftedHit && craftedHeld && craftedRecover &&
+            craftedHit->motion.localTransform==axeHit->motion.localTransform &&
+            craftedHit->motion.localTransform==craftedHeld->motion.localTransform &&
+            craftedRecover->motion.localTransform!=craftedHeld->motion.localTransform,
+            "Remote custom tools must share the authoritative directional contact and recovery motion");
     player.slot = 0;
     player.vehicle = 0;
     require(!playback.sample(player, 0), "Seated player retained an on-foot weapon");

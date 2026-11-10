@@ -23,6 +23,7 @@
 #crafting-collapse:hover { color: #f5f6f2; }
 #crafting-list { position: absolute; top: 50dp; bottom: 12dp; left: 10dp; right: 10dp; overflow-y: auto; overflow-x: hidden; }
 .crafting-item { position: relative; padding: 10dp 9dp; margin-bottom: 5dp; background-color: #2b2d2f; border-left: 2dp #f5f6f226; }
+.crafting-item.crafting-tool { border-left: 2dp #65dd8c; }
 .crafting-item-name { width: 180dp; font-size: 13dp; }
 .crafting-quantity { position: absolute; top: 11dp; right: 8dp; font-family: plex-mono; font-size: 12dp; }
 .crafting-item-tags { margin-top: 4dp; font-family: plex-mono; font-size: 9dp; color: #f5f6f299; }

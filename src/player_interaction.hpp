@@ -26,6 +26,9 @@ public:
     bool craftingMode() const { return objects_.craftingMode(); }
     void endCraftingDrag() { objects_.endCraftingDrag(); doors_.release(); }
     bool takeNailDriven() { return objects_.takeNailDriven(); }
+    bool beginSetGrip(const Camera& camera) { chargeStarted_.reset(); doors_.release(); return objects_.beginSetGrip(camera); }
+    void finishSetGrip() { objects_.finishSetGrip(); }
+    bool settingGrip() const { return objects_.settingGrip(); }
     bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop) {
         if (craftingMode()) { chargeStarted_.reset(); doors_.release(); }
         else cancel();

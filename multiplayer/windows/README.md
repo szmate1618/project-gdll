@@ -67,8 +67,9 @@ This also supports packs made with custom map names or disabled layers. The
 base `run-game.cmd` remains available for the sample scene or explicit arguments.
 For joining, use the host's spawn, zombie-count/radius, and vegetation options.
 
-Shaders (including the menu and player shaders), the five first-person weapon
-models with attribution, weapon definitions, inventory, vehicles, and audio
+Shaders (including the menu and player shaders), first-person weapon models
+with attribution, the Set grip hand with CC0 provenance in
+`assets/crafting/grip_hand/`, weapon definitions, inventory, vehicles, and audio
 are included. GLEW, OpenSSL, Protobuf and GameNetworkingSockets are linked into
 the game; the Microsoft runtime is supplied by the Redistributable. The included
 OpenAL DLL supplies audio (`--no-audio` to mute). Existing multiplayer gameplay

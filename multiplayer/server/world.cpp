@@ -9,6 +9,7 @@
 #include "vehicle_player.hpp"
 #include "weapon_accuracy.hpp"
 #include "interaction_camera.hpp"
+#include "grip_placement.hpp"
 #include <random>
 #include <algorithm>
 #include <cmath>
@@ -81,15 +82,28 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, const Command& co
             action.kind != viewer::InventoryDragActionKind::HandRelease &&
             action.kind != viewer::InventoryDragActionKind::HandGrabWorld &&
             action.kind != viewer::InventoryDragActionKind::HandEndDrag &&
+            action.kind != viewer::InventoryDragActionKind::SetGripBegin &&
             action.kind != viewer::InventoryDragActionKind::PickUpBackpack &&
             action.kind != viewer::InventoryDragActionKind::EquipGround) {
             player.pendingInventoryActions.pop_front(); continue;
         }
         switch (action.kind) {
+        case viewer::InventoryDragActionKind::SetGripBegin:
+            if (crafting && command.interactionDirection && !command.cancelInteraction &&
+                !player.weaponSwitch.pending() && !player.weaponReload.pending()) {
+                player.handInventory.finishCraftingPlacement(player.interaction,*scene.groundItems,player.weapons);
+                if (player.handInventory.active())
+                    player.handInventory.release(player.interaction,*scene.groundItems,player.weapons);
+                scene.groundItems->grips(scene.boxes.get());
+                player.interaction.beginSetGrip(camera);
+            }
+            break;
         case viewer::InventoryDragActionKind::PickUpBackpack:
-            if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending())
+            if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending()) {
+                player.interaction.finishSetGrip();
                 player.handInventory.pickUp(player.interaction, *scene.groundItems, player.weapons,
                     camera, *scene.collision);
+            }
             break;
         case viewer::InventoryDragActionKind::EquipGround:
             if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending())
@@ -107,8 +121,10 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, const Command& co
             break;
         case viewer::InventoryDragActionKind::HandPickUp:
             if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending() &&
-                (temporaryHandling || player.weapons.slot() == viewer::handlingSlot))
+                (temporaryHandling || player.weapons.slot() == viewer::handlingSlot)) {
+                player.interaction.finishSetGrip();
                 player.handInventory.begin(action.item,crafting);
+            }
             break;
         case viewer::InventoryDragActionKind::HandGrabWorld:
             if (crafting && !command.cancelInteraction && command.interactionDirection &&
@@ -506,6 +522,12 @@ void World::step() {
                 player.weapons.cancelTrigger();
                 player.triggerNeedsRelease |= command.left;
             }
+            if (player.weapons.slot() == viewer::craftedSlot && player.weapons.craftedItem()) {
+                if (consumed) player.weapons.craftedMelee().drag(command.drag);
+                if (player.weapons.craftedMelee().update(now)) ++player.shots;
+                player.craftedCombat.update(player.weapons.craftedMelee(), *player.weapons.craftedItem(), player.camera,
+                    now, now, *scene_.collision, &scene_.zombies, &scene_.dogs);
+            }
             if (player.weapons.slot() == viewer::axeSlot) {
                 if (consumed) player.weapons.axe().drag(command.drag);
                 if (player.weapons.axe().update(now)) ++player.shots;
@@ -675,11 +697,14 @@ Snapshot World::snapshot(std::uint32_t id) {
             static_cast<float>(player.weaponReload.remaining(viewer::SimulationClock::instance().seconds())),
             static_cast<float>(player.weaponReload.duration()), {}, bool(player.inventory.held()) || !player.pendingInventoryActions.empty(), {}});
         s.players.back().damageEvents = player.vitals.damageEvents();
-        s.players.back().sword = (player.weapons.slot() == viewer::axeSlot ? player.weapons.axe() : player.weapons.sword()).pose(viewer::SimulationClock::instance().seconds());
+        s.players.back().sword = viewer::directionalMeleeSlot(player.weapons.slot()) ?
+            player.weapons.directionalMelee().pose(viewer::SimulationClock::instance().seconds()) : viewer::SwordPose{};
+        if (const auto* crafted = player.weapons.craftedItem())
+            s.players.back().equippedCrafted = viewer::captureCraftedItem(*crafted);
         s.players.back().swordSampleSeconds = static_cast<float>(viewer::SimulationClock::instance().seconds());
         s.players.back().flashlight = player.held.flashlight;
         s.players.back().handInventoryActive = player.handInventory.active();
-        s.players.back().holdingProp = player.interaction.heldProp().has_value();
+        s.players.back().holdingProp = player.interaction.heldProp().has_value() || player.interaction.settingGrip();
         s.players.back().handAccessRemaining = static_cast<float>(player.handInventory.remaining());
         s.players.back().handStoreRejections = player.handInventory.rejectedStores();
         // IDs remain explicit as players acquire additional stack instances.
@@ -699,6 +724,17 @@ Snapshot World::snapshot(std::uint32_t id) {
         if (!state.inventoryDragging) state.inventoryState = captureInventory(observer.inventory);
     }
     s.groundItems = captureGround(*scene_.groundItems, observer.controller.feet());
+    for (const auto& grip : scene_.groundItems->gripPreviews())
+        if (glm::distance(observer.camera.position(),grip.position)<80) s.gripPreviews.push_back(grip);
+    const auto& bindings = scene_.groundItems->bindingLines();
+    for (std::size_t index=0;index+1<bindings.size() && s.bindingLines.size()+2<=maxBindingLineVertices;index+=2) {
+        const auto from=bindings[index], to=bindings[index+1];
+        const auto segment=to-from;
+        const auto lengthSquared=glm::dot(segment,segment);
+        const float along=lengthSquared>0 ? std::clamp(glm::dot(observer.controller.feet()-from,segment)/lengthSquared,0.f,1.f) : 0;
+        if (glm::distance(observer.controller.feet(),from+along*segment)>80) continue;
+        s.bindingLines.push_back(from); s.bindingLines.push_back(to);
+    }
     auto view = observer.replicationView.value_or(ReplicationView{});
     if (!observer.replicationView || glm::distance(view.eye, observer.camera.position()) > 30.f) {
         view.eye = observer.camera.position();

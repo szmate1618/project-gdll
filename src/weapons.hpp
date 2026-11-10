@@ -10,6 +10,7 @@
 #include <cstdint>
 #include "weapon_config.hpp"
 #include "sword_melee.hpp"
+#include "inventory/item.hpp"
 
 namespace viewer {
 class PlayerInventory;
@@ -20,8 +21,9 @@ constexpr std::size_t handlingSlot = weaponIds.size() + 1;
 constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
 constexpr std::size_t swordSlot = weaponIds.size() + 2;
 constexpr std::size_t axeSlot = swordSlot + 1;
-constexpr std::size_t equipmentSlotCount = axeSlot + 1;
-inline bool directionalMeleeSlot(std::size_t slot) { return slot == swordSlot || slot == axeSlot; }
+constexpr std::size_t craftedSlot = axeSlot + 1;
+constexpr std::size_t equipmentSlotCount = craftedSlot + 1;
+inline bool directionalMeleeSlot(std::size_t slot) { return slot == swordSlot || slot == axeSlot || slot == craftedSlot; }
 // Slots 0..6 are fixed equippable item IDs. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponState {
@@ -49,10 +51,20 @@ public:
     void trigger(bool held);
     SwordMelee& sword() { return sword_; }
     const SwordMelee& sword() const { return sword_; }
-    // Both tools use the same directional drag and recovery; combat owns contact policy.
+    // Directional tools share drag and recovery; combat owns contact policy.
     SwordMelee& axe() { return axe_; }
     const SwordMelee& axe() const { return axe_; }
-    SwordMelee& directionalMelee() { return slot_ == axeSlot ? axe_ : sword_; }
+    SwordMelee& craftedMelee() { return crafted_; }
+    const SwordMelee& craftedMelee() const { return crafted_; }
+    SwordMelee& directionalMelee() { return slot_ == craftedSlot ? crafted_ : slot_ == axeSlot ? axe_ : sword_; }
+    const SwordMelee& directionalMelee() const { return slot_ == craftedSlot ? crafted_ : slot_ == axeSlot ? axe_ : sword_; }
+    // The equipped copy retains its saved geometry/grips even when no backpack
+    // compartment can hold it. Ground/inventory transactions own acquisition.
+    bool equipCrafted(const Item& item);
+    const Item* craftedItem() const { return craftedItem_ ? &*craftedItem_ : nullptr; }
+    void synchronizeCrafted(const Item* item); // Does not restart an active swing.
+    void synchronizeCrafted(const std::optional<Item>& item) { synchronizeCrafted(item ? &*item : nullptr); }
+    void clearCrafted();
     // Grenades: tap (<= 0.2 s) drops; hold charges linearly to an automatic
     // full-power throw at 2 s. Uses the same simulation clock as fireAttempt.
     void secondaryTrigger(bool held, double seconds);
@@ -79,7 +91,8 @@ public:
 private:
     friend class WeaponReload;
     std::array<WeaponState, equipmentSlotCount> weapons_;
-    SwordMelee sword_, axe_;
+    SwordMelee sword_, axe_, crafted_;
+    std::optional<Item> craftedItem_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;

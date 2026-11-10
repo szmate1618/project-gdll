@@ -69,6 +69,12 @@ ItemModelConfig loadItemModelConfig(const std::filesystem::path& file) {
         part.center = vector<3>(*entry, "center", file, part.name);
         part.size = vector<3>(*entry, "size", file, part.name);
         part.color = vector<3>(*entry, "color", file, part.name);
+        if (entry->contains("rotation")) {
+            const auto q=vector<4>(*entry,"rotation",file,part.name);
+            part.rotation={q.x,q.y,q.z,q.w}; // Serialized w,x,y,z.
+            if (std::abs(glm::length(part.rotation)-1)>.001f) invalid(file,part.name+".rotation must be a unit quaternion");
+            part.rotation=glm::normalize(part.rotation);
+        }
         if (glm::any(glm::lessThanEqual(part.size, glm::vec3(0))) || glm::any(glm::greaterThan(part.size, glm::vec3(4))))
             invalid(file, part.name + ".size must be positive and at most 4 metres");
         if (glm::any(glm::lessThan(part.color, glm::vec3(0))) || glm::any(glm::greaterThan(part.color, glm::vec3(1))))
@@ -79,9 +85,12 @@ ItemModelConfig loadItemModelConfig(const std::filesystem::path& file) {
             if (glm::any(glm::lessThanEqual(part.topSize, glm::vec2(0))) || glm::any(glm::greaterThan(part.topSize, glm::vec2(4))))
                 invalid(file, part.name + ".top_size must be positive and at most 4 metres");
         } else if (entry->contains("top_size")) invalid(file, part.name + ".top_size is only valid for a frustum");
-        const glm::vec3 extent(std::max(part.size.x, part.topSize.x), part.size.y, std::max(part.size.z, part.topSize.y));
-        minimum = glm::min(minimum, part.center - extent * .5f);
-        maximum = glm::max(maximum, part.center + extent * .5f);
+        for (int level=0;level<2;++level) for (int corner=0;corner<4;++corner) {
+            const auto footprint=level ? part.topSize : glm::vec2(part.size.x,part.size.z);
+            const auto point=part.center+part.rotation*glm::vec3((corner&1 ? .5f : -.5f)*footprint.x,
+                (level ? .5f : -.5f)*part.size.y,(corner&2 ? .5f : -.5f)*footprint.y);
+            minimum=glm::min(minimum,point); maximum=glm::max(maximum,point);
+        }
         result.parts.push_back(std::move(part));
     }
     if (glm::any(glm::greaterThan(maximum - minimum, glm::vec3(4))))

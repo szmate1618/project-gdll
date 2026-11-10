@@ -61,6 +61,7 @@ bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors,
         return true;
     }
     if (charging() || (grabbing() && !craftingMode())) return false;
+    if (objects_.settingGrip()) return objects_.press(camera,boxes,world);
     const auto prop = raycastPhysicsProp(boxes.physicsWorld(),camera.position(),camera.direction(),ObjectInteraction::rayReach(camera.direction()));
     const auto door = doors.raycast(camera.position(), camera.direction(), 1.5f);
     if (door && (!prop || door->distance <= prop->distance)) return doors_.press(camera, doors, world);

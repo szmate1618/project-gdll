@@ -6,6 +6,7 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 | Responsibility | Module |
 | --- | --- |
 | Item definition with inventory/gameplay components and shared tags | `src/inventory/item.hpp/.cpp` |
+| Validate and atomically save complete crafted definitions and local palm frames | `src/inventory/crafted_item.hpp/.cpp` |
 | Read item descriptors, tags and optional weapon gameplay | `src/inventory/item_config.hpp/.cpp` |
 | Parse weapon gameplay settings for both items and combat | `src/weapon_config.hpp/.cpp` |
 | Read player ownership, placements and shortcuts | `src/inventory/inventory_config.hpp/.cpp` |
@@ -35,6 +36,15 @@ optional inline `tags` array, falling back to `<id>.tags.txt` when absent.
 Inline tags are authoritative; the two sources are never combined.
 Combat's `Weapons` uses the same gameplay parser; there is no second inventory
 interpretation of the gameplay schema.
+
+`Item::withCrafting()` creates an immutable, nonstackable equippable definition
+from primitive geometry and local `ItemGrip` frames. Positions are metres in the
+model's Y-up frame; grip +Z points into the object and +Y points toward the
+knuckles. Primitive rotations are local quaternions. Complete model, material,
+and grip data travel with inventory/ground records and the retained equipped
+custom item, including when no backpack space is available. Saved definitions
+use schema-versioned TOML under `userdata/crafted_items/` and validate a temporary
+file before replacing the prior definition.
 
 Mutable magazine rounds and cooldowns remain in `Weapons`. Reserve ammunition
 is the quantity of matching ammo stacks in `PlayerInventory`; combat's reserve
@@ -195,6 +205,15 @@ uses an enclosing sphere for selection; fastening overlaps use the authored
 nail parts. Driving moves the nail 0.099 m along its point, then connects every
 intersected body with a revolute joint around the shaft. Grabbing that nail
 again removes its fastening joints.
+
+The `bind` tag enables tape/wire handling during a Crafting drag. Five upright
+30 cm square cross-sections, separated by 0.01 m along their horizontal normal,
+query the actual collider surfaces. Their clipped intersections supply both
+the visible lines and body-local attachment points. Temporary tension springs
+tighten intersected bodies with contacts enabled; release creates distance
+limits for each shared plane. Completed ties belong to the world and survive
+returning the binding item to inventory. Active line pairs are replicated by
+multiplayer snapshots and disappear when a drag finishes or is cancelled.
 
 ## Current prototype boundary
 

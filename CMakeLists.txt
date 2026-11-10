@@ -431,7 +431,7 @@ target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus:
 viewer_warnings(viewer_weapon_config)
 include(cmake/Inventory.cmake)
 
-add_library(viewer_item_models STATIC src/item_model_geometry.cpp)
+add_library(viewer_item_models STATIC src/item_model_geometry.cpp src/crafted_melee_geometry.cpp)
 target_link_libraries(viewer_item_models PUBLIC viewer_model viewer_items)
 viewer_warnings(viewer_item_models)
 if(BUILD_TESTING)
@@ -447,8 +447,8 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/basic_floorplan.cpp src/authored_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/canopy.cpp src/hand_inventory.cpp src/nail_placement.cpp src/crafting_interaction.cpp)
-target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction viewer_item_models)
+add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/basic_floorplan.cpp src/authored_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/canopy.cpp src/hand_inventory.cpp src/nail_placement.cpp src/binding_geometry.cpp src/binding_placement.cpp src/grip_placement.cpp src/crafting_interaction.cpp)
+target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction viewer_item_models viewer_application_paths)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)
 
@@ -489,6 +489,18 @@ add_custom_command(
 )
 add_custom_target(viewer_weapon_assets DEPENDS ${VIEWER_WEAPON_MODELS})
 
+set(VIEWER_GRIP_MODEL "${CMAKE_CURRENT_BINARY_DIR}/assets/crafting/grip_hand.glb")
+add_custom_command(
+    OUTPUT "${VIEWER_GRIP_MODEL}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_grip_hand.py"
+        --source "${CMAKE_CURRENT_SOURCE_DIR}/assets/crafting/grip_hand/grip_hand.json"
+        --output "${VIEWER_GRIP_MODEL}"
+    DEPENDS tools/build_grip_hand.py tools/build_weapon_assets.py assets/crafting/grip_hand/grip_hand.json
+    COMMENT "Building the cropped PSX crafting hand (offline)"
+    VERBATIM
+)
+add_custom_target(grip_hand_assets DEPENDS "${VIEWER_GRIP_MODEL}")
+
 add_library(viewer_weapon_pose STATIC src/weapon_view_pose.cpp)
 target_link_libraries(viewer_weapon_pose PUBLIC viewer_model)
 viewer_warnings(viewer_weapon_pose)
@@ -498,8 +510,8 @@ target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera viewer_day_night_clock)
 viewer_warnings(viewer_sun_lighting)
 
-add_library(viewer_sword_combat STATIC src/sword_combat.cpp src/axe_combat.cpp)
-target_link_libraries(viewer_sword_combat PUBLIC viewer_weapons viewer_zombies viewer_dogs)
+add_library(viewer_sword_combat STATIC src/sword_combat.cpp src/axe_combat.cpp src/crafted_combat.cpp)
+target_link_libraries(viewer_sword_combat PUBLIC viewer_weapons viewer_zombies viewer_dogs viewer_item_models)
 viewer_warnings(viewer_sword_combat)
 
 add_library(viewer_stakes STATIC src/stake_projectiles.cpp)
@@ -511,7 +523,7 @@ target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewe
 viewer_warnings(viewer_grenades)
 
 if(GD_VIEWER)
-add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src/basic_shader_uniforms.cpp src/graphics_settings.cpp
+add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src/binding_renderer.cpp src/grip_renderer.cpp src/basic_shader_uniforms.cpp src/graphics_settings.cpp
     src/distant_scene_cache.cpp src/renderer_distant.cpp
     src/renderer_presentation.cpp
     src/boid/bird_renderer.cpp
@@ -568,12 +580,13 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/storage/weapons"
     VIEWER_VEHICLES="${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
     VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
+    VIEWER_GRIP_MODEL="${VIEWER_GRIP_MODEL}"
     VIEWER_DOODAD_ASSETS="${VIEWER_DOODAD_ASSETS}"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
     VIEWER_DOOR_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/doors.toml"
     VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}"
 )
-add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets viewer_doodad_assets)
+add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets viewer_doodad_assets grip_hand_assets)
 viewer_warnings(godollo_viewer)
 endif()
 
@@ -677,6 +690,14 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
+    add_executable(test_grip_renderer tests/test_grip_renderer.cpp)
+    target_link_libraries(test_grip_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_grip_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}" VIEWER_GRIP_MODEL="${VIEWER_GRIP_MODEL}")
+    add_dependencies(test_grip_renderer grip_hand_assets)
+    viewer_warnings(test_grip_renderer)
+    add_test(NAME viewer_grip_renderer COMMAND test_grip_renderer)
+    set_tests_properties(viewer_grip_renderer PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_doodad_renderer tests/test_doodad_renderer.cpp)
     target_link_libraries(test_doodad_renderer PRIVATE viewer_renderer glfw)
     target_compile_definitions(test_doodad_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -805,16 +826,35 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(test_ground_items PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
     viewer_warnings(test_ground_items)
     add_test(NAME viewer_ground_items COMMAND test_ground_items)
+    add_executable(test_crafted_melee tests/test_crafted_melee.cpp)
+    target_link_libraries(test_crafted_melee PRIVATE viewer_sword_combat)
+    target_compile_definitions(test_crafted_melee PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_crafted_melee)
+    add_test(NAME viewer_crafted_melee COMMAND test_crafted_melee)
     add_executable(test_hand_inventory tests/test_hand_inventory.cpp)
     target_link_libraries(test_hand_inventory PRIVATE viewer_objects)
     target_compile_definitions(test_hand_inventory PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
     viewer_warnings(test_hand_inventory)
     add_test(NAME viewer_hand_inventory COMMAND test_hand_inventory)
+    add_executable(test_grip_placement tests/test_grip_placement.cpp)
+    target_link_libraries(test_grip_placement PRIVATE viewer_objects)
+    target_compile_definitions(test_grip_placement PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_grip_placement)
+    add_test(NAME viewer_grip_placement COMMAND test_grip_placement)
     add_executable(test_nail_placement tests/test_nail_placement.cpp)
     target_link_libraries(test_nail_placement PRIVATE viewer_objects)
     target_compile_definitions(test_nail_placement PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
     viewer_warnings(test_nail_placement)
     add_test(NAME viewer_nail_placement COMMAND test_nail_placement)
+    add_executable(test_binding_geometry tests/test_binding_geometry.cpp)
+    target_link_libraries(test_binding_geometry PRIVATE viewer_objects)
+    viewer_warnings(test_binding_geometry)
+    add_test(NAME viewer_binding_geometry COMMAND test_binding_geometry)
+    add_executable(test_binding_placement tests/test_binding_placement.cpp)
+    target_link_libraries(test_binding_placement PRIVATE viewer_objects)
+    target_compile_definitions(test_binding_placement PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_binding_placement)
+    add_test(NAME viewer_binding_placement COMMAND test_binding_placement)
     add_executable(test_weapon_reload tests/test_weapon_reload.cpp)
     target_link_libraries(test_weapon_reload PRIVATE viewer_objects)
     target_compile_definitions(test_weapon_reload PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")

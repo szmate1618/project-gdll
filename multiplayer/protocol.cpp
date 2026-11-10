@@ -86,6 +86,33 @@ struct Wire {
         for (auto& value : values) item(value);
     }
 };
+void craftedItem(Wire& w,std::optional<viewer::CraftedItemData>& data) {
+    bool present=data.has_value(); w.flag(present);
+    if (!present) { if (w.reading) data.reset(); return; }
+    if (w.reading) data.emplace();
+    auto& item=*data;
+    w.text(item.id,128); w.text(item.prototype,128); w.text(item.name,128); w.text(item.acoustics,64);
+    auto width=static_cast<std::uint8_t>(item.width), height=static_cast<std::uint8_t>(item.height);
+    if (!w.reading && (item.width<1 || item.width>16 || item.height<1 || item.height>16))
+        throw std::runtime_error("Invalid crafted item footprint");
+    w.integer(width); w.integer(height); item.width=width; item.height=height;
+    w.list(item.tags,32,[&](std::string& tag) { w.text(tag,64); });
+    w.number(item.model.massKg);
+    w.list(item.model.parts,64,[&](viewer::ItemModelPart& part) {
+        w.text(part.name,128); w.text(part.material,64);
+        auto shape=static_cast<std::uint8_t>(part.shape); w.integer(shape);
+        if (shape>static_cast<std::uint8_t>(viewer::ItemModelShape::Frustum)) throw std::runtime_error("Invalid crafted primitive");
+        part.shape=static_cast<viewer::ItemModelShape>(shape);
+        w.vector(part.center); w.vector(part.size); w.vector(part.color);
+        w.number(part.topSize.x); w.number(part.topSize.y);
+        w.number(part.rotation.w); w.number(part.rotation.x); w.number(part.rotation.y); w.number(part.rotation.z);
+    });
+    w.list(item.grips,8,[&](viewer::ItemGrip& grip) {
+        w.vector(grip.position);
+        w.number(grip.rotation.w); w.number(grip.rotation.x); w.number(grip.rotation.y); w.number(grip.rotation.z);
+    });
+    (void)viewer::restoreCraftedItem(item);
+}
 void movement(Wire& w, viewer::FPSState& s) {
     w.vector(s.feet); w.vector(s.groundNormal); w.number(s.verticalVelocity);
     // Fixed stepping leaves at most one player substep of remainder.
@@ -195,7 +222,7 @@ void command(Wire& w, Command& c) {
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
-        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::HandEndDrag))
+        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::SetGripBegin))
             throw std::runtime_error("Invalid inventory action");
         action.kind = static_cast<viewer::InventoryDragActionKind>(kind);
         switch (action.kind) {
@@ -211,6 +238,7 @@ void command(Wire& w, Command& c) {
         case viewer::InventoryDragActionKind::DiscardEquipped:
         case viewer::InventoryDragActionKind::HandGrabWorld:
         case viewer::InventoryDragActionKind::HandEndDrag:
+        case viewer::InventoryDragActionKind::SetGripBegin:
         case viewer::InventoryDragActionKind::HandRelease: break;
         case viewer::InventoryDragActionKind::Rotate: {
             auto turns = static_cast<std::uint8_t>((action.turns % 4 + 4) % 4);
@@ -546,7 +574,7 @@ void payload(Wire& w, Snapshot& s) {
         if (viewer::directionalMeleeSlot(p.slot)) {
             w.number(p.sword.direction.x); w.number(p.sword.direction.y);
             w.number(p.sword.elapsed); w.number(p.swordSampleSeconds);
-            if (p.slot == viewer::axeSlot) {
+            if (p.slot == viewer::axeSlot || p.slot == viewer::craftedSlot) {
                 w.number(p.sword.stoppedElapsed);
                 if (p.sword.stoppedElapsed != -1 &&
                     (p.sword.stoppedElapsed < viewer::swordWindupSeconds ||
@@ -579,6 +607,8 @@ void payload(Wire& w, Snapshot& s) {
         if (p.ammoItemIds.size() != p.ammoQuantities.size()) throw std::runtime_error("Invalid ammo quantity IDs");
         for (auto& item : p.ammoItemIds) w.text(item,128);
         w.flag(p.handInventoryActive); w.flag(p.holdingProp); w.number(p.handAccessRemaining);
+        craftedItem(w,p.equippedCrafted);
+        if (p.slot==viewer::craftedSlot && !p.equippedCrafted) throw std::runtime_error("Custom equipment slot has no authored item");
         w.integer(p.handStoreRejections);
         if (p.handAccessRemaining < 0 || (!p.handInventoryActive && p.handAccessRemaining != 0))
             throw std::runtime_error("Invalid hand inventory access progress");
@@ -594,6 +624,9 @@ void payload(Wire& w, Snapshot& s) {
             w.list(inventory.items, 1024, [&](InventoryEntryState& entry) {
                 w.text(entry.id, 128); w.text(entry.prototype, 128); w.integer(entry.quantity);
                 inventoryPlacement(w, entry.placement);
+                craftedItem(w,entry.crafted);
+                if (entry.crafted && (entry.crafted->id!=entry.id || entry.crafted->prototype!=entry.prototype || entry.quantity!=0))
+                    throw std::runtime_error("Custom inventory definition disagrees with its instance");
             });
             for (auto& shortcut : inventory.hotbar) w.text(shortcut, 128);
         }
@@ -614,6 +647,9 @@ void payload(Wire& w, Snapshot& s) {
             w.number(panel.rotation.w); w.number(panel.rotation.x); w.number(panel.rotation.y); w.number(panel.rotation.z);
             if (std::abs(glm::length(panel.rotation)-1)>.001f) throw std::runtime_error("Invalid canopy panel rotation");
         });
+        craftedItem(w,entry.crafted);
+        if (entry.crafted && (entry.crafted->id!=entry.item || entry.crafted->prototype!=entry.prototype || entry.quantity!=0 || entry.slot!=255 || !entry.panels.empty()))
+            throw std::runtime_error("Custom ground definition disagrees with its instance");
         if (!entry.panels.empty() && entry.panels.size()!=36) throw std::runtime_error("Invalid canopy panel count");
         if (!entry.id || (entry.slot != 255 && entry.slot >= viewer::weaponIds.size()) || entry.readyAt < 0 ||
             std::abs(glm::length(entry.rotation) - 1) > .001f ||
@@ -778,6 +814,13 @@ void payload(Wire& w, Snapshot& s) {
             throw std::runtime_error("Invalid vehicle occupancy");
     }
     sleepPlan(w, s.sleepPlan);
+    w.list(s.gripPreviews,32,[&](viewer::GripPreviewPose& pose) {
+        w.vector(pose.position);
+        w.number(pose.rotation.w); w.number(pose.rotation.x); w.number(pose.rotation.y); w.number(pose.rotation.z);
+        if (std::abs(glm::length(pose.rotation)-1)>.001f) throw std::runtime_error("Invalid grip preview orientation");
+    });
+    w.list(s.bindingLines,maxBindingLineVertices,[&](glm::vec3& point) { w.vector(point); });
+    if (s.bindingLines.size() % 2) throw std::runtime_error("Incomplete binding line endpoint pair");
 }
 void compactPose(Wire& w, CompactRagdollPose& pose) {
     static_assert(maxBones <= 128, "Compact joint offsets reserve one index bit for their width");

@@ -50,6 +50,8 @@ class DogLayer;
 
 class RainRenderer;
 class BloodMistRenderer;
+class BindingRenderer;
+class GripRenderer;
 class FireRenderer;
 class FireEffects;
 class GpuTimer;
@@ -124,6 +126,7 @@ public:
     std::size_t doodadVisibleCount() const { return doodadVisibleCount_; }
     // Shared model resources; the physics layer must outlive rendering.
     void setGroundItems(const GroundItems& items, const std::array<Model,weaponIds.size()>& models);
+    void setGripModel(const Model& model);
     void setDroppedWeapons(const DroppedWeapons& weapons, const std::array<Model,weaponIds.size()>& models);
     void loadGrenadeModel(const std::filesystem::path& path, GrenadeKind kind = GrenadeKind::he);
     void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
@@ -648,6 +651,8 @@ private:
     Material fallback_;
     std::unique_ptr<RainRenderer> rain_;
     std::unique_ptr<BloodMistRenderer> bloodMist_;
+    std::unique_ptr<BindingRenderer> bindings_;
+    std::unique_ptr<GripRenderer> grips_;
     std::unique_ptr<FireRenderer> fire_;
     const FireEffects* fireSource_ = nullptr; // Borrowed through rendering.
     double fireSeconds_ = 0;

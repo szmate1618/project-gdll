@@ -34,6 +34,8 @@
 #include "stake_projectiles.hpp"
 #include "sword_combat.hpp"
 #include "axe_combat.hpp"
+#include "crafted_combat.hpp"
+#include "grip_placement.hpp"
 #include "weapon_accuracy.hpp"
 #include "action_selection.hpp"
 #include "weapon_switch.hpp"
@@ -507,6 +509,7 @@ struct AppState {
     viewer::WeaponMotion weaponMotion;
     viewer::SwordCombat swordCombat;
     viewer::AxeCombat axeCombat;
+    viewer::CraftedCombat craftedCombat;
     viewer::ShotInaccuracy shotInaccuracy;
     viewer::PlayerVitals vitals;
     double lastDamageSeconds = -1;
@@ -726,8 +729,9 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         }
     } else if (key == GLFW_KEY_G && (app.capture || app.equipmentCursor) && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
+        app.interaction.finishSetGrip();
         if (app.handInventory.pickUp(app.interaction, *app.groundItems, app.weapons, app.handlingCamera(), app.world))
-            std::cout << "Stored item in backpack | " << app.weapons.status() << '\n';
+            std::cout << "Acquired item | " << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_H && (app.capture || app.equipmentCursor) && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
         if (app.handInventory.equip(app.interaction, *app.groundItems, app.weapons, app.handlingCamera(), app.world, app.playerVelocity)) {
@@ -918,6 +922,12 @@ bool updateWeapons(AppState& app, double seconds) {
     const auto& config = app.weapons.equipped().config;
     if (config.grenade && (!app.grenades || !app.grenades->canThrow(app.rig.camera().position(), app.world, config.grenade->kind))) {
         app.weapons.cancelTrigger();
+        return false;
+    }
+    if (app.weapons.slot() == viewer::craftedSlot && app.weapons.craftedItem()) {
+        app.weapons.craftedMelee().update(seconds);
+        app.craftedCombat.update(app.weapons.craftedMelee(), *app.weapons.craftedItem(), app.rig.camera(),
+            seconds, app.displayedAnimationSeconds, app.world, app.zombies, app.dogs);
         return false;
     }
     if (app.weapons.slot() == viewer::axeSlot) {
@@ -2014,6 +2024,7 @@ int run(const Options& options) {
         renderer.setDoodads(*doodads,doodadModels);
     }
     renderer.setGroundItems(groundItems,droppedModels);
+    renderer.setGripModel(viewer::loadModel(VIEWER_GRIP_MODEL));
     renderer.setVehicleAssets(std::filesystem::path(VIEWER_VEHICLES).parent_path() / "assets/vehicles/models");
     renderer.setVehicleDistanceDetail(options.vehicleDistanceDetail);
     renderer.setVehicleInstancing(options.vehicleInstancing);
@@ -2413,7 +2424,8 @@ int run(const Options& options) {
                 weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
                                    viewer::directionalMeleeSlot(app.weapons.slot()) && !app.temporaryHandling() ?
                                        viewer::swordMotion(app.weapons.directionalMelee().pose(simulationClock.seconds())) :
-                                       app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds(), app.temporaryHandling()));
+                                       app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds(), app.temporaryHandling()),
+                                   app.weapons.craftedItem());
             const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
             const float sigma = viewer::hipFireInaccuracy(heldWeapon.config,
                 glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z)),
@@ -2495,13 +2507,24 @@ int run(const Options& options) {
         }
         for (const auto& action : hud.takeInventoryActions()) {
             switch (action.kind) {
+            case viewer::InventoryDragActionKind::SetGripBegin:
+                if (app.hudScreen == viewer::HudScreen::Crafting && app.craftingDirection() &&
+                    !app.weaponSwitch.pending() && !app.weaponReload.pending()) {
+                    app.handInventory.finishCraftingPlacement(app.interaction,groundItems,app.weapons);
+                    if (app.handInventory.active()) app.handInventory.release(app.interaction,groundItems,app.weapons);
+                    groundItems.grips(app.boxes);
+                    app.interaction.beginSetGrip(app.handlingCamera());
+                }
+                break;
             case viewer::InventoryDragActionKind::ApplyBandage:
                 if (!hud.inventoryDragging() && !app.handInventory.active() && !sleepPlan.state().inSleepSession(1))
                     viewer::applyBandage(app.vitals.healthState(), app.inventory, action.item, action.injury);
                 break;
             case viewer::InventoryDragActionKind::HandPickUp:
-                if (app.handling() && !app.weaponSwitch.pending() && !app.weaponReload.pending())
+                if (app.handling() && !app.weaponSwitch.pending() && !app.weaponReload.pending()) {
+                    app.interaction.finishSetGrip();
                     app.handInventory.begin(action.item,app.hudScreen == viewer::HudScreen::Crafting);
+                }
                 break;
             case viewer::InventoryDragActionKind::HandGrabWorld:
                 if (app.hudScreen == viewer::HudScreen::Crafting && app.craftingDirection() && app.doors && app.boxes &&

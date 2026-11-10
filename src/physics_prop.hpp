@@ -27,6 +27,8 @@ private:
     friend class StakeProjectiles;
     friend class Canopy;
     friend class NailPlacement;
+    friend class BindingPlacement;
+    friend class GripPlacement;
     b3BodyId body() const;
     std::shared_ptr<PhysicsWorld> world_;
     b3BodyId body_;

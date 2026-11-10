@@ -7,6 +7,11 @@
 #include <vector>
 
 namespace viewer {
+struct ItemGrip {
+    glm::vec3 position{0}; // Palm heel in model-local metres.
+    // Palm-to-model rotation: +Z into the object, +Y toward fingers, +X across the palm.
+    glm::quat rotation{1,0,0,0};
+};
 struct ItemInventoryConfig {
     std::string name, type;
     int width = 0, height = 0; // Grid cells, not world dimensions.
@@ -36,15 +41,20 @@ public:
     const WeaponConfig& gameplay() const { return gameplay_; }
     const std::vector<std::string>& tags() const { return tags_; }
     bool hasTag(std::string_view tag) const;
-    // Fingerprinted starting-instance ID used to reconstruct transferred stacks.
+    // Starting definition or source-object provenance. Crafted transfers also
+    // carry their complete model and grips independently of catalog lookup.
     const std::string& prototype() const { return prototype_; }
     Item renamed(const std::string& id) const;
+    Item withCrafting(ItemModelConfig model, std::vector<ItemGrip> grips) const;
+    const std::vector<ItemGrip>& grips() const { return grips_; }
+    bool crafted() const { return !grips_.empty(); }
 private:
     std::string id_;
     std::string prototype_;
     ItemInventoryConfig inventory_;
     WeaponConfig gameplay_;
     std::vector<std::string> tags_;
+    std::vector<ItemGrip> grips_;
 };
 bool itemStacksCompatible(const Item& source, const Item& target);
 } // namespace viewer

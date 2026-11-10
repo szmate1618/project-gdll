@@ -8,6 +8,8 @@
 namespace viewer {
 class CollisionWorld;
 class NailInteraction;
+class BindingInteraction;
+class GripInteraction;
 enum class Hand { Left, Right, Throw }; // Grip, rotate, and charged throw/push actions.
 
 // One persistent prop grip. The ordinary BoxLayer must outlive the grip.
@@ -17,11 +19,14 @@ public:
     bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop);
     void cancel(); // Releases input; crafting poses remain parked.
     void drop(); // Explicit drop/throw also releases a suspended crafting pose.
-    void setCraftingMode(bool enabled, NailInteraction* nails = nullptr);
+    void setCraftingMode(bool enabled, NailInteraction* nails = nullptr, BindingInteraction* bindings = nullptr,GripInteraction* grips=nullptr);
+    bool beginSetGrip(const Camera&);
+    void finishSetGrip();
+    bool settingGrip() const;
     bool craftingMode() const { return crafting_; }
     void endCraftingDrag();
     bool takeNailDriven();
-    bool grabbing() const { return heldProp().has_value(); }
+    bool grabbing() const { return settingGrip() || heldProp().has_value(); }
     std::optional<std::size_t> heldBox() const;
     std::optional<PhysicsProp> heldProp() const;
     // Positive dy moves upward in world Y; dx follows the grab's camera right.
@@ -50,6 +55,10 @@ private:
     };
     std::optional<Grab> grab_;
     NailInteraction* nails_ = nullptr; // Borrowed from the world-owned GroundItems.
+    BindingInteraction* bindings_ = nullptr;
+    GripInteraction* grips_ = nullptr;
+    std::uint64_t gripEditor_=0;
+    std::optional<Rotation> gripRotation_;
     bool crafting_ = false, dragging_ = false, nailDriven_ = false;
     bool pendingDrive_ = false;
 };

@@ -4,6 +4,7 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <set>
 
 namespace viewer {
 int itemQuantityScale(const ItemInventoryConfig& inventory) {
@@ -52,6 +53,58 @@ Item::Item(std::string id, ItemInventoryConfig inventory, WeaponConfig gameplay,
 Item Item::renamed(const std::string& id) const {
     auto result = Item(id, inventory_, gameplay_, tags_);
     result.prototype_ = prototype_;
+    result.grips_ = grips_;
+    return result;
+}
+Item Item::withCrafting(ItemModelConfig model, std::vector<ItemGrip> grips) const {
+    if (model.parts.empty() || model.parts.size()>64 || grips.empty() || grips.size()>8 ||
+        !std::isfinite(model.massKg) || model.massKg<=0 || model.massKg>1000)
+        throw std::invalid_argument("Invalid crafted model or grip count");
+    const auto finite=[](glm::vec3 value) { return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z); };
+    const auto validRotation=[](glm::quat q) {
+        return std::isfinite(q.w) && std::isfinite(q.x) && std::isfinite(q.y) && std::isfinite(q.z) && std::abs(glm::length(q)-1)<.001f;
+    };
+    glm::vec3 minimum(std::numeric_limits<float>::infinity()), maximum(-minimum);
+    std::set<std::string> names;
+    for (auto& part:model.parts) {
+        if (part.name.empty() || part.name.size()>128 || !names.insert(part.name).second || part.material.empty() || part.material.size()>64 ||
+            !finite(part.center) || glm::any(glm::greaterThan(glm::abs(part.center),glm::vec3(4))) ||
+            !finite(part.size) || glm::any(glm::lessThanEqual(part.size,glm::vec3(0))) || glm::any(glm::greaterThan(part.size,glm::vec3(4))) ||
+            !finite(part.color) || glm::any(glm::lessThan(part.color,glm::vec3(0))) || glm::any(glm::greaterThan(part.color,glm::vec3(1))) ||
+            !validRotation(part.rotation) || (part.shape!=ItemModelShape::Box && part.shape!=ItemModelShape::Frustum))
+            throw std::invalid_argument("Invalid crafted model part");
+        if (!std::isfinite(part.topSize.x) || !std::isfinite(part.topSize.y) ||
+            glm::any(glm::lessThanEqual(part.topSize,glm::vec2(0))) || glm::any(glm::greaterThan(part.topSize,glm::vec2(4))))
+            throw std::invalid_argument("Invalid crafted part footprint");
+        part.rotation=glm::normalize(part.rotation);
+        const auto top=part.shape==ItemModelShape::Frustum ? part.topSize : glm::vec2(part.size.x,part.size.z);
+        for (int level=0;level<2;++level) for (int corner=0;corner<4;++corner) {
+            const auto footprint=level ? top : glm::vec2(part.size.x,part.size.z);
+            const auto point=part.center+part.rotation*glm::vec3((corner&1 ? .5f : -.5f)*footprint.x,
+                (level ? .5f : -.5f)*part.size.y,(corner&2 ? .5f : -.5f)*footprint.y);
+            minimum=glm::min(minimum,point); maximum=glm::max(maximum,point);
+        }
+    }
+    if (glm::any(glm::greaterThan(maximum-minimum,glm::vec3(4))))
+        throw std::invalid_argument("Crafted model exceeds the 4 metre body limit");
+    for (auto& grip:grips) {
+        if (!finite(grip.position) || glm::any(glm::greaterThan(glm::abs(grip.position),glm::vec3(4))) || !validRotation(grip.rotation))
+            throw std::invalid_argument("Invalid crafted grip");
+        grip.rotation=glm::normalize(grip.rotation);
+    }
+    auto inventory=inventory_;
+    inventory.type="equipment"; inventory.ammoType.clear(); inventory.stackable=false; inventory.maxStack=1;
+    inventory.quantityUnit="count"; inventory.model=std::move(model);
+    auto tags=tags_;
+    tags.erase(std::remove_if(tags.begin(),tags.end(),[](const std::string& tag) {
+        return tag=="canopy" || tag=="nail" || tag=="bind" || tag=="stake" || tag=="throwable";
+    }),tags.end());
+    for (const auto* tag:{"crafted","melee","crafting"})
+        if (std::find(tags.begin(),tags.end(),tag)==tags.end()) tags.emplace_back(tag);
+    if (tags.size()>32) throw std::invalid_argument("Too many crafted item tags");
+    auto result=Item(id_,std::move(inventory),WeaponConfig{},std::move(tags));
+    result.prototype_=prototype_;
+    result.grips_=std::move(grips);
     return result;
 }
 bool Item::hasTag(std::string_view tag) const {

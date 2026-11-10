@@ -15,6 +15,8 @@ def check_contents(package):
         "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml",
         "assets/test.glb", "assets/test.navmesh", "inventory.toml", "doors.toml", "skills.toml", "skills/melee/punch.skill.toml",
         "assets/pigeon/flock.json", "credits/assets/PIGEONS.txt", "credits/assets/UNDEAD_DOGS.txt",
+        "assets/crafting/grip_hand.glb", "assets/crafting/grip_hand/README.md", "assets/crafting/grip_hand/LICENSE.txt",
+        "shaders/grip.vert", "shaders/grip.frag",
         "ui/main-menu.rml", "ui/main-menu.rcss", "ui/main-menu-classic.rcss", "ui/main-menu-modern.rcss",
         "ui/fonts/menu-pixel.ttf", "ui/character-editor.rcss", "ui/host-game.rcss",
         "ui/fonts/plex/IBMPlexSans-Regular.ttf", "ui/fonts/plex/IBMPlexSansCondensed-Medium.ttf",
@@ -56,6 +58,8 @@ def check_contents(package):
             raise RuntimeError("Package is missing a generated weapon model: " + name)
     if not (package / "assets/audio/sources.json").is_file():
         raise RuntimeError("Package is missing audio resources")
+    if (package / "assets/crafting/grip_hand.glb").read_bytes()[:4] != b"glTF":
+        raise RuntimeError("Package Set grip hand must be a generated GLB")
     for suffix in ("inventory.toml", "acoustics.toml", "tags.txt"):
         filename = f"storage/medical/bandage.{suffix}"
         if not (package / filename).is_file():

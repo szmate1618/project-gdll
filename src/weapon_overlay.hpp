@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <filesystem>
+#include <map>
 #include "opengl.hpp"
 #include "weapon_view_pose.hpp"
 #include "weapon_motion.hpp"
@@ -21,12 +22,14 @@ public:
     // Transform the configured model-local muzzle to eye-local meters.
     glm::vec3 muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle, const WeaponMotionPose& motion = {}) const;
     void draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash = {},
-              const WeaponMotionPose& motion = {});
+              const WeaponMotionPose& motion = {}, const Item* crafted = nullptr);
     // The remote player supplies its eye-to-world transform. Reuse the exact
     // local mount and geometry while testing against the viewing scene's depth.
     void drawWorld(std::size_t slot, const Camera& viewingCamera, float aspect, const glm::mat4& eyeToWorld,
-                   const MuzzleFlashLight& worldFlash = {}, const WeaponMotionPose& motion = {});
+                   const MuzzleFlashLight& worldFlash = {}, const WeaponMotionPose& motion = {}, const Item* crafted = nullptr);
 private:
+    bool prepareCrafted(const Item* item);
+    void drawCrafted(const glm::mat4& projection,const glm::mat4& modelToEye,const MuzzleFlashLight& flash);
     void drawGeometry(std::size_t slot, const glm::mat4& projection, const glm::mat4& modelToEye,
                       const MuzzleFlashLight& flash, float pumpTravel);
     struct Range { GLint first = 0; GLsizei count = 0; };
@@ -36,5 +39,8 @@ private:
     GLint transform_ = -1;
     GLint pose_ = -1, flashPosition_ = -1, flashColor_ = -1, flashRange_ = -1;
     GLint pumpTravel_ = -1;
+    struct CraftedMesh { GLuint vao=0,buffer=0; GLsizei count=0; };
+    std::map<std::string,CraftedMesh> craftedMeshes_;
+    const CraftedMesh* activeCrafted_=nullptr;
 };
 } // namespace viewer

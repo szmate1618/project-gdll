@@ -4,6 +4,7 @@
 #include "resources.hpp"
 #include "shader_program.hpp"
 #include "weapon_overlay.hpp"
+#include "inventory/crafted_item.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <array>
@@ -125,9 +126,12 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
     }
     if (weapon_) for (const auto& player : players) {
         if (player.id == self) continue;
-        if (const auto sample = weapons_.sample(player, serverSeconds))
+        if (const auto sample = weapons_.sample(player, serverSeconds)) {
+            const auto crafted=sample->slot==viewer::craftedSlot && player.equippedCrafted ?
+                std::optional<viewer::Item>(viewer::restoreCraftedItem(*player.equippedCrafted)) : std::nullopt;
             weapon_->drawWorld(sample->slot, camera, static_cast<float>(width) / height,
-                sample->eyeToWorld, sample->flash, sample->motion);
+                sample->eyeToWorld, sample->flash, sample->motion,crafted ? &*crafted : nullptr);
+        }
     }
     glFrontFace(static_cast<GLenum>(front));
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D_ARRAY, texture); glBindSampler(0, sampler); glActiveTexture(active);

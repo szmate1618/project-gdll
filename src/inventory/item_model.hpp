@@ -2,6 +2,7 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@ struct ItemModelPart {
     glm::vec3 size{1};
     glm::vec3 color{1};
     glm::vec2 topSize{1};
+    glm::quat rotation{1,0,0,0}; // Part-local orientation in the item frame.
 };
 
 struct ItemModelConfig {

@@ -71,6 +71,40 @@ int main(int argc, char** argv) {
             require(changed(beforeItem,current)>(index==2 ? 5u : 25u),"A configured crafting item model did not render");
             beforeItem=current;
         }
+
+        // Binding intersections use the ordinary world pass, including when no
+        // equippable items exist. Their invisible planes have no rendered mesh.
+        viewer::GroundItems bindings(std::make_shared<viewer::PhysicsWorld>());
+        viewer::GroundItems replacement(std::make_shared<viewer::PhysicsWorld>());
+        const auto verifyBindings=[&](viewer::SceneDepthMode depthMode) {
+            renderer.setSceneDepthMode(depthMode);
+            renderer.setGroundItems(bindings,models);
+            bindings.setBindingLines({});
+            renderer.render(camera); const auto unmarked=pixels();
+            const std::vector<glm::vec3> first{{-.65f,.05f,.1f},{.65f,.05f,.1f}};
+            bindings.setBindingLines(first);
+            renderer.render(camera); const auto marked=pixels();
+            require(changed(unmarked,marked)>150,"Surface binding intersection lines did not render in gameplay");
+            bindings.setBindingLines({{-.65f,.05f,-.3f},{.65f,.05f,-.3f}});
+            renderer.render(camera);
+            require(changed(marked,pixels())>150,"Changed binding intersections retained old line endpoints");
+            bindings.setBindingLines({{-.65f,-.1f,.1f},{.65f,-.1f,.1f}});
+            renderer.render(camera);
+            require(changed(unmarked,pixels())==0,"Binding intersection lines drew through opaque scene geometry");
+            bindings.setBindingLines(first);
+            renderer.render(camera);
+            bindings.setBindingLines({});
+            renderer.render(camera);
+            require(changed(unmarked,pixels())==0,"Cleared binding intersections left stale lines");
+            bindings.setBindingLines(first);
+            renderer.render(camera);
+            renderer.setGroundItems(replacement,models);
+            renderer.render(camera);
+            require(changed(unmarked,pixels())==0,"Replacing the ground source retained its binding intersections");
+        };
+        verifyBindings(viewer::SceneDepthMode::Conventional24);
+        if (renderer.reversedDepthSupported()) verifyBindings(viewer::SceneDepthMode::Reversed32);
+        renderer.setGroundItems(materials,models);
         require(glGetError()==GL_NO_ERROR,"Ground item rendering generated a GL error");
         if (argc>1) {
             camera.setPosition({1.7f,1.1f,2.8f}); camera.setOrientation(-115,-12);

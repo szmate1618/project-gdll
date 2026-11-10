@@ -1,6 +1,8 @@
 #pragma once
 #include "inventory/inventory_action.hpp"
 #include "inventory/player_inventory.hpp"
+#include "inventory/crafted_item.hpp"
+#include "grip_preview.hpp"
 
 #include "fps_controller.hpp"
 #include "command_wheel.hpp"
@@ -35,11 +37,12 @@ constexpr std::size_t maxZombies = maxOutdoorZombies + 10000, maxVisibleZombies 
 constexpr std::size_t maxZombieUpdatesPerSnapshot = 1024, maxZombieSetupsPerBatch = 64;
 constexpr double zombieTimeoutSeconds = 5;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
+constexpr std::size_t maxBindingLineVertices = 2048; // Complete world-space endpoint pairs.
 constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 66; // Persistent crafting gestures and cursor interaction rays.
+constexpr std::uint32_t protocolVersion = 68; // Authored crafting grips and complete custom item definitions.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -128,6 +131,7 @@ struct InventoryEntryState {
     std::string id, prototype;
     std::uint32_t quantity = 0;
     viewer::ItemPlacement placement;
+    std::optional<viewer::CraftedItemData> crafted{};
 };
 struct InventoryState {
     std::vector<InventoryEntryState> items;
@@ -146,6 +150,7 @@ struct GroundItemState {
     glm::vec3 center{0}, halfExtents{.1f};
     glm::quat rotation{1,0,0,0};
     std::vector<GroundPanelState> panels{}; // Empty, or 36 canonical canopy panels.
+    std::optional<viewer::CraftedItemData> crafted{};
 };
 struct PlayerState {
     std::uint32_t id = 0;
@@ -177,6 +182,7 @@ struct PlayerState {
     std::optional<viewer::PlayerHealth> medical{}; // Observer medical records only.
     std::uint64_t damageEvents = 0; // Monotonic successful direct hits, independent of blood loss.
     bool holdingProp = false; // Allows the owner to rotate a grip without moving the local camera.
+    std::optional<viewer::CraftedItemData> equippedCrafted{}; // Complete held model, independent of inventory transaction snapshots.
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;
@@ -273,6 +279,8 @@ struct Snapshot {
     std::vector<SoundEvent> sounds;
     std::vector<GroundItemState> groundItems;
     viewer::SleepPlanState sleepPlan;
+    std::vector<glm::vec3> bindingLines; // World metres, endpoint pairs; empty clears the replica's lines.
+    std::vector<viewer::GripPreviewPose> gripPreviews{}; // Green half-opacity palm markers, world frame.
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
                              ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk, RequestSessionSettings, SessionSettings, DogFrame>;

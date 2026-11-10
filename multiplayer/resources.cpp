@@ -15,6 +15,12 @@ std::filesystem::path weaponModelDirectory() {
     if (std::filesystem::is_directory(directory / "storage/weapons")) return directory / "assets/weapons";
     return std::filesystem::path(MP_WEAPON_ASSETS);
 }
+std::filesystem::path gripModelPath() {
+    const auto& directory = executableDirectory();
+    if (std::filesystem::is_directory(directory / "storage/weapons"))
+        return directory / "assets/crafting/grip_hand.glb";
+    return std::filesystem::path(MP_GRIP_MODEL);
+}
 std::filesystem::path audioDirectory() {
     const auto& directory = executableDirectory();
     if (std::filesystem::is_directory(directory / "storage/weapons")) return directory / "assets/audio";

@@ -1602,9 +1602,9 @@ int main(int argc, char** argv) {
                 "Crafting must retain the existing interaction-mode text at the bottom");
             auto* materials = gameplay->GetElementById("crafting-list");
             std::set<std::string> listed;
-            for (int index = 0; index < materials->GetNumChildren(); ++index)
+            for (int index = 1; index < materials->GetNumChildren(); ++index)
                 listed.insert(materials->GetChild(index)->GetAttribute<Rml::String>("data-item", ""));
-            require(materials->GetNumChildren() == 4 && listed == std::set<std::string>{"duct_tape", "wire_spool", "nails", "broom"},
+            require(materials->GetNumChildren() == 5 && listed == std::set<std::string>{"duct_tape", "wire_spool", "nails", "broom"},
                 "Crafting must list tagged supplies once each and exclude ordinary inventory");
             require(materials->GetInnerRML().find("10 m") != std::string::npos &&
                     materials->GetInnerRML().find("20 m") != std::string::npos,
@@ -1663,7 +1663,23 @@ int main(int argc, char** argv) {
                 "Releasing in the crafting inventory must use the existing storage transaction");
             crafting.handInventoryActive = false;
 
+            require(materials->GetChild(0)->HasAttribute("data-tool"),
+                "Set grip must always be the first crafting tool without an inventory item");
             moveTo(*materials->GetChild(0)); hud.pointerButton(0,true); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==1 && actions.front().kind==viewer::InventoryDragActionKind::SetGripBegin &&
+                actions.front().item.empty(),"The grip tool must start an independent editor without retrieving inventory");
+            move(width*.5f,height*.5f); hud.pointerButton(0,false); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==1 && actions.front().kind==viewer::InventoryDragActionKind::HandEndDrag,
+                "Releasing Set grip onto the world must retain its surface placement");
+            moveTo(*materials->GetChild(0)); hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==2 && actions[0].kind==viewer::InventoryDragActionKind::SetGripBegin &&
+                actions[1].kind==viewer::InventoryDragActionKind::HandRelease,
+                "Returning the grip tool to the drawer must cancel its editor without a storage transaction");
+
+            moveTo(*materials->GetChild(1)); hud.pointerButton(0,true); draw();
             actions=hud.takeInventoryActions();
             require(actions.size()==1 && actions.front().kind==viewer::InventoryDragActionKind::HandPickUp &&
                 !actions.front().item.empty(),"Crafting material rows must retrieve real equippable items");
@@ -1679,7 +1695,7 @@ int main(int argc, char** argv) {
                 actions[1].kind==viewer::InventoryDragActionKind::HandEndDrag,
                 "An unclaimed world click must route a physical grab/drive and a non-dropping release");
             move(width*.5f,height*.5f); hud.pointerButton(0,true); hud.pointerButton(0,false);
-            moveTo(*materials->GetChild(0)); hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
+            moveTo(*materials->GetChild(1)); hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
             actions=hud.takeInventoryActions();
             require(actions.size()==4 && actions[0].kind==viewer::InventoryDragActionKind::HandGrabWorld &&
                 actions[1].kind==viewer::InventoryDragActionKind::HandEndDrag &&

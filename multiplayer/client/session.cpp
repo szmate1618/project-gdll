@@ -464,6 +464,7 @@ struct Graphics {
         scene.zombies.releaseAnimationVertices();
         scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);
+        renderer->setGripModel(viewer::loadModel(multiplayer::gripModelPath()));
         gpuTimer = std::make_unique<viewer::GpuTimer>();
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
@@ -513,7 +514,8 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     multiplayer::Command c;
     c.inventoryActions.swap(in.inventoryActions);
     c.preserveEquippedSlot = in.groundSlotRequest.has_value() || std::any_of(c.inventoryActions.begin(), c.inventoryActions.end(),
-        [](const auto& action) { return action.kind == viewer::InventoryDragActionKind::EquipGround ||
+        [](const auto& action) { return action.kind == viewer::InventoryDragActionKind::PickUpBackpack ||
+            action.kind == viewer::InventoryDragActionKind::EquipGround ||
             action.kind == viewer::InventoryDragActionKind::DiscardEquipped; });
     c.sleepAction = std::exchange(in.sleepAction, std::nullopt);
     c.removeMapMark = std::exchange(in.removeMapMark, 0);
@@ -723,6 +725,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 if (complete) std::cout << "Character appearance received for player " << appearance->player << std::endl;
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                 if (!self || !snapshots.push(*snapshot, now, network.estimatedOneWaySeconds(connection))) continue;
+                scene.groundItems->setBindingLines(snapshot->bindingLines);
+                scene.groundItems->setGripPreviews(snapshot->gripPreviews);
                 lastSnapshot = now; ++received; mostPlayers = std::max(mostPlayers, snapshot->players.size());
                 const bool wasResting = in.inSleepSession;
                 in.inSleepSession = snapshot->sleepPlan.inSleepSession(self);
@@ -755,6 +759,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     // establishes a baseline; repeats cannot restart the flash.
                     if (ready && p.damageEvents > ownState.damageEvents) lastDamageSeconds = now;
 #endif
+                    const auto crafted = p.equippedCrafted ?
+                        std::optional<viewer::Item>(viewer::restoreCraftedItem(*p.equippedCrafted)) : std::nullopt;
+                    weaponDefinitions.synchronizeCrafted(crafted);
+                    inventoryWeapons.synchronizeCrafted(crafted);
                     if (!ready || p.slot != ownState.slot || p.vehicle != ownState.vehicle || p.seat != ownState.seat) {
                         if (ready && p.slot != ownState.slot) {
                             in.suppressLeftUntilRelease |= in.leftHeld;
@@ -946,7 +954,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 playerSpeed = glm::length(glm::vec2(movement.x, movement.z)) / multiplayer::tickSeconds;
                 if (!predicted.inventoryActions.empty()) lastInventoryCommand = predicted.sequence;
                 for (const auto& action : predicted.inventoryActions)
-                    if (action.kind == viewer::InventoryDragActionKind::EquipGround ||
+                    if (action.kind == viewer::InventoryDragActionKind::PickUpBackpack ||
+                        action.kind == viewer::InventoryDragActionKind::EquipGround ||
                         action.kind == viewer::InventoryDragActionKind::DiscardEquipped)
                         in.groundSlotRequest = {{predicted.sequence, predicted.slot}};
 #ifdef MP_GRAPHICS
@@ -1073,10 +1082,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                     !in.weaponSwitching && viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
                     graphics.weapon->draw(ownState.slot, renderWidth, renderHeight, flash,
-                                          ownState.slot == viewer::axeSlot && !in.temporaryHandling() ?
+                                          (ownState.slot == viewer::axeSlot || ownState.slot == viewer::craftedSlot) && !in.temporaryHandling() ?
                                               viewer::swordMotion(viewer::advanceMeleePose(ownState.sword, now - ownStateReceivedAt)) :
                                           ownState.slot == viewer::swordSlot && !in.temporaryHandling() ? viewer::swordMotion(in.sword.pose(now)) :
-                                          in.weaponMotion.pose(ownState.slot, now, in.temporaryHandling()));
+                                          in.weaponMotion.pose(ownState.slot, now, in.temporaryHandling()), weaponDefinitions.craftedItem());
                 const auto overlayViewport = renderer.beginOverlay(width, height);
                 if (!in.inSleepSession && !in.driver.occupied() && in.hudScreen != viewer::HudScreen::Crafting)
                     graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height,

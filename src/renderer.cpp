@@ -3,6 +3,8 @@
 #include "door_layer.hpp"
 #include "rain_renderer.hpp"
 #include "blood_mist_renderer.hpp"
+#include "binding_renderer.hpp"
+#include "grip_renderer.hpp"
 #include "fire_renderer.hpp"
 #include "shader_program.hpp"
 
@@ -189,6 +191,8 @@ void Renderer::release() noexcept {
     releaseDoodads();
     releaseDroppedWeapons();
     bloodMist_.reset();
+    bindings_.reset();
+    grips_.reset();
     fire_.reset();
     rain_.reset();
     releaseZombies();
@@ -574,6 +578,10 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawVehicles(projection * view);
     }
     if (drawOpaque) drawOpaque();
+    if (groundSource_ && !groundSource_->bindingLines().empty()) {
+        if (!bindings_) bindings_ = std::make_unique<BindingRenderer>(shaderDirectory_);
+        bindings_->draw(camera, float(width_) / float(height_), groundSource_->bindingLines());
+    }
     if (zombieSource_ || !localBloodMist_.empty()) {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::bloodDraws);
         auto bursts = zombieSource_ ? zombieSource_->bloodMist().sample(animationSeconds) : std::vector<BloodMistBurst>{};
@@ -603,6 +611,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         glDepthMask(GL_TRUE);
         selectBasicShader(true);
     }
+    if (grips_ && groundSource_)
+        grips_->draw(camera, float(width_) / float(height_), groundSource_->gripPreviews());
     if (rainEnabled_) {
         auto rainLighting = nightLighting_;
         if (!flashlightEnabled_ || vehicleDriver_) rainLighting.flashlightColor = glm::vec3(0);
@@ -617,5 +627,9 @@ void Renderer::checkErrors(const char* stage) {
     for (GLenum error = glGetError(); error != GL_NO_ERROR; error = glGetError())
         errors << " 0x" << std::hex << error;
     if (!errors.str().empty()) throw std::runtime_error(std::string("OpenGL error during ") + stage + ":" + errors.str());
+}
+
+void Renderer::setGripModel(const Model& model) {
+    grips_ = std::make_unique<GripRenderer>(shaderDirectory_, model);
 }
 } // namespace viewer
