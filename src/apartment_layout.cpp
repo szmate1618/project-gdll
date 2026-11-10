@@ -375,7 +375,6 @@ std::optional<Stage> tile(Rectangle footprint, const Polygon& shell, const std::
 std::optional<house_layout::Layout> generate(const std::string& building, Rectangle footprint,
     const Polygon& outline, bool slab, float floor, const std::vector<float>& upperFloors,
     const std::vector<Entrance>& entrances, const std::vector<Rectangle>& windows) {
-    if (upperFloors.empty()) return std::nullopt;
     const auto size = footprint.high - footprint.low;
     const int axis = size.x >= size.y ? 0 : 1, across = 1 - axis;
     const Polygon shell = outline.empty() ? rectangle(footprint) : outline;
@@ -463,7 +462,7 @@ std::optional<house_layout::Layout> generate(const std::string& building, Rectan
             }
             return tile(footprint, shell, zones, windows, ground ? entrances : std::vector<Entrance>{});
         };
-        const auto ground = makeStage(true), upper = makeStage(false);
+        const auto ground = makeStage(true), upper = upperFloors.empty() ? ground : makeStage(false);
         if (!ground || !upper) continue;
         Layout result; result.wholeGroundFloor = true;
         result.rooms = ground->rooms; result.partitions = ground->walls;

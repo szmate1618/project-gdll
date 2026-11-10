@@ -10,6 +10,7 @@
 #include "authored_floorplan.hpp"
 #include "basic_floorplan.hpp"
 #include "small_building_floorplan.hpp"
+#include "low_rise_floorplan.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -54,6 +55,7 @@ struct FloorplanLayer::Impl {
     std::vector<std::string> doorBuildings;
     std::map<std::string, HouseSource> sources;
     std::map<std::string, PrefabBlock> blocks; // Shell metadata only; no generated rooms/meshes.
+    std::map<std::string, LowRiseBuilding> lowRise;
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
     std::set<std::string> rejected;
     std::map<std::string, HouseFloorplan> resident;
@@ -134,8 +136,13 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
             data.blocks.emplace(source.name, std::move(*block));
             continue;
         }
-        source.firstDoor = doors.reserveRuntimeDoors(source.doors.size() * 3 + 2 +
-            2 * house_layout::maxUpperRoomsPerSide * std::min<std::size_t>(3, houseUpperStoreyCount(model, source)));
+        const auto upperStoreys = houseUpperStoreyCount(model, source);
+        auto capacity = source.doors.size() * 3 + 2 + 2 * house_layout::maxUpperRoomsPerSide * std::min<std::size_t>(3, upperStoreys);
+        if (auto building = classifyLowRiseBuilding(model, source)) {
+            capacity = std::max(capacity, lowRiseDoorCapacity(*building, upperStoreys + 1, source.doors.size()));
+            data.lowRise.emplace(source.name, std::move(*building));
+        }
+        source.firstDoor = doors.reserveRuntimeDoors(capacity);
     }
 }
 FloorplanLayer::~FloorplanLayer() {
@@ -195,6 +202,11 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers,
             block == data.blocks.end() ? generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances) :
             generatePrefabFloorplan(*data.source, data.sources.at(name), data.entrances, block->second);
         if (!plan) plan = generateSmallBuildingFloorplan(*data.source, data.sources.at(name), data.entrances);
+        if (!plan) {
+            const auto building = data.lowRise.find(name);
+            if (building != data.lowRise.end())
+                plan = generateLowRiseFloorplan(*data.source, data.sources.at(name), data.entrances, building->second);
+        }
         if (!plan) plan = generateBasicFloorplan(*data.source, data.sources.at(name), data.entrances, *data.footprints);
         if (!plan) { data.rejected.insert(name); continue; }
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);

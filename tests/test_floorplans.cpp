@@ -158,7 +158,9 @@ void heuristic() {
         require(doors.present(0), "Scaled house fixtures must retain a valid exterior door");
         doors.setAngle(0, .5f); layer.update({doors.panel(0).center});
         require(layer.residentCount() == (variant == 3 || variant == 4 ? 0u : 1u), "Valid sheds and large/elongated shells need a floor; incomplete shell fixtures must remain rejected");
-        if (variant < 3) {
+        if (variant == 1) require(layer.resident().begin()->second.kind == viewer::HouseFloorplan::Kind::LowRiseBuilding,
+            "Large low-rise shells must receive the general category rather than a basic slab");
+        if (variant == 0 || variant == 2) {
             const auto& plan = layer.resident().begin()->second;
             require(plan.kind == viewer::HouseFloorplan::Kind::BasicBuilding && !plan.structure.draws.empty() && plan.doors.empty(),
                 "Unclassified shells need a basic floor without invented partitions");
@@ -185,7 +187,7 @@ void familyHouseDimensions() {
         doors.setAngle(0, .7f); layer.update({doors.panel(0).center});
         require(layer.residentCount() == 1, "Dimension fixtures must retain a usable interior");
         const auto& plan = layer.resident().begin()->second;
-        require(plan.kind == (test.family ? viewer::HouseFloorplan::Kind::FamilyHouse : viewer::HouseFloorplan::Kind::BasicBuilding),
+        require(plan.kind == (test.family ? viewer::HouseFloorplan::Kind::FamilyHouse : viewer::HouseFloorplan::Kind::LowRiseBuilding),
                 "Expanded dimensions must select family layouts only within all three limits");
         if (!test.family) continue;
         require(plan.upperFloors.size() == 1 && plan.stairs.size() == 1 && !plan.doors.empty(),

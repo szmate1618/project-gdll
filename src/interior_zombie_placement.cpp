@@ -127,6 +127,7 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
         // Adjacent common polygons have open boundaries; their corners are not
         // necessarily physical walls where an ordinary ambusher can hide.
         if (plan.kind == HouseFloorplan::Kind::PrefabApartmentBlock && plan.rooms[i].kind != HouseRoom::Kind::Apartment) continue;
+        if (plan.kind == HouseFloorplan::Kind::LowRiseBuilding && plan.rooms[i].kind != HouseRoom::Kind::OpenRoom) continue;
         rooms.push_back(i);
     }
     shuffle(rooms, random);

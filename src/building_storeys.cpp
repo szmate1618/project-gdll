@@ -5,7 +5,7 @@
 
 namespace viewer {
 std::optional<BuildingStoreys> inferBuildingStoreys(float eaves, const std::vector<float>& heads,
-        const HouseSource& source, const std::vector<DoorPanel>& entrances) {
+        const HouseSource& source, const std::vector<DoorPanel>& entrances, float maximumHeight) {
     if (source.doors.empty()) return {};
     float doorHead = std::numeric_limits<float>::lowest();
     for (const auto id : source.doors)
@@ -13,7 +13,7 @@ std::optional<BuildingStoreys> inferBuildingStoreys(float eaves, const std::vect
     // Generated main doors and the first window row share the 2.1 m datum.
     // Sloping wall bases and lower basement leaves do not change it.
     const float floor = doorHead - 2.1f;
-    if ((!heads.empty() && std::abs(heads.front() - doorHead) > .15f) || eaves - floor < 2.4f || eaves - floor > 10) return {};
+    if ((!heads.empty() && std::abs(heads.front() - doorHead) > .15f) || eaves - floor < 2.4f || eaves - floor > maximumHeight) return {};
     BuildingStoreys result{floor, eaves - .02f, {}};
     for (std::size_t i = 1; i < heads.size(); ++i) {
         const float spacing = heads[i] - heads[i - 1];

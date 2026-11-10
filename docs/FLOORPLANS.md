@@ -20,7 +20,7 @@ fitting between them. `house_layout_geometry` emits their planes and door
 panels. `floorplan_layer` owns streaming. Rendering and collision consume the
 same generated result separately.
 
-Buildings that do not produce a specialized family-house, small-building, apartment or authored
+Buildings that do not produce a specialized family-house, small-building, low-rise, apartment or authored
 layout still receive a walkable ground floor through
 [`basic_floorplan.cpp`](../src/basic_floorplan.cpp). The slab projects the
 published roof triangles to the main-floor datum, retaining concave boundaries
@@ -113,6 +113,48 @@ policy, with the basement also represented as an open room.
 Authored interiors, prefab blocks and family houses keep priority. Small layouts
 stream through the existing door trigger and use shared rendering, collision
 and navigation on the viewer, client and server. No map regeneration is needed.
+
+## General low-rise buildings
+
+The `LowRiseBuilding` category covers larger buildings without assuming an
+apartment, commercial or industrial use. Existing authored, prefab, family-house
+and small-building interiors retain priority. Classification reads the individual
+shell geometry and requires:
+
+- Actual floor area **180–2,200 m²**, short side at least **8 m**, long side at
+  most **120 m**, and aspect ratio at most **8:1**.
+- Wall height at least **2.4 m** and below **12 m**. A pitched roof is allowed;
+  the ceiling stays below its lowest eave, without inventing attic rooms.
+- A single closed near-orthogonal footprint, with the existing 5-degree and
+  24-corner limits, occupying at least **80%** of its envelope. Courtyards and
+  disconnected shells retain the basic-floor fallback.
+
+Three layout variants reuse the existing circulation and safe-ramp geometry:
+
+- **Corridor rooms:** elongated shells 8–22 m wide, at least 20 m long, with
+  aspect ratio at least 1.5:1, use the common-corridor and room-bay template.
+- **Compact rooms:** other shells at least 12 m wide, at most 35 m long, and
+  aspect ratio at most 1.8:1, use rooms around common landing/lobby space.
+- **Open halls:** remaining shells use one open room per storey, without
+  internal partitions or doors. This also supplies the fallback if a corridor
+  or compact partition cannot fit the actual footprint or window clearance.
+
+Room regions are named `open_room`, with `corridor`, `lobby` and `stair_area`
+for circulation. They are not labelled as apartments, living rooms, offices or
+storage rooms: reliable building-use metadata is not available in existing maps.
+A single-storey layout has lobby space rather than an invented stair area.
+
+Main-door heads determine the floor datum. Window rows determine upper floors;
+missing rows never invent storeys. Each storey must retain at least 2.4 m of
+headroom, floors cannot cross panes, and room partitions retain 20 cm of window
+clearance. Existing basement-door policy also applies. If an open layout cannot
+fit safe connecting flights, the building retains its basic ground-floor slab.
+
+Only shell metadata is cached at startup. Internal-door capacity is reserved
+from loaded window rows and sorted building identities, and layouts still
+generate lazily through the normal open-door streaming trigger. Client, server
+and viewer share generation, collision and navigation without a new sidecar or
+map regeneration.
 
 ## Prefab apartment blocks
 

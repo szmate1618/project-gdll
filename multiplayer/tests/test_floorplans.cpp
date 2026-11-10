@@ -108,6 +108,48 @@ void smallBuilding(multiplayer::Scene& server, multiplayer::Scene& client) {
     }
     world.leave(player); world.step();
 }
+void lowRise(multiplayer::Scene& server, multiplayer::Scene& client) {
+    for (const auto dimensions : {glm::vec2(12,40),glm::vec2(24,24),glm::vec2(40,45)}) {
+        for (auto* scene : {&server,&client}) {
+            scene->floorplans.reset(); scene->collision.reset(); scene->doors.reset();
+            scene->model = apartment_fixture::block(dimensions.x,dimensions.y,3);
+            scene->doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(scene->model),scene->physics);
+            scene->collision = std::make_unique<viewer::CollisionWorld>(scene->model,std::vector<viewer::TrunkCollider>{},scene->doors.get());
+            scene->floorplans = std::make_unique<viewer::FloorplanLayer>(scene->model,*scene->doors,*scene->collision);
+            scene->spawnEye = {0,1.7f,dimensions.y*.5f+2};
+        }
+        multiplayer::World world(server);
+        const auto player = world.join(); server.doors->setAngle(0,.7f); world.step();
+        require(server.floorplans->residentCount() == 1,"Server must stream the general low-rise category");
+        const auto& a = server.floorplans->resident().begin()->second;
+        const auto internal = a.doors.empty() ? std::optional<std::size_t>{} : a.doors.back().id;
+        if (internal) server.doors->setAngle(*internal,-.8f);
+        multiplayer::Snapshots playback;
+        require(playback.push(world.snapshot(player),1),"Low-rise snapshot must be accepted");
+        playback.apply(client,1); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
+        require(client.floorplans->residentCount() == 1,"Client must independently stream its low-rise layout");
+        const auto& b = client.floorplans->resident().begin()->second;
+        require(a.kind == viewer::HouseFloorplan::Kind::LowRiseBuilding && b.kind == a.kind &&
+                a.rooms.size() == b.rooms.size() && a.doors.size() == b.doors.size() && a.stairs.size() == b.stairs.size() &&
+                a.structure.primitives.size() == b.structure.primitives.size(),"Peers must generate identical low-rise topology");
+        for (std::size_t i = 0; i < a.rooms.size(); ++i)
+            require(a.rooms[i].polygon == b.rooms[i].polygon && a.rooms[i].kind == b.rooms[i].kind,
+                "Low-rise room polygons and neutral labels must match between peers");
+        for (std::size_t i = 0; i < a.structure.primitives.size(); ++i) {
+            const auto& first = a.structure.primitives[i]; const auto& second = b.structure.primitives[i];
+            require(first.indices == second.indices && first.vertices.size() == second.vertices.size(),
+                "Low-rise triangulation must match between peers");
+            for (std::size_t j = 0; j < first.vertices.size(); ++j)
+                require(first.vertices[j].position == second.vertices[j].position,"Low-rise coordinates must match exactly between peers");
+        }
+        if (internal) require(std::abs(client.doors->angle(*internal)+.8f)<.001f,
+            "Reserved low-rise internal doors must receive authoritative angles");
+        client.floorplans->update({}); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
+        if (internal) require(std::abs(client.doors->angle(*internal)+.8f)<.001f,
+            "Low-rise door IDs must survive independent eviction and reentry");
+        world.leave(player); world.step();
+    }
+}
 void encounters(multiplayer::Scene& server, multiplayer::Scene& client) {
     std::string name;
     for (int n = 0; n < 1000; ++n) {
@@ -284,7 +326,7 @@ int main(int argc, char** argv) {
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
         require(server.doors->restraint(door).broken, "Server eviction must not repair a broken restraint");
-        irregular(server, client); prefab(server,client); smallBuilding(server,client); encounters(server, client);
+        irregular(server, client); prefab(server,client); smallBuilding(server,client); lowRise(server,client); encounters(server, client);
         midnightEncounter(server);
         playerHouseMembership(server);
         playerScentEmission(server);
