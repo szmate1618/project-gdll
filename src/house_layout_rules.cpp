@@ -95,7 +95,8 @@ std::vector<StairOption> stairOptions(const std::vector<Room>& rooms, const std:
     const auto accesses = accessPoints(partitions, entrances);
     constexpr float width = 1.1f, landing = .8f, inset = .06f;
     for (std::size_t room = 0; room < rooms.size(); ++room) {
-        if (rooms[room].kind != HouseRoom::Kind::Living && rooms[room].kind != HouseRoom::Kind::StairArea) continue;
+        if (rooms[room].kind != HouseRoom::Kind::Living && rooms[room].kind != HouseRoom::Kind::StairArea &&
+            rooms[room].kind != HouseRoom::Kind::OpenRoom) continue;
         const auto bounds = rooms[room].bounds;
         for (int axis = 0; axis < 2; ++axis) {
             const int across = 1 - axis;

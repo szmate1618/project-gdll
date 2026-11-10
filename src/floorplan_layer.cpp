@@ -9,6 +9,7 @@
 #include "house_navigation.hpp"
 #include "authored_floorplan.hpp"
 #include "basic_floorplan.hpp"
+#include "small_building_floorplan.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -193,6 +194,7 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers,
             generateAuthoredFloorplan(*authored->second, data.sources.at(name), data.entrances) :
             block == data.blocks.end() ? generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances) :
             generatePrefabFloorplan(*data.source, data.sources.at(name), data.entrances, block->second);
+        if (!plan) plan = generateSmallBuildingFloorplan(*data.source, data.sources.at(name), data.entrances);
         if (!plan) plan = generateBasicFloorplan(*data.source, data.sources.at(name), data.entrances, *data.footprints);
         if (!plan) { data.rejected.insert(name); continue; }
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);

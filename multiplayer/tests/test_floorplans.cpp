@@ -74,6 +74,40 @@ void prefab(multiplayer::Scene& server, multiplayer::Scene& client) {
             "Apartment door IDs and movement must survive independent client eviction/reentry");
     world.leave(player); world.step();
 }
+void smallBuilding(multiplayer::Scene& server, multiplayer::Scene& client) {
+    for (auto* scene : {&server, &client}) {
+        scene->floorplans.reset(); scene->collision.reset(); scene->doors.reset();
+        scene->model = house_fixture::outlined({{-2,-4},{-2,4},{2,4},{2,-4}});
+        for (const auto& draw : scene->model.draws) if (draw.name == "building_house_windows")
+            for (auto& vertex : scene->model.primitives[draw.primitive].vertices) vertex.position.x = -2;
+        scene->doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(scene->model), scene->physics);
+        scene->collision = std::make_unique<viewer::CollisionWorld>(scene->model, std::vector<viewer::TrunkCollider>{}, scene->doors.get());
+        scene->floorplans = std::make_unique<viewer::FloorplanLayer>(scene->model, *scene->doors, *scene->collision);
+        scene->spawnEye = {0,1.7f,6};
+    }
+    multiplayer::World world(server);
+    const auto player = world.join(); server.doors->setAngle(0,.7f); world.step();
+    multiplayer::Snapshots playback;
+    require(playback.push(world.snapshot(player),1), "Small-building snapshot must be accepted");
+    playback.apply(client,1); client.floorplans->update({client.spawnEye});
+    require(server.floorplans->residentCount() == 1 && client.floorplans->residentCount() == 1,
+        "Server and client must independently stream the small building");
+    const auto& a = server.floorplans->resident().begin()->second;
+    const auto& b = client.floorplans->resident().begin()->second;
+    require(a.kind == viewer::HouseFloorplan::Kind::SmallBuilding && b.kind == a.kind && a.rooms.size() == 2 &&
+            a.doors.empty() && b.doors.empty() && a.stairs.size() == 1 && b.stairs.size() == 1 &&
+            a.structure.primitives.size() == b.structure.primitives.size(),
+        "Peers must generate open rooms and a connecting ramp without residential partitions");
+    for (std::size_t i = 0; i < a.structure.primitives.size(); ++i) {
+        const auto& first = a.structure.primitives[i]; const auto& second = b.structure.primitives[i];
+        require(first.indices == second.indices && first.vertices.size() == second.vertices.size(),
+            "Peers must generate identical small-building topology");
+        for (std::size_t j = 0; j < first.vertices.size(); ++j)
+            require(first.vertices[j].position == second.vertices[j].position,
+                "Peers must generate identical small-building coordinates");
+    }
+    world.leave(player); world.step();
+}
 void encounters(multiplayer::Scene& server, multiplayer::Scene& client) {
     std::string name;
     for (int n = 0; n < 1000; ++n) {
@@ -250,7 +284,7 @@ int main(int argc, char** argv) {
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
         require(server.doors->restraint(door).broken, "Server eviction must not repair a broken restraint");
-        irregular(server, client); prefab(server,client); encounters(server, client);
+        irregular(server, client); prefab(server,client); smallBuilding(server,client); encounters(server, client);
         midnightEncounter(server);
         playerHouseMembership(server);
         playerScentEmission(server);

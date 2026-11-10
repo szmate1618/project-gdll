@@ -20,7 +20,7 @@ fitting between them. `house_layout_geometry` emits their planes and door
 panels. `floorplan_layer` owns streaming. Rendering and collision consume the
 same generated result separately.
 
-Buildings that do not produce a specialized family-house, apartment or authored
+Buildings that do not produce a specialized family-house, small-building, apartment or authored
 layout still receive a walkable ground floor through
 [`basic_floorplan.cpp`](../src/basic_floorplan.cpp). The slab projects the
 published roof triangles to the main-floor datum, retaining concave boundaries
@@ -87,6 +87,32 @@ stairs and both landings must fit entirely inside it. A recessed exterior door
 measures its preferred entry depth from its own facade. Window clearance remains
 20 cm on every storey. Geometry never fills a missing corner with the bounding
 rectangle or puts a staircase across exterior space.
+
+## Small buildings
+
+Small houses, garages and outbuildings use a separate `SmallBuilding` category.
+This is a geometry heuristic: it does not infer residential use from an OSM
+`building=yes` tag. Candidates must be below the family-house minimum envelope
+or actual footprint area of **45 m²**, or minimum width of **5 m**, while retaining:
+
+- At least **25 m²** of envelope and actual footprint area, and both sides at
+  least **4 m**; long side at most **2.5 times** the short side.
+- A closed, single near-orthogonal boundary with the same 5-degree wall-axis
+  tolerance, 75% envelope fill and 24-corner limit. Courtyards remain excluded.
+- A prepared exterior door and the same main-floor/window-row height checks
+  used by family houses.
+
+Each evidenced storey has one `open_room`, with no residential subdivisions,
+partitions or internal doors. Window rows determine upper floors; missing rows
+do not invent them. The shared ramp rules preserve doorway clearance, standing
+headroom, floor cutouts and landings. Later flights avoid the preceding opening
+and upper landing. An unfittable flight rejects the small layout and retains the
+basic ground-floor fallback. Lower exterior doors retain the existing basement
+policy, with the basement also represented as an open room.
+
+Authored interiors, prefab blocks and family houses keep priority. Small layouts
+stream through the existing door trigger and use shared rendering, collision
+and navigation on the viewer, client and server. No map regeneration is needed.
 
 ## Prefab apartment blocks
 

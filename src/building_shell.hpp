@@ -20,6 +20,8 @@ struct Shell {
 // Wall/roof geometry only. Floor uses the highest sampled wall base plus the
 // generator's 8 cm foundation skin, or the explicit main-floor datum on basement
 // shells; doors, windows and neighbours are not read.
-std::optional<Shell> inspect(const Model& model, const HouseSource& source);
+// Callers may lower the default 45 m2 minimum for a smaller layout category;
+// closure, axis tolerance, polygon complexity and envelope fill remain checked.
+std::optional<Shell> inspect(const Model& model, const HouseSource& source, float minimumArea = 45);
 } // namespace building_shell
 } // namespace viewer

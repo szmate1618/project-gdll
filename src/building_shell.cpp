@@ -34,7 +34,7 @@ std::vector<float> windowHeads(const std::vector<Face>& windows) {
     return heads;
 }
 std::optional<house_polygon::Polygon> traceOutline(const std::vector<std::pair<glm::vec2, glm::vec2>>& segments,
-                                             glm::vec2 low, glm::vec2 high) {
+                                             glm::vec2 low, glm::vec2 high, float minimumArea) {
     std::vector<glm::vec2> points;
     std::set<std::pair<std::size_t, std::size_t>> edges;
     const auto vertex = [&](glm::vec2 p) {
@@ -63,11 +63,11 @@ std::optional<house_polygon::Polygon> traceOutline(const std::vector<std::pair<g
     if (current != 0 || boundary.size() != points.size() || !house_polygon::simple(boundary)) return std::nullopt;
     boundary = house_polygon::clip(boundary, low, high);
     const float area = house_polygon::area(boundary), envelopeArea = (high.x - low.x) * (high.y - low.y);
-    if (boundary.size() > 24 || area < 45 || area < envelopeArea * .75f) return std::nullopt;
+    if (boundary.size() > 24 || area < minimumArea || area < envelopeArea * .75f) return std::nullopt;
     return boundary;
 }
 
-std::optional<Shell> inspect(const Model& model, const HouseSource& source) {
+std::optional<Shell> inspect(const Model& model, const HouseSource& source, float minimumArea) {
     const auto walls = faces(model, source.walls), roof = faces(model, source.roofs);
     if (walls.empty() || roof.empty()) return std::nullopt;
     glm::vec2 origin(walls.front()[0].x, walls.front()[0].z), u(0);
@@ -102,7 +102,7 @@ std::optional<Shell> inspect(const Model& model, const HouseSource& source) {
             if (std::abs(a[axis] - boundary) < tolerance && std::abs(b[axis] - boundary) < tolerance) perimeter = true;
         rectangular &= perimeter;
     }
-    const auto boundary = traceOutline(localSegments, low, high);
+    const auto boundary = traceOutline(localSegments, low, high, minimumArea);
     if (!rectangular && !boundary) return std::nullopt;
     Shell result; result.origin = origin; result.u = u; result.v = v; result.low = low; result.high = high;
     result.closed = bool(boundary);

@@ -1,6 +1,7 @@
 #include "house_floorplan.hpp"
 #include "house_layout.hpp"
 #include "building_shell.hpp"
+#include "building_storeys.hpp"
 #include "house_basement.hpp"
 #include "house_polygon.hpp"
 #include <algorithm>
@@ -36,21 +37,13 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     const float eaves = shell.eaves;
     const auto windowFaces = faces(model, source.windows);
     const auto heads = windowHeads(windowFaces);
-    float doorHead = std::numeric_limits<float>::lowest();
-    for (const auto id : source.doors) doorHead = std::max(doorHead, entrances.at(id).center.y + entrances.at(id).halfExtents.y);
-    // Generated exterior doors and first-row window heads share the same 2.1 m
-    // datum above the highest foundation sample. Do not use sloped panel bottoms.
-    const float floor = doorHead - 2.1f;
-    if ((!heads.empty() && std::abs(heads.front() - doorHead) > .15f) || eaves - floor < 2.4f || eaves - floor > 10) return std::nullopt;
+    const auto storeys = inferBuildingStoreys(eaves, heads, source, entrances);
+    if (!storeys) return std::nullopt;
+    const float floor = storeys->floor;
     HouseFloorplan result;
-    result.name = source.name; result.floor = floor; result.ceiling = eaves - .02f;
-    for (std::size_t i = 1; i < heads.size(); ++i) {
-        const float spacing = heads[i] - heads[i - 1];
-        if (spacing < 2.4f || spacing > 4.2f) return std::nullopt;
-        result.upperFloors.push_back(floor + heads[i] - heads.front());
-    }
+    result.name = source.name; result.floor = floor; result.ceiling = storeys->ceiling;
+    result.upperFloors = storeys->upperFloors;
     const float ceiling = result.upperFloors.empty() ? result.ceiling : result.upperFloors.front();
-    if (ceiling - floor < 2.4f) return std::nullopt;
     std::vector<house_layout::Entrance> entryDoors;
     for (const auto id : source.doors) {
         const auto& door = entrances.at(id);

@@ -136,7 +136,8 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
         const auto count = 3 + random.pick(4);
         for (const auto id : rooms) {
             const auto& room = plan.rooms[id];
-            if (room.kind != HouseRoom::Kind::Living && room.kind != HouseRoom::Kind::Apartment) continue;
+            if (room.kind != HouseRoom::Kind::Living && room.kind != HouseRoom::Kind::Apartment &&
+                room.kind != HouseRoom::Kind::OpenRoom) continue;
             const auto u = glm::normalize(plan.envelope[3] - plan.envelope[0]), v = glm::normalize(plan.envelope[1] - plan.envelope[0]);
             glm::vec2 center(0); for (const auto p : room.polygon) center += p / float(room.polygon.size());
             const auto access = roomDoors(plan, room, doors);
