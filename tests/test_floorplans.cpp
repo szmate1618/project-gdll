@@ -168,6 +168,42 @@ void heuristic() {
         if (variant == 5) require(layer.resident().begin()->second.upperFloors.empty(), "Single window row must not invent upper floors");
     }
 }
+void familyHouseDimensions() {
+    struct Case { float width, length; bool family; };
+    for (const auto& test : std::vector<Case>{
+             {14, 25, true},       // 350 m2: the inclusive area limit.
+             {11, 30, true},       // The inclusive long-side limit.
+             {8, 24, true},        // The inclusive 3:1 aspect ratio.
+             {14, 25.1f, false},   // Area exceeds 350 m2.
+             {11, 30.1f, false},   // Length exceeds 30 m.
+             {8, 24.1f, false}}) { // Aspect ratio exceeds 3:1.
+        auto model = house_fixture::house(glm::scale(glm::mat4(1), {test.width / 10, 1, test.length / 12}));
+        auto physics = std::make_shared<viewer::PhysicsWorld>();
+        viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+        viewer::CollisionWorld collision(model, {}, &doors);
+        viewer::FloorplanLayer layer(model, doors, collision);
+        doors.setAngle(0, .7f); layer.update({doors.panel(0).center});
+        require(layer.residentCount() == 1, "Dimension fixtures must retain a usable interior");
+        const auto& plan = layer.resident().begin()->second;
+        require(plan.kind == (test.family ? viewer::HouseFloorplan::Kind::FamilyHouse : viewer::HouseFloorplan::Kind::BasicBuilding),
+                "Expanded dimensions must select family layouts only within all three limits");
+        if (!test.family) continue;
+        require(plan.upperFloors.size() == 1 && plan.stairs.size() == 1 && !plan.doors.empty(),
+                "Larger family houses must install rooms, internal doors and an upper-storey staircase");
+        float roomArea = 0;
+        for (const auto& room : plan.rooms) roomArea += area(room.polygon);
+        require(std::abs(roomArea - 2 * test.width * test.length) < .05f,
+                "Rooms must tile both storeys of an expanded family house");
+        for (const float sign : {-1.f, 1.f}) {
+            const auto ground = collision.walkingGroundAt(sign * (test.width * .5f - .5f),
+                sign * (test.length * .5f - .5f), 2.99f, 3.01f);
+            require(ground && std::abs(ground->height - 3) < .001f,
+                    "Expanded upper floors must provide walking support near both ends of the house");
+        }
+        for (const auto& door : plan.doors)
+            require(doors.present(door.id), "Expanded layouts must fit their reserved runtime door slots");
+    }
+}
 void courtyardWithoutDoors() {
     viewer::Model model; model.materials.push_back({});
     const auto wallRing = [&](float half) {
@@ -245,7 +281,7 @@ int main(int argc, char** argv) {
     try {
         streaming(glm::mat4(1));
         streaming(glm::translate(glm::mat4(1), {87, 5, -39}) * glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));
-        heuristic(); courtyardWithoutDoors();
+        heuristic(); familyHouseDimensions(); courtyardWithoutDoors();
         activationOrder();
         if (argc > 1) realMap(argv[1]);
         std::cout << "Floorplan generation, streaming, collision, and inward door tests passed\n";

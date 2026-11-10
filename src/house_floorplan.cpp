@@ -28,8 +28,8 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     const auto& shell = *geometry;
     const auto low = shell.low, high = shell.high, size = high - low;
     const float area = size.x * size.y;
-    if (area < 45 || area > 220 || std::min(size.x, size.y) < 5 || std::max(size.x, size.y) > 22 ||
-        std::max(size.x, size.y) > 2.5f * std::min(size.x, size.y)) return std::nullopt;
+    if (area < 45 || area > 350 || std::min(size.x, size.y) < 5 || std::max(size.x, size.y) > 30 ||
+        std::max(size.x, size.y) > 3.f * std::min(size.x, size.y)) return std::nullopt;
     const auto local = [&](glm::vec2 p) { return shell.local(p); };
     const auto world = [&](glm::vec2 p, float y) { return shell.world(p, y); };
     const auto u = shell.u, v = shell.v;

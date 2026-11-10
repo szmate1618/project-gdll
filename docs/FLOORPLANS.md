@@ -34,10 +34,10 @@ use the existing 30 m eviction distance and shared rendering/collision geometry.
 This is a footprint heuristic, not a building-use label. A house needs a roof,
 at least one prepared exterior door and an approximately orthogonal wall perimeter:
 
-- Oriented bounding-rectangle area between 45 and 220 square metres, with at
+- Oriented bounding-rectangle area between 45 and 350 square metres, with at
   least 45 square metres of actual interior footprint.
-- Both bounding-rectangle sides at least 5 metres; neither longer than 22 metres.
-- Long side no more than 2.5 times the short side.
+- Both bounding-rectangle sides at least 5 metres; neither longer than 30 metres.
+- Long side no more than 3 times the short side.
 - Walls follow two perpendicular axes within **5 degrees**, with **at least
   75% of the bounding rectangle filled**. Modest corner cutouts, entrance recesses
   and extensions can pass. More deeply indented shapes still fail.

@@ -66,8 +66,8 @@ struct HouseFloorplan {
     std::vector<HouseInteriorDoor> doors;
     std::vector<HouseStaircase> stairs;
 };
-// Conservative footprint heuristic: approximately orthogonal walls, 45..220 m²
-// envelope, sides 5..22 m, aspect <= 2.5, at least 75% envelope fill and 45 m²
+// Conservative footprint heuristic: approximately orthogonal walls, 45..350 m²
+// envelope, sides 5..30 m, aspect <= 3, at least 75% envelope fill and 45 m²
 // actual floor area. Reject courtyards, disconnected and missing shells.
 // Window row heads determine storeys; random decisions depend only on the stable building identity.
 std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const HouseSource& source,
