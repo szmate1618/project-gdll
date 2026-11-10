@@ -136,6 +136,27 @@ void protocol() {
             "Command lost inventory action order or values");
     auto invalidReload = s; invalidReload.players[0].reloadRemaining = 5;
     rejects([&] { encode(invalidReload); }, "Reload progress beyond duration accepted");
+    {
+        Command crafting; crafting.sequence = 1; crafting.crafting = true; crafting.objectHandling = true;
+        crafting.movement.yawDegrees = 0;
+        crafting.interactionDirection = glm::normalize(glm::vec3(1,.2f,-.3f));
+        crafting.inventoryActions = {{viewer::InventoryDragActionKind::HandGrabWorld,"",""},
+            {viewer::InventoryDragActionKind::HandEndDrag,"",""}};
+        const auto encoded = encode(Commands{{crafting}});
+        const auto decoded = std::get<Commands>(decode(encoded.data(),encoded.size())).commands.front();
+        require(decoded.crafting && decoded.interactionDirection == crafting.interactionDirection &&
+                decoded.inventoryActions.size() == 2 &&
+                decoded.inventoryActions[0].kind == viewer::InventoryDragActionKind::HandGrabWorld &&
+                decoded.inventoryActions[1].kind == viewer::InventoryDragActionKind::HandEndDrag,
+            "Commands must retain crafting mode, cursor aim and ordered persistent grip gestures");
+        for (const auto direction : {glm::vec3(0),glm::vec3(2,0,0),glm::vec3(-1,0,0),
+                glm::vec3(std::numeric_limits<float>::quiet_NaN(),0,0)}) {
+            crafting.interactionDirection = direction;
+            rejects([&] { encode(Commands{{crafting}}); }, "Invalid or backwards crafting ray encoded");
+        }
+        crafting.interactionDirection = glm::vec3(1,0,0); crafting.crafting = false;
+        rejects([&] { encode(Commands{{crafting}}); }, "A cursor ray outside Crafting was encoded");
+    }
     for (const float posture : {-.01f, 2.01f, std::numeric_limits<float>::quiet_NaN(),
                                 std::numeric_limits<float>::infinity()}) {
         auto invalid = s; invalid.players[0].movement.posture = posture;
@@ -894,6 +915,61 @@ void serverObjectHandling(const std::filesystem::path& asset) {
         require(world.players().at(id).shots == 0, "Object handling emitted a combat shot");
     }
 }
+void serverCraftingGestures(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    using Action = viewer::InventoryDragActionKind;
+    Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
+    Scene scene(options); scene.model=ground();
+    scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model);
+    scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye={0,1.7f,1};
+    World world(scene); const auto id=world.join();
+    for (int tick=0;tick<5;++tick) world.step();
+    const auto& player=world.players().at(id);
+    const auto target=player.camera.position()+glm::vec3(.45f,0,-1);
+    const auto box=scene.boxes->add(target,glm::vec3(.25f));
+    std::uint64_t sequence=0;
+    const auto send=[&](std::vector<viewer::InventoryDragAction> actions={},bool left=false,bool crafting=true) {
+        Command command; command.sequence=++sequence; command.slot=static_cast<std::uint8_t>(player.weapons.slot());
+        command.movement.yawDegrees=-90; command.pitch=0; command.objectHandling=true; command.crafting=crafting;
+        if (crafting) command.interactionDirection=glm::normalize(target-player.camera.position());
+        command.left=left; command.inventoryActions=std::move(actions);
+        const auto bytes=encode(Commands{{command}});
+        const auto decoded=std::get<Commands>(decode(bytes.data(),bytes.size()));
+        world.submit(id,decoded); world.submit(id,decoded); world.step();
+    };
+    send({{Action::HandGrabWorld,"",""}},true);
+    require(player.interaction.heldBox()==box && player.camera.yawDegrees()==-90 && player.camera.pitchDegrees()==0,
+        "Crafting must grab along the off-center cursor ray without changing the player's viewing direction");
+    send({{Action::HandEndDrag,"",""}});
+    require(player.interaction.grabbing() && world.snapshot(id).players.front().holdingProp,
+        "A Crafting release must preserve the held item and its replicated grip");
+    const auto parked=scene.boxes->pose(box).center;
+    for(int tick=0;tick<20;++tick) send();
+    require(glm::distance(scene.boxes->pose(box).center,parked)<.001f && player.shots==0,
+        "A released crafting item must remain parked without firing or falling");
+    send({{Action::HandRelease,"",""}});
+    send({{Action::HandPickUp,"nails",""}});
+    require(player.handInventory.active(),"Crafting nail retrieval must begin an authoritative transaction");
+    send({{Action::HandEndDrag,"",""}});
+    for(int tick=0;tick<600 && player.handInventory.active();++tick) send();
+    require(!player.handInventory.active() && player.inventory.quantity("nails")==19 && scene.groundItems->count()==1 &&
+            scene.groundItems->poses().front().entry.quantity==1,
+        "A completed Crafting nail gesture must publish one physical nail and preserve the remaining stack");
+    send({{Action::HandPickUp,"nails",""}});
+    require(player.handInventory.active() && player.handInventory.remaining()>0,
+        "A second nail must retain its timed retrieval before leaving Crafting");
+    send({},false,false);
+    for(int tick=0;tick<600 && player.handInventory.active();++tick) send({},false,false);
+    require(!player.handInventory.active() && player.inventory.quantity("nails")==18 && scene.groundItems->count()==2,
+        "A retrieval begun before closing Crafting must complete exactly once after the frame closes");
+    const auto completed=scene.groundItems->poses();
+    for(int tick=0;tick<20;++tick) send({},false,false);
+    const auto settled=scene.groundItems->poses();
+    for(std::size_t index=0;index<completed.size();++index)
+        require(completed[index].entry.quantity==1 && settled[index].entry.quantity==1 &&
+                glm::distance(completed[index].body.center,settled[index].body.center)<.001f,
+            "Nails completed after Crafting closes must remain parked with single-item quantities");
+}
 void serverAutomaticObjectThrows(const std::filesystem::path& asset) {
     using namespace multiplayer;
     for (const bool grab : {false, true}) {
@@ -1481,7 +1557,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverMolotov(argv[1],true); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverCraftingGestures(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverMolotov(argv[1]); serverMolotov(argv[1],true); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverMedical(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverGroundShortcuts(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

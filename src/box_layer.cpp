@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <map>
+#include <set>
 #include <stdexcept>
 
 namespace viewer {
@@ -16,6 +18,102 @@ namespace {
 b3Vec3 vector(glm::vec3 p) { return {p.x, p.y, p.z}; }
 glm::vec3 vector(b3Vec3 p) { return {p.x, p.y, p.z}; }
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
+
+glm::vec3 colliderEnvelope(const std::vector<PropCollider>& parts) {
+    if (parts.empty() || parts.size()>64) throw std::invalid_argument("A prop requires 1–64 collider parts");
+    glm::vec3 half(0);
+    for (const auto& part : parts) {
+        if (!finite(part.center) || !finite(part.halfExtents) ||
+            glm::any(glm::lessThanEqual(part.halfExtents,glm::vec3(0))) ||
+            (part.shape!=PropColliderShape::Box && part.shape!=PropColliderShape::Sphere) ||
+            (part.shape==PropColliderShape::Sphere &&
+                (std::abs(part.halfExtents.x-part.halfExtents.y)>1e-6f || std::abs(part.halfExtents.x-part.halfExtents.z)>1e-6f)))
+            throw std::invalid_argument("Invalid prop collider part");
+        half=glm::max(half,glm::abs(part.center)+part.halfExtents);
+    }
+    if (glm::any(glm::greaterThan(half,glm::vec3(2)))) throw std::invalid_argument("Prop colliders exceed the 4 metre body limit");
+    return half;
+}
+float colliderVolume(const std::vector<PropCollider>& parts) {
+    double volume=0;
+    for (const auto& part:parts) {
+        const auto h=glm::dvec3(part.halfExtents);
+        volume+=part.shape==PropColliderShape::Sphere ? 4.1887902047863905*h.x*h.x*h.x : 8*h.x*h.y*h.z;
+    }
+    if (!std::isfinite(volume) || volume<=0 || !std::isfinite(static_cast<float>(volume)) || static_cast<float>(volume)<=0)
+        throw std::invalid_argument("Invalid prop collider volume");
+    return static_cast<float>(volume);
+}
+void createColliders(b3BodyId body, const std::vector<PropCollider>& parts, float mass,
+    b3Filter filter, float friction, void* owner) {
+    auto definition=b3DefaultShapeDef();
+    definition.density=mass/colliderVolume(parts);
+    if (!std::isfinite(definition.density)) throw std::invalid_argument("Invalid prop collider density");
+    definition.filter=filter; definition.baseMaterial.friction=friction;
+    definition.userData=owner; definition.updateBodyMass=false;
+    definition.enableCustomFiltering=true;
+    for (const auto& part:parts) {
+        definition.baseMaterial.userMaterialId=part.materialId;
+        b3ShapeId shape{};
+        if (part.shape==PropColliderShape::Sphere) {
+            const b3Sphere sphere{vector(part.center),part.halfExtents.x};
+            shape=b3CreateSphereShape(body,&definition,&sphere);
+        } else {
+            const auto h=part.halfExtents;
+            const auto hull=b3MakeOffsetBoxHull(h.x,h.y,h.z,vector(part.center));
+            shape=b3CreateHullShape(body,&definition,&hull.base);
+        }
+        if (!b3Shape_IsValid(shape)) throw std::runtime_error("Cannot create prop collider");
+    }
+}
+b3CastOutput rayCollider(const BoxPose& pose, PropColliderShape shape, glm::vec3 origin, glm::vec3 translation) {
+    const auto inverse=glm::conjugate(pose.rotation);
+    b3RayCastInput ray{};
+    ray.origin=vector(inverse*(origin-pose.center)); ray.translation=vector(inverse*translation); ray.maxFraction=1.000001f;
+    if (shape==PropColliderShape::Sphere) {
+        const b3Sphere sphere{b3Vec3_zero,pose.halfExtents.x};
+        return b3RayCastSphere(&sphere,&ray);
+    }
+    const auto h=pose.halfExtents;
+    const auto hull=b3MakeBoxHull(h.x,h.y,h.z);
+    return b3RayCastHull(&hull.base,&ray);
+}
+std::vector<Contact> capsuleContacts(const BoxPose& pose, PropColliderShape shape,
+    glm::vec3 feet,float radius,float height,float skin) {
+    if (shape==PropColliderShape::Box) return boxContacts(pose,feet,radius,height,skin);
+    const float a=feet.y+radius,b=feet.y+height-radius;
+    const glm::vec3 closest(feet.x,std::clamp(pose.center.y,std::min(a,b),std::max(a,b)),feet.z);
+    const auto delta=closest-pose.center;
+    const float distance=glm::length(delta), depth=radius+skin+pose.halfExtents.x-distance;
+    if (depth<=0) return {};
+    const auto normal=distance>1e-6f ? delta/distance : glm::vec3(1,0,0);
+    return {{normal,pose.center+normal*pose.halfExtents.x,depth}};
+}
+std::optional<Contact> orientedBoxContact(const CollisionBox& box,const BoxPose& pose,PropColliderShape shape,float skin) {
+    if (shape==PropColliderShape::Box) return collisionBoxContact(box,{pose.center,pose.halfExtents,pose.rotation},skin);
+    const auto inverse=glm::conjugate(box.rotation);
+    const auto h=box.halfExtents+glm::vec3(skin);
+    const auto hull=b3MakeBoxHull(h.x,h.y,h.z);
+    const b3Sphere sphere{vector(inverse*(pose.center-box.center)),pose.halfExtents.x};
+    std::array<b3LocalManifoldPoint,8> points{};
+    b3LocalManifold manifold{}; manifold.points=points.data(); b3SimplexCache cache{};
+    b3CollideHullAndSphere(&manifold,static_cast<int>(points.size()),&hull.base,&sphere,b3Transform_identity,&cache);
+    const b3LocalManifoldPoint* deepest=nullptr;
+    for (int i=0;i<manifold.pointCount;++i)
+        if (points[i].separation<0 && (!deepest || points[i].separation<deepest->separation)) deepest=&points[i];
+    if (!deepest) return {};
+    return Contact{-(box.rotation*vector(manifold.normal)),box.center+box.rotation*vector(deepest->point),-deepest->separation};
+}
+void pushContact(b3BodyId body,const Contact& contact,glm::vec3 velocity,float dt) {
+    if (std::abs(contact.normal.y)>.6f) return;
+    const auto normal=glm::normalize(glm::vec3(contact.normal.x,0,contact.normal.z));
+    const auto bodyVelocity=vector(b3Body_GetWorldPointVelocity(body,vector(contact.point)));
+    const float approach=glm::dot(velocity-bodyVelocity,-normal);
+    if (approach<=0) return;
+    const float mass=b3Body_GetMass(body);
+    const float strength=std::min(approach*mass,std::min(approach*500.f,900.f)*std::min(dt,.05f));
+    b3Body_ApplyLinearImpulse(body,vector(-normal*strength),vector(contact.point),true);
+}
 
 } // namespace
 
@@ -50,6 +148,8 @@ struct BoxLayer::Impl {
         std::size_t index;
         glm::vec2 damping;
         BoxPose retiredPose{};
+        std::vector<PropCollider> parts;
+        float mass = 0;
     };
     std::shared_ptr<PhysicsWorld> world;
     std::vector<std::unique_ptr<Entry>> entries;
@@ -83,45 +183,61 @@ std::optional<std::size_t> BoxLayer::indexOf(const PhysicsProp& prop) const {
     return std::nullopt;
 }
 std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion& motion) {
-    if (!finite(center) || !finite(size) || glm::any(glm::lessThan(size, glm::vec3(.01f))) ||
-        glm::any(glm::greaterThan(size, glm::vec3(4))) || !finite(motion.velocity) || !finite(motion.angularVelocity) ||
+    if (!finite(size) || glm::any(glm::lessThan(size,glm::vec3(.01f))))
+        throw std::invalid_argument("Invalid box dimensions");
+    return addCompound(center,{{PropColliderShape::Box,{},size*.5f,motion.materialId}},motion);
+}
+std::size_t BoxLayer::addCompound(glm::vec3 center,const std::vector<PropCollider>& parts,const BoxSpawnMotion& motion) {
+    const auto half=colliderEnvelope(parts);
+    const float volume=colliderVolume(parts);
+    if (!finite(center) || !finite(motion.velocity) || !finite(motion.angularVelocity) ||
         !std::isfinite(glm::length(motion.rotation)) || std::abs(glm::length(motion.rotation)-1)>.001f ||
         !std::isfinite(motion.mass) || motion.mass<0 || !std::isfinite(motion.friction) || motion.friction<0 ||
         !std::isfinite(motion.linearDamping) || motion.linearDamping<0 ||
         !std::isfinite(motion.angularDamping) || motion.angularDamping<0)
-        throw std::invalid_argument("Invalid box dimensions, position or motion");
-    const auto index = count();
+        throw std::invalid_argument("Invalid prop dimensions, position or motion");
+    const auto index=count();
     if (index==impl_->entries.capacity()) impl_->entries.reserve(std::max(std::size_t(8),index*2));
-    auto entry = std::make_unique<Impl::Entry>(Impl::Entry{impl_.get(), {}, size*.5f, index,
-                                                        {motion.linearDamping,motion.angularDamping}});
-    auto definition = b3DefaultBodyDef();
-    definition.type = b3_dynamicBody;
-    definition.position = {center.x, center.y, center.z};
-    definition.rotation = {{motion.rotation.x,motion.rotation.y,motion.rotation.z},motion.rotation.w};
-    definition.linearVelocity = vector(motion.velocity);
-    definition.angularVelocity = vector(motion.angularVelocity);
-    definition.isBullet = motion.continuous;
-    definition.linearDamping = motion.linearDamping;
-    definition.angularDamping = motion.angularDamping;
-    const auto body = b3CreateBody(impl_->world->id(), &definition);
-    entry->body = body;
-    const auto half = entry->halfExtents;
-    const auto hull = b3MakeBoxHull(half.x, half.y, half.z);
-    auto shape = b3DefaultShapeDef();
-    // Hollow crates/cabinets: 8–55 kg, rather than solid timber density.
-    const float volume = size.x*size.y*size.z;
-    shape.density = (motion.mass>0 ? motion.mass : glm::clamp(volume*70.0f,8.0f,55.0f))/volume;
-    shape.baseMaterial.friction = motion.friction;
-    shape.filter = motion.filter;
-    shape.userData = entry.get();
-    b3CreateHullShape(body, &shape, &hull.base);
-    try { impl_->world->impacts().track(body, motion.acoustics, motion.acousticScale); }
-    catch (...) { b3DestroyBody(body); throw; }
+    auto entry=std::make_unique<Impl::Entry>();
+    entry->owner=impl_.get(); entry->halfExtents=half; entry->index=index;
+    entry->damping={motion.linearDamping,motion.angularDamping}; entry->parts=parts;
+    entry->mass=motion.mass>0 ? motion.mass : glm::clamp(volume*70.f,8.f,55.f);
+    auto definition=b3DefaultBodyDef();
+    definition.type=b3_dynamicBody; definition.position={center.x,center.y,center.z};
+    definition.rotation={{motion.rotation.x,motion.rotation.y,motion.rotation.z},motion.rotation.w};
+    definition.linearVelocity=vector(motion.velocity); definition.angularVelocity=vector(motion.angularVelocity);
+    definition.isBullet=motion.continuous;
+    definition.linearDamping=motion.linearDamping; definition.angularDamping=motion.angularDamping;
+    const auto body=b3CreateBody(impl_->world->id(),&definition);
+    entry->body=body;
+    try {
+        createColliders(body,parts,entry->mass,motion.filter,motion.friction,entry.get());
+        b3Body_ApplyMassFromShapes(body);
+        impl_->world->impacts().track(body,motion.acoustics,motion.acousticScale);
+    } catch (...) { b3DestroyBody(body); throw; }
     impl_->entries.push_back(std::move(entry));
-    impl_->categories |= motion.filter.categoryBits;
-    impl_->world->trackBodyMotion(body, impl_->revision);
+    impl_->categories|=motion.filter.categoryBits;
+    impl_->world->trackBodyMotion(body,impl_->revision);
     ++impl_->revision;
     return index;
+}
+void BoxLayer::replaceColliders(std::size_t index,const std::vector<PropCollider>& parts) {
+    const auto half=colliderEnvelope(parts);
+    (void)colliderVolume(parts);
+    auto& entry=*impl_->entries.at(index);
+    if (!active(index)) throw std::logic_error("Cannot replace retired prop colliders");
+    std::vector<b3ShapeId> oldShapes(static_cast<std::size_t>(b3Body_GetShapeCount(entry.body)));
+    b3Body_GetShapes(entry.body,oldShapes.data(),static_cast<int>(oldShapes.size()));
+    if (oldShapes.empty()) throw std::logic_error("Prop body has no collider shapes");
+    const auto filter=b3Shape_GetFilter(oldShapes.front());
+    const float friction=b3Shape_GetFriction(oldShapes.front());
+    // Build replacements first: malformed parts cannot erase the last good shape.
+    createColliders(entry.body,parts,entry.mass,filter,friction,&entry);
+    for (const auto shape:oldShapes) b3DestroyShape(shape,false);
+    b3Body_ApplyMassFromShapes(entry.body);
+    entry.parts=parts; entry.halfExtents=half;
+    b3Body_SetAwake(entry.body,true);
+    ++impl_->revision;
 }
 void BoxLayer::remove(std::size_t index) {
     retire(index);
@@ -200,138 +316,135 @@ void BoxLayer::dampOnGroundContact(float linearDamping, float angularDamping) {
         b3Body_SetAngularDamping(body,supported ? angularDamping : entry->damping.y);
     }
 }
-std::optional<BoxRayHit> BoxLayer::raycast(glm::vec3 origin, glm::vec3 direction, float reach) const {
-    const float length = glm::length(direction);
-    if (!finite(origin) || !finite(direction) || length < 1e-6f || !std::isfinite(length) ||
-        !std::isfinite(reach) || reach <= 0 || reach > 1024) return std::nullopt;
-    const auto end = origin + direction / length * reach;
+std::optional<BoxRayHit> BoxLayer::raycast(glm::vec3 origin,glm::vec3 direction,float reach) const {
+    const float length=glm::length(direction);
+    if (!finite(origin) || !finite(direction) || length<1e-6f || !std::isfinite(length) ||
+        !std::isfinite(reach) || reach<=0 || reach>1024) return {};
+    const auto translation=direction/length*reach, end=origin+translation;
     std::optional<BoxRayHit> closest;
-    for (const auto& box : query(glm::min(origin, end), glm::max(origin, end))) {
-        const auto inverse = glm::conjugate(box.rotation);
-        b3RayCastInput ray{};
-        ray.origin = vector(inverse * (origin - box.center));
-        ray.translation = vector(inverse * (end - origin)); ray.maxFraction = 1;
-        const auto h = box.halfExtents;
-        const auto hull = b3MakeBoxHull(h.x, h.y, h.z);
-        const auto hit = b3RayCastHull(&hull.base, &ray);
-        if (!hit.hit || (closest && closest->distance <= hit.fraction * reach)) continue;
-        const auto point = origin + (end - origin) * hit.fraction;
-        closest = BoxRayHit{box.index, point, inverse * (point - box.center), hit.fraction * reach};
+    for (const auto& collider:queryColliders(glm::min(origin,end),glm::max(origin,end),false)) {
+        const auto hit=rayCollider(collider.pose,collider.shape,origin,translation);
+        if (!hit.hit || (closest && closest->distance<=hit.fraction*reach)) continue;
+        const auto point=origin+translation*hit.fraction;
+        const auto body=pose(collider.pose.index);
+        closest=BoxRayHit{body.index,point,glm::conjugate(body.rotation)*(point-body.center),hit.fraction*reach,
+            collider.pose.rotation*vector(hit.normal),collider.materialId};
     }
     return closest;
 }
-std::vector<BoxPose> BoxLayer::query(glm::vec3 minimum, glm::vec3 maximum) const {
+std::vector<BoxPose> BoxLayer::query(glm::vec3 minimum,glm::vec3 maximum) const {
     std::vector<BoxPose> result;
-    if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
-    struct Query { const BoxLayer* layer; std::vector<BoxPose>* result; } query{this, &result};
-    auto filter = b3DefaultQueryFilter();
-    filter.maskBits = impl_->categories;
-    b3World_OverlapAABB(impl_->world->id(), {{minimum.x, minimum.y, minimum.z}, {maximum.x, maximum.y, maximum.z}}, filter,
-        [](b3ShapeId shape, void* context) {
-            const auto& q = *static_cast<Query*>(context);
-            const auto* entry = static_cast<Impl::Entry*>(b3Shape_GetUserData(shape));
-            if (entry && entry->owner == q.layer->impl_.get()) q.result->push_back(q.layer->pose(entry->index));
+    if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum,maximum))) return result;
+    struct Query { const BoxLayer* layer; std::vector<BoxPose>* result; std::set<std::size_t> seen; } query{this,&result,{}};
+    auto filter=b3DefaultQueryFilter(); filter.maskBits=impl_->categories;
+    b3World_OverlapAABB(impl_->world->id(),{{minimum.x,minimum.y,minimum.z},{maximum.x,maximum.y,maximum.z}},filter,
+        [](b3ShapeId shape,void* context) {
+            auto& q=*static_cast<Query*>(context);
+            const auto* entry=static_cast<Impl::Entry*>(b3Shape_GetUserData(shape));
+            if (entry && entry->owner==q.layer->impl_.get() && q.seen.insert(entry->index).second)
+                q.result->push_back(q.layer->pose(entry->index));
             return true;
-        }, &query);
+        },&query);
     return result;
 }
-void BoxLayer::appendContacts(glm::vec3 feet, float radius, float height, float skin, std::vector<Contact>& contacts) const {
-    const float reach = radius + skin;
-    for (const auto& box : query(feet - glm::vec3(reach, skin, reach), feet + glm::vec3(reach, height + skin, reach))) {
-        const auto found = boxContacts(box, feet, radius, height, skin);
-        contacts.insert(contacts.end(), found.begin(), found.end());
+std::vector<BoxLayer::ColliderPose> BoxLayer::queryColliders(glm::vec3 minimum,glm::vec3 maximum,bool physicalOnly) const {
+    std::vector<ColliderPose> result;
+    for (const auto& body:query(minimum,maximum)) {
+        const auto& entry=*impl_->entries[body.index];
+        if (physicalOnly && impl_->world->isCraftingHeld(entry.body)) continue;
+        for (const auto& part:entry.parts) {
+            const BoxPose box{body.index,body.center+body.rotation*part.center,part.halfExtents,body.rotation};
+            // Box3D already selected conservative broadphase candidates. Let
+            // each part's narrow query decide contact: a second exact AABB
+            // test can round a reach-boundary ray endpoint outside its face.
+            result.push_back({box,part.shape,part.materialId});
+        }
+    }
+    return result;
+}
+void BoxLayer::appendContacts(glm::vec3 feet,float radius,float height,float skin,std::vector<Contact>& contacts) const {
+    const float reach=radius+skin;
+    for (const auto& collider:queryColliders(feet-glm::vec3(reach,skin,reach),feet+glm::vec3(reach,height+skin,reach),true)) {
+        const auto found=capsuleContacts(collider.pose,collider.shape,feet,radius,height,skin);
+        contacts.insert(contacts.end(),found.begin(),found.end());
     }
 }
-void BoxLayer::appendContacts(const CollisionBox& box, float skin, std::vector<Contact>& contacts) const {
-    if (!validCollisionBox(box) || !std::isfinite(skin) || skin < 0) return;
-    const auto bounds = collisionBoxBounds(box, skin);
-    for (const auto& obstacle : query(bounds.first, bounds.second)) {
-        const auto contact = collisionBoxContact(box, {obstacle.center, obstacle.halfExtents, obstacle.rotation}, skin);
+void BoxLayer::appendContacts(const CollisionBox& box,float skin,std::vector<Contact>& contacts) const {
+    if (!validCollisionBox(box) || !std::isfinite(skin) || skin<0) return;
+    const auto bounds=collisionBoxBounds(box,skin);
+    for (const auto& collider:queryColliders(bounds.first,bounds.second,true)) {
+        const auto contact=orientedBoxContact(box,collider.pose,collider.shape,skin);
         if (contact) contacts.push_back(*contact);
     }
 }
-std::optional<GroundHit> BoxLayer::groundAt(float x, float z, float minY, float maxY) const {
+std::optional<GroundHit> BoxLayer::groundAt(float x,float z,float minY,float maxY) const {
     std::optional<GroundHit> result;
-    for (const auto& box : query({x, minY, z}, {x, maxY, z})) {
-        const auto inverse = glm::conjugate(box.rotation);
-        const auto h = box.halfExtents;
-        const auto hull = b3MakeBoxHull(h.x, h.y, h.z);
-        // Start just above the query ceiling so a face exactly at maxY is hit.
-        const glm::vec3 origin(x, maxY + .001f, z);
-        const glm::vec3 translation(0, minY - maxY - .002f, 0);
-        b3RayCastInput ray{};
-        ray.origin = vector(inverse * (origin - box.center));
-        ray.translation = vector(inverse * translation);
-        ray.maxFraction = 1;
-        const auto hit = b3RayCastHull(&hull.base, &ray);
+    const glm::vec3 origin(x,maxY+.001f,z), translation(0,minY-maxY-.002f,0);
+    for (const auto& collider:queryColliders({x,minY,z},{x,maxY,z},true)) {
+        const auto hit=rayCollider(collider.pose,collider.shape,origin,translation);
         if (!hit.hit) continue;
-        const float y = origin.y + translation.y * hit.fraction;
-        const auto normal = box.rotation * vector(hit.normal);
-        if (normal.y > .0001f && y >= minY - .0001f && y <= maxY + .0001f && (!result || y > result->height))
-            result = GroundHit{y, normal};
+        const float y=origin.y+translation.y*hit.fraction;
+        const auto normal=collider.pose.rotation*vector(hit.normal);
+        if (normal.y>.0001f && y>=minY-.0001f && y<=maxY+.0001f && (!result || y>result->height))
+            result=GroundHit{y,normal};
     }
     return result;
 }
-bool BoxLayer::blocksSight(glm::vec3 origin, glm::vec3 target) const {
-    for (const auto& box : query(glm::min(origin, target), glm::max(origin, target))) {
-        const auto inverse = glm::conjugate(box.rotation);
-        const auto start = inverse * (origin - box.center), end = inverse * (target - box.center);
-        if (glm::all(glm::lessThanEqual(glm::abs(start), box.halfExtents)) ||
-            glm::all(glm::lessThanEqual(glm::abs(end), box.halfExtents))) return true;
-        const auto h = box.halfExtents;
-        const auto hull = b3MakeBoxHull(h.x, h.y, h.z);
-        b3RayCastInput ray{};
-        ray.origin = vector(start); ray.translation = vector(end - start); ray.maxFraction = 1;
-        if (b3RayCastHull(&hull.base, &ray).hit) return true;
+bool BoxLayer::blocksSight(glm::vec3 origin,glm::vec3 target) const {
+    for (const auto& collider:queryColliders(glm::min(origin,target),glm::max(origin,target),false)) {
+        const auto& box=collider.pose;
+        const auto inverse=glm::conjugate(box.rotation);
+        const auto start=inverse*(origin-box.center), end=inverse*(target-box.center);
+        const auto inside=[&](glm::vec3 point) {
+            return collider.shape==PropColliderShape::Sphere ? glm::length(point)<=box.halfExtents.x :
+                glm::all(glm::lessThanEqual(glm::abs(point),box.halfExtents));
+        };
+        if (inside(start) || inside(end) || rayCollider(box,collider.shape,origin,target-origin).hit) return true;
     }
     return false;
 }
-void BoxLayer::push(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) {
-    if (!finite(feet) || !finite(velocity) || !std::isfinite(dt) || dt <= 0) return;
-    const float reach = radius + .003f;
-    for (const auto& box : query(feet - glm::vec3(reach, 0, reach), feet + glm::vec3(reach, height, reach))) {
-        const auto contacts = boxContacts(box, feet, radius, height, .003f);
-        if (contacts.empty()) continue;
-        const auto& contact = *std::max_element(contacts.begin(), contacts.end(),
-            [](const Contact& a, const Contact& b) { return a.depth < b.depth; });
-        // Standing/jumping supplies support, never a horizontal push.
-        if (std::abs(contact.normal.y) > .6f) continue;
-        const auto normal = glm::normalize(glm::vec3(contact.normal.x, 0, contact.normal.z));
-        const auto body = impl_->entries[box.index]->body;
-        const auto point = contact.point;
-        const auto bodyVelocity = vector(b3Body_GetWorldPointVelocity(body, {point.x, point.y, point.z}));
-        const float approach = glm::dot(velocity - bodyVelocity, -normal);
-        if (approach <= 0) continue;
-        const float mass = b3Body_GetMass(body);
-        const float strength = std::min(approach * mass, std::min(approach * 500.0f, 900.0f) * std::min(dt, .05f));
-        b3Body_ApplyLinearImpulse(body, vector(-normal * strength), {point.x, point.y, point.z}, true);
-    }
+void BoxLayer::push(glm::vec3 feet,float radius,float height,glm::vec3 velocity,float dt) {
+    if (!finite(feet) || !finite(velocity) || !std::isfinite(dt) || dt<=0) return;
+    const float reach=radius+.003f;
+    std::map<std::size_t,Contact> deepest;
+    for (const auto& collider:queryColliders(feet-glm::vec3(reach,0,reach),feet+glm::vec3(reach,height,reach),true))
+        for (const auto& contact:capsuleContacts(collider.pose,collider.shape,feet,radius,height,.003f)) {
+            const auto found=deepest.find(collider.pose.index);
+            if (found==deepest.end() || found->second.depth<contact.depth) deepest.insert_or_assign(collider.pose.index,contact);
+        }
+    for (const auto& [index,contact]:deepest) pushContact(impl_->entries[index]->body,contact,velocity,dt);
 }
-void BoxLayer::push(const CollisionBox& box, glm::vec3 velocity, float dt) {
-    if (!validCollisionBox(box) || !finite(velocity) || !std::isfinite(dt) || dt <= 0) return;
-    const auto bounds = collisionBoxBounds(box, .003f);
-    for (const auto& obstacle : query(bounds.first, bounds.second)) {
-        const auto contact = collisionBoxContact(box, {obstacle.center, obstacle.halfExtents, obstacle.rotation}, .003f);
-        if (!contact || std::abs(contact->normal.y) > .6f) continue;
-        const auto normal = glm::normalize(glm::vec3(contact->normal.x, 0, contact->normal.z));
-        const auto body = impl_->entries[obstacle.index]->body;
-        const auto point = contact->point;
-        const auto bodyVelocity = vector(b3Body_GetWorldPointVelocity(body, vector(point)));
-        const float approach = glm::dot(velocity - bodyVelocity, -normal);
-        if (approach <= 0) continue;
-        const float mass = b3Body_GetMass(body);
-        const float strength = std::min(approach * mass, std::min(approach * 500.f, 900.f) * std::min(dt, .05f));
-        b3Body_ApplyLinearImpulse(body, vector(-normal * strength), vector(point), true);
+void BoxLayer::push(const CollisionBox& box,glm::vec3 velocity,float dt) {
+    if (!validCollisionBox(box) || !finite(velocity) || !std::isfinite(dt) || dt<=0) return;
+    const auto bounds=collisionBoxBounds(box,.003f);
+    std::map<std::size_t,Contact> deepest;
+    for (const auto& collider:queryColliders(bounds.first,bounds.second,true)) {
+        const auto contact=orientedBoxContact(box,collider.pose,collider.shape,.003f);
+        if (!contact) continue;
+        const auto found=deepest.find(collider.pose.index);
+        if (found==deepest.end() || found->second.depth<contact->depth) deepest.insert_or_assign(collider.pose.index,*contact);
     }
+    for (const auto& [index,contact]:deepest) pushContact(impl_->entries[index]->body,contact,velocity,dt);
 }
-std::vector<glm::vec3> BoxLayer::debugLines(glm::vec3 minimum, glm::vec3 maximum) const {
+std::vector<glm::vec3> BoxLayer::debugLines(glm::vec3 minimum,glm::vec3 maximum) const {
     std::vector<glm::vec3> result;
-    for (const auto& box : query(minimum, maximum)) {
-        std::array<glm::vec3, 8> corners;
-        for (unsigned i = 0; i < 8; ++i)
-            corners[i] = box.center + box.rotation * (box.halfExtents * glm::vec3(i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1));
-        for (unsigned i = 0; i < 8; ++i) for (unsigned bit : {1u, 2u, 4u})
-            if (!(i & bit)) result.insert(result.end(), {corners[i], corners[i | bit]});
+    for (const auto& collider:queryColliders(minimum,maximum,false)) {
+        const auto& box=collider.pose;
+        if (collider.shape==PropColliderShape::Sphere) {
+            constexpr int segments=24;
+            for (int axis=0;axis<3;++axis) for (int segment=0;segment<segments;++segment) {
+                for (int endpoint=0;endpoint<2;++endpoint) {
+                    const float angle=(segment+endpoint)*6.28318530718f/segments;
+                    glm::vec3 point(0); point[(axis+1)%3]=std::cos(angle)*box.halfExtents.x;
+                    point[(axis+2)%3]=std::sin(angle)*box.halfExtents.x;
+                    result.push_back(box.center+box.rotation*point);
+                }
+            }
+            continue;
+        }
+        const auto corners=collisionBoxCorners({box.center,box.halfExtents,box.rotation});
+        for (unsigned i=0;i<corners.size();++i) for (unsigned bit:{1u,2u,4u})
+            if (!(i&bit)) result.insert(result.end(),{corners[i],corners[i|bit]});
     }
     return result;
 }

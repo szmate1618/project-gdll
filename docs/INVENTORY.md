@@ -184,6 +184,18 @@ there is no separate component list to keep synchronized with its model.
 These fields describe the item; crafting recipes and disassembly rules remain
 separate responsibilities.
 
+Runtime collision uses one shape per authored model part. Boxes retain their
+offsets and dimensions; frusta use boxes spanning their widest footprint.
+Each shape retains its part material. `wood` and `cardboard` material names,
+or those item tags when a part has no material, permit nail placement.
+
+The `nail` tag marks the ten-centimetre nail. Retrieving it in Crafting consumes
+one counted unit rather than removing its entire stack. A suspended preview
+uses an enclosing sphere for selection; fastening overlaps use the authored
+nail parts. Driving moves the nail 0.099 m along its point, then connects every
+intersected body with a revolute joint around the shaft. Grabbing that nail
+again removes its fastening joints.
+
 ## Current prototype boundary
 
 There is one owned firearm per weapon ID, with multiple ammo stack instances.

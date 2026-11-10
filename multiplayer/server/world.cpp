@@ -8,6 +8,7 @@
 #include "zombie_animation.hpp"
 #include "vehicle_player.hpp"
 #include "weapon_accuracy.hpp"
+#include "interaction_camera.hpp"
 #include <random>
 #include <algorithm>
 #include <cmath>
@@ -60,7 +61,15 @@ bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Co
     }
     return true;
 }
-void applyInventoryActions(ServerPlayer& player, Scene& scene, bool temporaryHandling, bool onFoot) {
+void applyInventoryActions(ServerPlayer& player, Scene& scene, const Command& command, bool onFoot) {
+    const bool crafting = command.crafting && onFoot;
+    const bool temporaryHandling = command.objectHandling || crafting;
+    if (player.interaction.craftingMode() && !crafting)
+        player.handInventory.finishCraftingPlacement(player.interaction,*scene.groundItems,player.weapons);
+    player.interaction.setCraftingMode(crafting,scene.groundItems.get());
+    if (player.interaction.takeNailDriven())
+        player.handInventory.finishCraftingPlacement(player.interaction,*scene.groundItems,player.weapons);
+    const auto camera = viewer::interactionCamera(player.camera,crafting ? command.interactionDirection : std::nullopt);
     while (!player.pendingInventoryActions.empty()) {
         const auto& action = player.pendingInventoryActions.front();
         // Network jitter can deliver the next locally completed move before
@@ -70,6 +79,8 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, bool temporaryHan
              action.item != player.inventoryDrag.held()->item)) break;
         if (player.handInventory.active() && action.kind != viewer::InventoryDragActionKind::HandStore &&
             action.kind != viewer::InventoryDragActionKind::HandRelease &&
+            action.kind != viewer::InventoryDragActionKind::HandGrabWorld &&
+            action.kind != viewer::InventoryDragActionKind::HandEndDrag &&
             action.kind != viewer::InventoryDragActionKind::PickUpBackpack &&
             action.kind != viewer::InventoryDragActionKind::EquipGround) {
             player.pendingInventoryActions.pop_front(); continue;
@@ -78,12 +89,12 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, bool temporaryHan
         case viewer::InventoryDragActionKind::PickUpBackpack:
             if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending())
                 player.handInventory.pickUp(player.interaction, *scene.groundItems, player.weapons,
-                    player.camera, *scene.collision);
+                    camera, *scene.collision);
             break;
         case viewer::InventoryDragActionKind::EquipGround:
             if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending())
                 player.handInventory.equip(player.interaction, *scene.groundItems, player.weapons,
-                    player.camera, *scene.collision, player.velocity);
+                    camera, *scene.collision, player.velocity);
             break;
         case viewer::InventoryDragActionKind::DiscardEquipped:
             if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending() &&
@@ -95,9 +106,26 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene, bool temporaryHan
                 viewer::applyBandage(player.vitals.healthState(), player.inventory, action.item, action.injury);
             break;
         case viewer::InventoryDragActionKind::HandPickUp:
-            if (!player.weaponSwitch.pending() && !player.weaponReload.pending() &&
+            if (onFoot && !player.weaponSwitch.pending() && !player.weaponReload.pending() &&
                 (temporaryHandling || player.weapons.slot() == viewer::handlingSlot))
-                player.handInventory.begin(action.item);
+                player.handInventory.begin(action.item,crafting);
+            break;
+        case viewer::InventoryDragActionKind::HandGrabWorld:
+            if (crafting && !command.cancelInteraction && command.interactionDirection &&
+                glm::dot(*command.interactionDirection,player.camera.direction()) > 0 &&
+                !player.weaponSwitch.pending() && !player.weaponReload.pending()) {
+                player.interaction.press(viewer::Hand::Left,camera,*scene.doors,*scene.boxes,*scene.collision,
+                    viewer::SimulationClock::instance().seconds());
+                if (player.interaction.takeNailDriven())
+                    player.handInventory.finishCraftingPlacement(player.interaction,*scene.groundItems,player.weapons);
+            }
+            break;
+        case viewer::InventoryDragActionKind::HandEndDrag:
+            if (crafting) {
+                player.interaction.endCraftingDrag();
+                (void)player.interaction.takeNailDriven();
+                player.handInventory.finishCraftingPlacement(player.interaction,*scene.groundItems,player.weapons);
+            }
             break;
         case viewer::InventoryDragActionKind::HandStore:
             player.handInventory.store(player.interaction, *scene.groundItems, player.weapons);
@@ -246,7 +274,7 @@ void World::step() {
     for (auto& [id, player] : players_) {
         player.inventoryDrag.advance(tickSeconds);
         player.house.update(player.controller.feet(), now, scene_.floorplans->footprints());
-        applyInventoryActions(player, scene_, player.held.objectHandling, vehicleSeats_.car(id) == noVehicle);
+        applyInventoryActions(player, scene_, player.held, vehicleSeats_.car(id) == noVehicle);
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
                            id, player.velocity, player.controller.bodyRadius(), player.house.house(), player.controller.collisionBox(),
@@ -303,6 +331,7 @@ void World::step() {
                 player.weapons.cancelTrigger(); // Timeout cancels a charged grenade instead of releasing it.
                 command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
                 command.left = command.right = command.throwHeld = command.reload = false;
+                command.crafting = false; command.interactionDirection.reset();
                 command.enterVehicle = false;
                 command.movement.jump = vehicleSeats_.car(id) != noVehicle; // Stop an unattended car.
                 player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
@@ -332,7 +361,7 @@ void World::step() {
                 throw std::runtime_error("Too many queued inventory actions");
             player.pendingInventoryActions.insert(player.pendingInventoryActions.end(), command.inventoryActions.begin(), command.inventoryActions.end());
             const auto slotBeforeInventory = player.weapons.slot();
-            applyInventoryActions(player, scene_, command.objectHandling, vehicleSeats_.car(id) == noVehicle);
+            applyInventoryActions(player, scene_, command, vehicleSeats_.car(id) == noVehicle);
             if (player.weapons.slot() != slotBeforeInventory) {
                 command.slot = static_cast<std::uint8_t>(player.weapons.slot());
                 player.triggerNeedsRelease |= command.left;
@@ -385,33 +414,45 @@ void World::step() {
                 command.slot = static_cast<std::uint8_t>(player.weapons.slot());
             }
             const bool switchedWeapon = player.weaponSwitch.begin(player.weapons, player.inventory, command.slot, now);
-            const bool handlingMode = command.objectHandling || player.weapons.slot() == viewer::handlingSlot;
+            const bool handlingMode = command.crafting || command.objectHandling || player.weapons.slot() == viewer::handlingSlot;
             const bool handling = !command.cancelInteraction && handlingMode && command.slot == player.weapons.slot() &&
                 !player.weaponSwitch.pending() && !player.weaponReload.pending();
+            player.interaction.setCraftingMode(command.crafting,scene_.groundItems.get());
+            const auto handlingCamera = viewer::interactionCamera(player.camera,
+                command.crafting ? command.interactionDirection : std::nullopt);
+            const bool canAim = !command.crafting || (command.interactionDirection &&
+                viewer::validInteractionDirection(*command.interactionDirection) && glm::dot(*command.interactionDirection,player.camera.direction()) > 0);
+            const bool leftAction = std::any_of(command.inventoryActions.begin(),command.inventoryActions.end(),[](const auto& action) {
+                return action.kind == viewer::InventoryDragActionKind::HandGrabWorld || action.kind == viewer::InventoryDragActionKind::HandPickUp;
+            });
             if (!handling) {
                 player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
             } else if (player.handInventory.active()) {
-                for (const auto hand : {viewer::Hand::Right, viewer::Hand::Throw}) {
-                    const bool held = hand == viewer::Hand::Right ? command.right : command.throwHeld;
-                    const bool wasHeld = hand == viewer::Hand::Right ? player.held.right : player.held.throwHeld;
-                    if (held && !wasHeld)
-                        player.interaction.press(hand, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
-                    if (!held && wasHeld)
-                        player.interaction.release(hand, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
+                for (const auto hand : {viewer::Hand::Left, viewer::Hand::Right, viewer::Hand::Throw}) {
+                    if (hand == viewer::Hand::Left && !command.crafting) continue;
+                    const bool held = hand == viewer::Hand::Left ? command.left : hand == viewer::Hand::Right ? command.right : command.throwHeld;
+                    const bool wasHeld = hand == viewer::Hand::Left ? player.held.left : hand == viewer::Hand::Right ? player.held.right : player.held.throwHeld;
+                    if (held && !wasHeld && !(hand == viewer::Hand::Left && (leftAction || !canAim)))
+                        player.interaction.press(hand, handlingCamera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
+                    if (!held && wasHeld && hand != viewer::Hand::Left)
+                        player.interaction.release(hand, handlingCamera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
                 }
-                player.interaction.moveGrip(command.drag.x, command.drag.y);
-                player.interaction.update(player.camera, tickSeconds / inputs, *scene_.doors, *scene_.boxes,
+                if (!command.crafting || player.interaction.rotating()) player.interaction.moveGrip(command.drag.x, command.drag.y);
+                player.interaction.update(handlingCamera, tickSeconds / inputs, *scene_.doors, *scene_.boxes,
                                            *scene_.collision, now);
-                player.handInventory.update(tickSeconds / inputs, player.camera, player.interaction,
+                if (player.interaction.takeNailDriven())
+                    player.handInventory.finishCraftingPlacement(player.interaction,*scene_.groundItems,player.weapons);
+                player.handInventory.update(tickSeconds / inputs, handlingCamera, player.interaction,
                     *scene_.boxes, *scene_.groundItems, player.weapons, *scene_.collision);
             } else {
                 for (const auto hand : {viewer::Hand::Left, viewer::Hand::Right, viewer::Hand::Throw}) {
                     const bool held = hand == viewer::Hand::Left ? command.left : hand == viewer::Hand::Right ? command.right : command.throwHeld;
                     const bool wasHeld = hand == viewer::Hand::Left ? player.held.left : hand == viewer::Hand::Right ? player.held.right : player.held.throwHeld;
-                    if (!held && wasHeld) player.interaction.release(hand, player.camera, *scene_.doors,
+                    if (!held && wasHeld && !(command.crafting && hand == viewer::Hand::Left))
+                        player.interaction.release(hand, handlingCamera, *scene_.doors,
                         *scene_.boxes, *scene_.collision, now);
-                    if (held && !wasHeld && !player.triggerNeedsRelease) {
-                        player.interaction.press(hand, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
+                    if (held && !wasHeld && !player.triggerNeedsRelease && !(hand == viewer::Hand::Left && (leftAction || !canAim))) {
+                        player.interaction.press(hand, handlingCamera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
                         bool conflict = false;
                         for (const auto& [otherId, other] : players_) {
                             if (otherId == id) continue;
@@ -429,25 +470,30 @@ void World::step() {
                         }
                     }
                 }
-                player.interaction.look(player.camera, command.drag.x, command.drag.y);
+                if (command.crafting) {
+                    if (player.interaction.rotating()) player.interaction.moveGrip(command.drag.x,command.drag.y);
+                } else player.interaction.look(player.camera, command.drag.x, command.drag.y);
                 player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
-                player.interaction.update(player.camera, tickSeconds / inputs, *scene_.doors, *scene_.boxes,
+                player.interaction.update(handlingCamera, tickSeconds / inputs, *scene_.doors, *scene_.boxes,
                                            *scene_.collision, now);
+                if (player.interaction.takeNailDriven())
+                    player.handInventory.finishCraftingPlacement(player.interaction,*scene_.groundItems,player.weapons);
             }
-            if (command.reload && !command.objectHandling && !player.weaponSwitch.pending()) player.reloadRequested = true;
+            if (command.reload && !command.objectHandling && !command.crafting && !player.weaponSwitch.pending()) player.reloadRequested = true;
             if (player.reloadRequested && !player.weaponSwitch.pending() && !player.inventory.held() && player.pendingInventoryActions.empty()) {
                 if (player.weaponReload.begin(player.weapons, player.inventory, now) && player.weapons.slot() < 4)
                     sounds_.emit(tick_, SoundKind::reload, id, player.camera.position(), static_cast<std::uint8_t>(player.weapons.slot()));
                 player.reloadRequested = false;
             }
             // Resetting Weapons must not turn an already-held button into a new press.
-            if (player.held.objectHandling && !command.objectHandling && command.left) player.triggerNeedsRelease = true;
+            if ((player.held.objectHandling || player.held.crafting) && !command.objectHandling && !command.crafting && command.left)
+                player.triggerNeedsRelease = true;
             if (consumed && !command.left) player.triggerNeedsRelease = false;
             if ((switchedWeapon || command.reload) && command.left && player.held.left) player.triggerNeedsRelease = true;
             if ((player.weaponSwitch.pending() || player.weaponReload.pending() || player.reloadRequested) && command.left) player.triggerNeedsRelease = true;
             player.weapons.trigger(command.left && !handlingMode && !player.triggerNeedsRelease &&
                 !player.weaponSwitch.pending() && !player.weaponReload.pending() && !player.reloadRequested);
-            player.weapons.secondaryTrigger(command.right, now);
+            player.weapons.secondaryTrigger(command.right && !handlingMode, now);
             if (command.cancelInteraction || handlingMode || player.weaponSwitch.pending() ||
                 player.weaponReload.pending() || player.reloadRequested)
                 player.weapons.cancelTrigger();

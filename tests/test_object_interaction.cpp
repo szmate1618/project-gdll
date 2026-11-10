@@ -348,10 +348,41 @@ void routingAndCancellation() {
                 "Mode changes must cancel door and object grips without throwing");
     }
 }
+void craftingSuspension() {
+    Fixture f;
+    f.boxes.add({0,1,0}, glm::vec3(.4f));
+    f.boxes.add({1,.22f,0}, glm::vec3(.4f));
+    f.camera.setPosition({0,1,1.2f}); f.camera.setOrientation(-90,0);
+    f.input.setCraftingMode(true);
+    require(f.input.press(f.camera,f.boxes,f.world), "Crafting must grab ordinary world props");
+    f.advance(120);
+    const auto other = f.boxes.pose(1).center;
+    f.camera.setPosition({1,other.y,1.2f});
+    f.advance(30);
+    require(glm::distance(f.boxes.pose(0).center,other) < .005f,
+            "Crafting must position a held prop directly through other geometry");
+    require(glm::distance(f.boxes.pose(1).center,other) < .005f && glm::length(f.boxes.velocity(1)) < .01f,
+            "A crafting prop must not push another dynamic body on collision");
+    // Move clear before checking persistence and a later ordinary drop.
+    f.camera.setPosition({0,1,1.2f}); f.advance(1);
+    f.input.endCraftingDrag();
+    const auto parked = f.boxes.pose(0).center;
+    f.camera.setPosition({3,2,3}); f.advance(90);
+    require(glm::distance(f.boxes.pose(0).center,parked) < .001f,
+            "Releasing a crafting drag must leave its pose suspended in world space");
+    f.input.setCraftingMode(false); f.advance(60);
+    require(glm::distance(f.boxes.pose(0).center,parked) < .001f,
+            "Closing crafting must preserve already placed suspended items");
+    f.camera.setPosition({0,1,1.2f});
+    require(f.input.press(f.camera,f.boxes,f.world), "A parked item must remain ray-pickable");
+    f.input.cancel(); f.advance(90);
+    require(f.boxes.pose(0).center.y < parked.y-.4f,
+            "An ordinary regrab and release must restore gravity");
+}
 } // namespace
 int main() {
     try {
-        picking(); throws(); automaticThrows(); heldGripAndLook(); heldRotation(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
+        picking(); throws(); automaticThrows(); heldGripAndLook(); heldRotation(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation(); craftingSuspension();
         std::cout << "Object picking, hands, throw directions, strength, movement and collision tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

@@ -77,7 +77,7 @@ int main() {
         auto storage = viewer::loadStorageLoadout(root / "storage"); storage.backpack->grid = {1,1,0};
         auto fullItem = inventory.find("pistol_rounds_1")->renamed("full");
         viewer::InventoryContents fullContents;
-        fullContents.owned.emplace("full", fullItem); fullContents.quantities.emplace("full", 1);
+        fullContents.owned.emplace("full", fullItem); fullContents.quantities.emplace("full", fullItem.inventory().maxStack);
         fullContents.placements.emplace("full", viewer::ItemPlacement{"backpack/tactical_backpack/main",0,0,0});
         viewer::PlayerInventory full(storage, fullContents);
         viewer::HandInventory fullHand(full);
@@ -149,6 +149,45 @@ int main() {
             require(swapHand.equip(swapInteraction, swapGround, swapWeapons, camera, collision, {}) &&
                 swapGround.count() == 1 && swapWeapons.slot() == 0 && swapInventory.owns("pistol"),
                 "Equipping the selected reserved weapon must not drop an unrelated automatic fallback weapon");
+        }
+        {
+            auto craftInventory = viewer::loadPlayerInventory(root);
+            viewer::Weapons craftWeapons(root / "storage/weapons", root / "inventory.toml", true);
+            viewer::GroundItems craftGround(physics);
+            viewer::PlayerInteraction craftInteraction;
+            viewer::HandInventory craftHand(craftInventory);
+            viewer::Camera craftCamera; craftCamera.setPosition({10,2,0});
+            craftInteraction.setCraftingMode(true, &craftGround);
+            const int quantity = craftInventory.quantity("nails");
+            require(craftHand.begin("nails", true) && craftInventory.quantity("nails") == quantity-1 &&
+                    craftInventory.placements().count("nails"),
+                    "Crafting must retrieve one nail while leaving its stack in inventory");
+            craftHand.finishCraftingPlacement(craftInteraction,craftGround,craftWeapons);
+            craftHand.update(craftHand.duration(),craftCamera,craftInteraction,boxes,craftGround,craftWeapons,collision);
+            require(!craftHand.active() && craftInteraction.grabbing() && craftGround.count() == 1 &&
+                    craftGround.poses()[0].entry.quantity == 1,
+                    "Releasing during retrieval must park exactly one nail when access completes");
+            const auto parked = craftInteraction.heldProp()->center();
+            for (int frame=0;frame<60;++frame) physics->step(1.f/60);
+            require(glm::distance(craftInteraction.heldProp()->center(),parked) < .001f,
+                    "Inventory crafting items must remain suspended after retrieval release");
+            require(craftHand.store(craftInteraction,craftGround,craftWeapons) &&
+                    craftInventory.quantity("nails") == quantity && craftGround.count() == 0,
+                    "Returning a placed nail must merge just one nail back into its stack");
+            require(craftHand.begin("nails",true), "Could not begin cancelled nail retrieval");
+            craftHand.release(craftInteraction,craftGround,craftWeapons);
+            require(craftInventory.quantity("nails") == quantity,
+                    "Cancelling before access completes must refund the reserved nail");
+            require(craftHand.begin("nails",true), "Could not begin reserved nail return");
+            craftHand.update(craftHand.duration(),craftCamera,craftInteraction,boxes,craftGround,craftWeapons,collision);
+            require(craftHand.store(craftInteraction,craftGround,craftWeapons) &&
+                    craftInventory.quantity("nails") == quantity && craftGround.count() == 0,
+                    "Returning an active single-nail preview must restore exactly one nail");
+            const auto broom = craftGround.add(*craftInventory.find("broom"),0,{},parked);
+            require(craftInteraction.grip(craftCamera,boxes,*craftGround.prop(broom)), "Could not grip broom for rejected craft store");
+            require(!fullHand.store(craftInteraction,craftGround,craftWeapons) && craftInteraction.grabbing(),
+                    "A rejected crafting store must retain the suspended grip");
+            craftInteraction.cancel();
         }
         std::cout << "Hand inventory checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

@@ -1,11 +1,13 @@
 #pragma once
 
 #include <box3d/id.h>
+#include <box3d/types.h>
 #include <cstdint>
 #include <functional>
 #include <filesystem>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace viewer {
 
@@ -69,6 +71,13 @@ public:
     void registerGrabCallback(const void* owner, std::function<void(b3BodyId)> callback);
     void unregisterGrabCallback(const void* owner);
     bool isGrabbed(b3BodyId body) const;
+    // Crafting poses are kinematic and excluded from contact response. A parked
+    // prop retains its hold after the mouse/hand moves on to another item.
+    void beginCraftingHold(b3BodyId body);
+    void endCraftingHold(b3BodyId body);
+    bool isCraftingHeld(b3BodyId body) const;
+    void parkCraftingProp(b3BodyId body);
+    void resumeCraftingProp(b3BodyId body);
 private:
     friend class PhysicsGrab;
     friend class PhysicsAttachment;
@@ -84,6 +93,9 @@ private:
     std::unordered_map<const void*, StepCallbacks> stepCallbacks_;
     std::unordered_map<const void*, std::function<void(b3BodyId)>> grabCallbacks_;
     std::unordered_map<std::uint64_t, unsigned> grabCounts_; // Both hands may hold one body.
+    struct CraftingHold { unsigned count; b3BodyType type; float gravity; };
+    std::unordered_map<std::uint64_t, CraftingHold> craftingHolds_;
+    std::unordered_set<std::uint64_t> parkedProps_;
 };
 
 } // namespace viewer

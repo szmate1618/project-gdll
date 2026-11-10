@@ -97,7 +97,7 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
             if (pressedToggle_) continue;
         }
         if (event.action == HudPointerAction::Release && pressedToggle_) {
-            if (contains(*pressedToggle_)) open_ = !open_;
+            if (pressedToggle_!=drawer_ && contains(*pressedToggle_)) open_ = !open_;
             pressedToggle_ = nullptr;
             drawer_->SetClass("expanded", open_);
             continue;
@@ -114,9 +114,25 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
                 }
                 break;
             }
+            if (crafting) {
+                if (!pressed_) pressedToggle_=drawer_; // Consume inactive rows/scrollbar chrome.
+                continue;
+            }
+        }
+        if (crafting && event.action == HudPointerAction::Press) {
+            if (contains(*drawer_)) { pressedToggle_=drawer_; continue; }
+            const auto dimensions=context->GetDimensions();
+            if (pointer_.x>=0 && pointer_.y>=0 && pointer_.x<dimensions.x && pointer_.y<dimensions.y)
+                actions_.push_back({InventoryDragActionKind::HandGrabWorld,"",""});
+            continue;
         }
         if (event.action == HudPointerAction::Release) {
-            actions_.push_back({contains(*drawer_) && open_ ? InventoryDragActionKind::HandStore : InventoryDragActionKind::HandRelease, "", ""});
+            if (crafting) {
+                auto* craftingList=document_.GetElementById("crafting-list");
+                const bool store=(open_ && contains(*list_)) ||
+                    (craftingList && craftingList->IsVisible(true) && contains(*craftingList));
+                actions_.push_back({store ? InventoryDragActionKind::HandStore : InventoryDragActionKind::HandEndDrag,"",""});
+            } else actions_.push_back({contains(*drawer_) && open_ ? InventoryDragActionKind::HandStore : InventoryDragActionKind::HandRelease, "", ""});
             pressed_ = false;
         }
     }

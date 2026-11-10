@@ -3,6 +3,7 @@
 #include "model.hpp"
 #include "physics_world.hpp"
 #include "physics_prop.hpp"
+#include "prop_collider.hpp"
 #include <box3d/types.h>
 #include <glm/gtc/quaternion.hpp>
 #include <memory>
@@ -26,6 +27,8 @@ struct BoxRayHit {
     std::size_t box;
     glm::vec3 point, localPoint; // World and body-local meters.
     float distance;
+    glm::vec3 normal{0};
+    std::uint64_t materialId = 0;
 };
 using BoxPointState = PropPointState;
 struct BoxSpawnMotion {
@@ -38,6 +41,7 @@ struct BoxSpawnMotion {
     b3Filter filter{interiorBoxCategory,~ragdollFloorCategory,0};
     std::string acoustics = "crate";
     float acousticScale = 1; // Uniform instance scale, independent of mass.
+    std::uint64_t materialId = 0; // Explicit surface classification; unknown by default.
 };
 
 // Owns box-shaped dynamic props in the shared Y-up, meter-based simulation.
@@ -49,6 +53,10 @@ public:
     BoxLayer(const BoxLayer&) = delete;
     BoxLayer& operator=(const BoxLayer&) = delete;
     std::size_t add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion& motion = {});
+    std::size_t addCompound(glm::vec3 center, const std::vector<PropCollider>& parts,
+        const BoxSpawnMotion& motion = {});
+    // Replaces shapes on the same body, preserving its identity and mass.
+    void replaceColliders(std::size_t index, const std::vector<PropCollider>& parts);
     // Dense removal moves the last box into this slot. Owners must update their
     // matching records and release any grips referencing these two indices.
     void remove(std::size_t index);
@@ -86,6 +94,12 @@ public:
     // Shared face-normal cube, centered at the origin with full side length 1.
     static Model unitCube();
 private:
+    struct ColliderPose {
+        BoxPose pose;
+        PropColliderShape shape;
+        std::uint64_t materialId;
+    };
+    std::vector<ColliderPose> queryColliders(glm::vec3 minimum, glm::vec3 maximum, bool physicalOnly) const;
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

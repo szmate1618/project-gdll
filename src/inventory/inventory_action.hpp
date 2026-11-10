@@ -7,7 +7,7 @@ namespace viewer {
 // User operations replayed through InventoryDrag on the authoritative server.
 // Timed completions and displaced items follow from these operations.
 enum class InventoryDragActionKind { PickUp, Rotate, Drop, Cancel, DropGround, TakeGround, HandPickUp, HandStore, HandRelease, ApplyBandage,
-    PickUpBackpack, EquipGround, DiscardEquipped };
+    PickUpBackpack, EquipGround, DiscardEquipped, HandGrabWorld, HandEndDrag };
 struct InventoryDragAction {
     InventoryDragActionKind kind = InventoryDragActionKind::Cancel;
     std::string item, storage;

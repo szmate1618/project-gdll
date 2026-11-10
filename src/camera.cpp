@@ -31,6 +31,17 @@ void Camera::setOrientation(float yawDegrees, float pitchDegrees) {
     pitch_ = std::clamp(pitchDegrees, -89.0f, 89.0f);
 }
 
+Camera Camera::aimed(glm::vec3 direction) const {
+    const auto length = glm::length(direction);
+    if (!finite(direction) || !std::isfinite(length) || length < 1e-6f)
+        throw std::invalid_argument("Interaction direction must be finite and nonzero");
+    auto result = *this;
+    direction /= length;
+    result.yaw_ = glm::degrees(std::atan2(direction.z,direction.x));
+    result.pitch_ = glm::degrees(std::atan2(direction.y,glm::length(glm::vec2(direction.x,direction.z))));
+    return result;
+}
+
 glm::vec3 Camera::forward() const {
     const float yaw = glm::radians(yaw_);
     const float pitch = glm::radians(pitch_);

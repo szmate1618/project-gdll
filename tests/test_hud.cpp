@@ -1630,8 +1630,8 @@ int main(int argc, char** argv) {
             crafting.handInventoryActive = true;
             moveTo(*gameplay->GetElementById("crafting-panel")); hud.pointerButton(0,false); draw();
             actions = hud.takeInventoryActions();
-            require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandRelease,
-                "Releasing an inventory drag over Crafting must drop the item instead of leaving a stale grip");
+            require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandStore,
+                "Releasing an inventory drag inside the Crafting list must return the held item to storage");
             crafting.handInventoryActive = false;
             moveTo(*list->GetChild(0)); hud.pointerButton(0,true); draw();
             actions = hud.takeInventoryActions();
@@ -1662,6 +1662,33 @@ int main(int argc, char** argv) {
             require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandStore,
                 "Releasing in the crafting inventory must use the existing storage transaction");
             crafting.handInventoryActive = false;
+
+            moveTo(*materials->GetChild(0)); hud.pointerButton(0,true); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==1 && actions.front().kind==viewer::InventoryDragActionKind::HandPickUp &&
+                !actions.front().item.empty(),"Crafting material rows must retrieve real equippable items");
+            crafting.handInventoryActive=true;
+            move(width*.5f,height*.5f); hud.pointerButton(0,false); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==1 && actions.front().kind==viewer::InventoryDragActionKind::HandEndDrag,
+                "Releasing a Crafting material over the world must finish its drag without dropping it");
+            crafting.handInventoryActive=false;
+            move(width*.5f,height*.5f); hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==2 && actions[0].kind==viewer::InventoryDragActionKind::HandGrabWorld &&
+                actions[1].kind==viewer::InventoryDragActionKind::HandEndDrag,
+                "An unclaimed world click must route a physical grab/drive and a non-dropping release");
+            move(width*.5f,height*.5f); hud.pointerButton(0,true); hud.pointerButton(0,false);
+            moveTo(*materials->GetChild(0)); hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
+            actions=hud.takeInventoryActions();
+            require(actions.size()==4 && actions[0].kind==viewer::InventoryDragActionKind::HandGrabWorld &&
+                actions[1].kind==viewer::InventoryDragActionKind::HandEndDrag &&
+                actions[2].kind==viewer::InventoryDragActionKind::HandPickUp && actions[3].kind==viewer::InventoryDragActionKind::HandStore,
+                "World and material gestures received together must retain their physical action order");
+            for (const auto point:{glm::vec2{600,10},glm::vec2{600,700},glm::vec2{2,300}}) {
+                move(point.x,point.y); hud.pointerButton(0,true); hud.pointerButton(0,false); draw();
+                require(hud.takeInventoryActions().empty(),"Crafting frame chrome must not grab or drive a world prop");
+            }
 
             width = 640; height = 360; draw(); draw();
             const auto small = pixels(width,height);

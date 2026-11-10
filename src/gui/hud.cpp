@@ -26,6 +26,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 namespace viewer {
 namespace {
@@ -140,6 +141,7 @@ struct Hud::Impl {
     Rml::PropertyId backdropColorProperty = Rml::PropertyId::Invalid;
     std::unique_ptr<LoadoutNavigation> navigation;
     std::vector<HudPointerEvent> pointerEvents;
+    std::vector<InventoryDragAction> craftingActions;
     bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
     HudScreen screen = HudScreen::Gameplay;
@@ -416,13 +418,25 @@ struct Hud::Impl {
             elements.at("weapon")->SetClassNames(equipmentIconClass(static_cast<std::size_t>(slot)));
         }
         renderer.render(*context, width, height, [&] {
-            auto events = pointerEvents;
             if (screen == HudScreen::Crafting) {
                 sleepDrawer->close();
-                events = navigation->process(*document, screen, events, width, height, presentation);
-                events = craftingMenu->process(events, width, height, presentation);
-            } else events = sleepDrawer->process(state, events, width, height, presentation);
-            equipmentDrawer->process(state, events, width, height, presentation);
+                const auto route=[&](const std::vector<HudPointerEvent>& input) {
+                    auto events=navigation->process(*document,screen,input,width,height,presentation);
+                    events=craftingMenu->process(state,events,width,height,presentation);
+                    equipmentDrawer->process(state,events,width,height,presentation);
+                    auto materialActions=craftingMenu->takeActions();
+                    auto equipmentActions=equipmentDrawer->takeActions();
+                    craftingActions.insert(craftingActions.end(),materialActions.begin(),materialActions.end());
+                    craftingActions.insert(craftingActions.end(),equipmentActions.begin(),equipmentActions.end());
+                };
+                // Both drawers can emit actions. Preserve physical gesture order
+                // when several clicks/moves arrive in the same render frame.
+                route({});
+                for (const auto& event:pointerEvents) route({event});
+            } else {
+                const auto events=sleepDrawer->process(state,pointerEvents,width,height,presentation);
+                equipmentDrawer->process(state,events,width,height,presentation);
+            }
         }, [&] {
             if (!backdrop) renderer.renderExternal([&] { backdrop = std::make_unique<HudBackdrop>(sourceDirectory); });
             HudBackdrop::Bounds bounds{};
@@ -480,7 +494,9 @@ std::optional<MissionMenuAction> Hud::takeMissionMenuAction() {
 void Hud::missionMenuKey(MissionMenuKey key) { impl_->missionKeys.push_back(key); }
 bool Hud::cancelMissionConfirmation() { return impl_->missionMenu && impl_->missionMenu->cancelConfirmation(); }
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
-    auto actions = impl_->equipmentDrawer->takeActions();
+    auto actions = std::exchange(impl_->craftingActions,{});
+    auto equipment = impl_->equipmentDrawer->takeActions();
+    actions.insert(actions.end(),equipment.begin(),equipment.end());
     if (impl_->healthView) {
         auto medical = impl_->healthView->takeActions();
         actions.insert(actions.end(), medical.begin(), medical.end());

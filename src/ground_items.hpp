@@ -13,6 +13,7 @@ class DoorLayer;
 class CollisionWorld;
 class PhysicsScene;
 class Canopy;
+class NailPlacement;
 struct GroundItem {
     std::uint64_t id;
     Item item;
@@ -59,6 +60,9 @@ public:
     std::size_t count() const { return entries_.size(); }
     std::optional<PhysicsProp> prop(std::uint64_t id) const;
     std::optional<std::uint64_t> idOf(const PhysicsProp& prop) const;
+    const GroundItem* find(const PhysicsProp& prop) const;
+    void setNailPreviewSphere(const PhysicsProp& prop, bool enabled);
+    NailPlacement& nails(); // Lazy authoritative placement controller; owned before its bodies.
     bool erase(std::uint64_t id); // Invalidates any grip on this body.
     void reserve(std::uint64_t id, bool reserved);
 private:
@@ -79,5 +83,6 @@ private:
     bool replica_ = false;
     std::set<std::uint64_t> reserved_; // Physical previews still owned by a hand transaction.
     std::array<glm::vec3, weaponIds.size()> centers_{}, sizes_{};
+    std::unique_ptr<NailPlacement> nails_; // Destroy callbacks before entries/canopies/bodies_.
 };
 }

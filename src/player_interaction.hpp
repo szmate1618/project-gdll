@@ -4,6 +4,7 @@
 #include "object_interaction.hpp"
 
 namespace viewer {
+class GroundItems;
 // Object handling: hold left to drag and release to drop; hold right to rotate.
 // The throw action charges a throw/push, automatically released after two seconds.
 // Call cancel when unequipped or input is suspended.
@@ -21,8 +22,13 @@ public:
     void release(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
                  const CollisionWorld& world, double seconds);
     void cancel();
+    void setCraftingMode(bool enabled, GroundItems* ground = nullptr);
+    bool craftingMode() const { return objects_.craftingMode(); }
+    void endCraftingDrag() { objects_.endCraftingDrag(); doors_.release(); }
+    bool takeNailDriven() { return objects_.takeNailDriven(); }
     bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop) {
-        cancel();
+        if (craftingMode()) { chargeStarted_.reset(); doors_.release(); }
+        else cancel();
         return objects_.grip(camera, boxes, prop);
     }
     void look(Camera& camera, float dx, float dy);

@@ -1,4 +1,5 @@
 #include "protocol.hpp"
+#include "interaction_camera.hpp"
 #include "weapons.hpp"
 #include "zombie_skeleton.hpp"
 #include "zombie_cavity_physics.hpp"
@@ -171,6 +172,14 @@ void command(Wire& w, Command& c) {
     w.number(c.drag.x); w.number(c.drag.y);
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
     w.flag(c.cancelInteraction); w.flag(c.objectHandling); w.flag(c.left); w.flag(c.right); w.flag(c.throwHeld);
+    w.flag(c.crafting);
+    bool hasInteractionDirection = c.interactionDirection.has_value(); w.flag(hasInteractionDirection);
+    if (hasInteractionDirection) {
+        if (w.reading) c.interactionDirection.emplace();
+        w.vector(*c.interactionDirection);
+        if (!c.crafting || !viewer::validInteractionDirection(*c.interactionDirection))
+            throw std::runtime_error("Invalid crafting interaction ray");
+    } else c.interactionDirection.reset();
     w.flag(c.preserveEquippedSlot); w.flag(c.reload); w.integer(c.slot);
     w.flag(c.enterVehicle); w.flag(c.flashlight);
     bool hasSleepAction = c.sleepAction.has_value(); w.flag(hasSleepAction);
@@ -186,7 +195,7 @@ void command(Wire& w, Command& c) {
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
-        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::DiscardEquipped))
+        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::HandEndDrag))
             throw std::runtime_error("Invalid inventory action");
         action.kind = static_cast<viewer::InventoryDragActionKind>(kind);
         switch (action.kind) {
@@ -200,6 +209,8 @@ void command(Wire& w, Command& c) {
         case viewer::InventoryDragActionKind::PickUpBackpack:
         case viewer::InventoryDragActionKind::EquipGround:
         case viewer::InventoryDragActionKind::DiscardEquipped:
+        case viewer::InventoryDragActionKind::HandGrabWorld:
+        case viewer::InventoryDragActionKind::HandEndDrag:
         case viewer::InventoryDragActionKind::HandRelease: break;
         case viewer::InventoryDragActionKind::Rotate: {
             auto turns = static_cast<std::uint8_t>((action.turns % 4 + 4) % 4);
@@ -242,6 +253,11 @@ void command(Wire& w, Command& c) {
         std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot >= viewer::equipmentSlotCount ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
         throw std::runtime_error("Invalid multiplayer command");
+    if (c.interactionDirection) {
+        const float yaw = glm::radians(c.movement.yawDegrees), pitch = glm::radians(c.pitch);
+        const glm::vec3 forward{std::cos(yaw) * std::cos(pitch),std::sin(pitch),std::sin(yaw) * std::cos(pitch)};
+        if (glm::dot(*c.interactionDirection,forward) <= 0) throw std::runtime_error("Crafting ray points behind the player");
+    }
 }
 template<class T> void uniqueIds(const std::vector<T>& values) {
     std::set<std::uint32_t> ids;

@@ -2,6 +2,7 @@
 
 #include "hud_pointer.hpp"
 #include "hud_screen.hpp"
+#include "inventory/inventory_action.hpp"
 #include <glm/vec2.hpp>
 #include <optional>
 #include <string>
@@ -10,6 +11,7 @@
 namespace Rml { class ElementDocument; }
 namespace viewer {
 struct PresentationViewport;
+struct HudState;
 class PlayerInventory;
 
 // Menu chrome only. Physical inventory and world grips retain their existing owners.
@@ -19,12 +21,14 @@ public:
         : document_(document), inventory_(inventory) {}
     void open();
     void close();
-    std::vector<HudPointerEvent> process(const std::vector<HudPointerEvent>& events,
+    std::vector<HudPointerEvent> process(const HudState& state, const std::vector<HudPointerEvent>& events,
         int width, int height, const PresentationViewport& presentation);
     std::optional<HudScreen> takeScreenRequest();
+    std::vector<InventoryDragAction> takeActions();
 private:
     bool contains(const char* id) const;
     std::string control() const;
+    std::string itemAtPointer() const;
     void populate();
     Rml::ElementDocument& document_;
     const PlayerInventory& inventory_;
@@ -32,6 +36,8 @@ private:
     std::string pressed_;
     std::string signature_;
     bool expanded_ = true, claimed_ = false;
+    bool retrieving_ = false;
     std::optional<HudScreen> requested_;
+    std::vector<InventoryDragAction> actions_;
 };
 }

@@ -12,7 +12,9 @@
 
 namespace viewer {
 namespace {
-bool allowShapeContact(b3ShapeId shapeA, b3ShapeId shapeB, void*) {
+bool allowShapeContact(b3ShapeId shapeA, b3ShapeId shapeB, void* context) {
+    const auto& world = *static_cast<const PhysicsWorld*>(context);
+    if (world.isCraftingHeld(b3Shape_GetBody(shapeA)) || world.isCraftingHeld(b3Shape_GetBody(shapeB))) return false;
     // Filters are fixed before stepping. Negative groups identify a ragdoll
     // and suppress self-contact; its floor carries the corresponding positive
     // group so the usual group rule does not reject its owner's contacts.
@@ -37,7 +39,7 @@ PhysicsWorld::PhysicsWorld(const std::filesystem::path& acousticStorage) {
     definition.enableContinuous = true;
     world_ = b3CreateWorld(&definition);
     if (!b3World_IsValid(world_)) throw std::runtime_error("Unable to create Box3D world");
-    b3World_SetCustomFilterCallback(world_, allowShapeContact, nullptr);
+    b3World_SetCustomFilterCallback(world_, allowShapeContact, this);
     try {
         impacts_ = std::make_unique<PhysicsImpacts>(world_, acousticStorage);
         corpseSettling_ = std::make_unique<CorpseSettling>(*this);
@@ -80,6 +82,9 @@ void PhysicsWorld::trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision) 
 }
 void PhysicsWorld::untrackBodyMotion(b3BodyId body) {
     motionOwners_.erase(b3StoreBodyId(body));
+    // Body owners call this before destruction, while its generation is valid.
+    parkedProps_.erase(b3StoreBodyId(body));
+    craftingHolds_.erase(b3StoreBodyId(body));
 }
 void PhysicsWorld::registerStepCallbacks(const void* owner, std::function<void()> prepare, std::function<void()> finish) {
     if (!owner || !prepare || !finish) throw std::invalid_argument("Physics step callbacks require an owner and two callbacks");
@@ -90,6 +95,34 @@ void PhysicsWorld::unregisterStepCallbacks(const void* owner) {
     stepCallbacks_.erase(owner);
 }
 bool PhysicsWorld::isGrabbed(b3BodyId body) const { return grabCounts_.count(b3StoreBodyId(body)) != 0; }
+bool PhysicsWorld::isCraftingHeld(b3BodyId body) const { return craftingHolds_.count(b3StoreBodyId(body)) != 0; }
+void PhysicsWorld::beginCraftingHold(b3BodyId body) {
+    if (!b3Body_IsValid(body)) throw std::invalid_argument("Cannot hold an invalid crafting prop");
+    auto [found, inserted] = craftingHolds_.try_emplace(b3StoreBodyId(body),
+        CraftingHold{0, b3Body_GetType(body), b3Body_GetGravityScale(body)});
+    ++found->second.count;
+    if (!inserted) return;
+    b3Body_SetType(body, b3_kinematicBody);
+    b3Body_SetGravityScale(body, 0);
+    b3Body_SetLinearVelocity(body, b3Vec3_zero);
+    b3Body_SetAngularVelocity(body, b3Vec3_zero);
+}
+void PhysicsWorld::endCraftingHold(b3BodyId body) {
+    const auto found = craftingHolds_.find(b3StoreBodyId(body));
+    if (found == craftingHolds_.end() || --found->second.count != 0) return;
+    const auto saved = found->second;
+    craftingHolds_.erase(found);
+    if (!b3Body_IsValid(body)) return;
+    b3Body_SetType(body, saved.type);
+    b3Body_SetGravityScale(body, saved.gravity);
+    b3Body_SetAwake(body, true);
+}
+void PhysicsWorld::parkCraftingProp(b3BodyId body) {
+    if (parkedProps_.insert(b3StoreBodyId(body)).second) beginCraftingHold(body);
+}
+void PhysicsWorld::resumeCraftingProp(b3BodyId body) {
+    if (parkedProps_.erase(b3StoreBodyId(body))) endCraftingHold(body);
+}
 void PhysicsWorld::beginGrab(b3BodyId body) {
     for (const auto& callback : grabCallbacks_) callback.second(body);
     ++grabCounts_[b3StoreBodyId(body)];

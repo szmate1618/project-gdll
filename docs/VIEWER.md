@@ -202,9 +202,25 @@ and left Crafting drawer. Each drawer can be collapsed independently. The
 existing interaction-mode text appears in the bottom frame; the other gameplay
 HUD groups are hidden while this frame is open. Tab switches between cursor and
 mouse look. F5 or Escape closes the frame and restores the prior cursor state;
-an existing grip stays in Object handling until it ends. The Crafting drawer
+placed parts remain suspended in the world. The Crafting drawer
 lists carried items with the `crafting` or `bind` tag. Tape and wire quantities
 are shown in metres, including fractional lengths.
+
+Drag an item from either drawer or grab it directly in the game view. Crafting
+uses the cursor's ray through the visible scene, so the camera stays still while
+you select and position a part. Storage retrieval still takes its calculated
+access time. Releasing left mouse parks the item at its current position;
+it keeps that position when you select another part or close the frame. These
+parts do not push nearby objects or obstruct the player. F explicitly drops or
+throws the selected item back into ordinary physics. Regular Object handling
+outside Crafting keeps its hold-to-grab, release-to-drop behavior.
+
+Retrieving nails in Crafting takes one nail from the counted stack. Move its tip
+onto a wood or cardboard part to snap it to the surface. Right-drag changes its angle about
+the pinned tip. Click the pinned nail without dragging to drive it into the
+surface; dragging the nail again repositions it instead. The nail moves 9.9 cm
+inward and connects every intersected body with a revolute hinge around its
+shaft. The remaining nails stay in storage.
 
 Map tool buttons brighten on hover, retain a coral bottom edge while focused,
 and mark the active measurement tool with a coral left edge. The radial signal

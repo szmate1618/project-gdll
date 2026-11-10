@@ -12,7 +12,9 @@ void PlayerInteraction::cancel() { chargeStarted_.reset(); objects_.cancel(); do
 void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
                                 const CollisionWorld& world, double seconds) {
     if (hand == Hand::Left) {
-        objects_.cancel(); doors_.release();
+        if (craftingMode()) objects_.endCraftingDrag();
+        else objects_.cancel();
+        doors_.release();
         return;
     }
     if (hand == Hand::Right) { objects_.endRotation(); return; }
@@ -29,7 +31,7 @@ void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& door
     const auto doorImpulse = (camera.direction() * GrenadeConfig{}.throwSpeed + glm::vec3(0, 2, 0)) * (.45f * strength);
     if (const auto prop = objects_.heldProp()) {
         const auto center = prop->center();
-        objects_.cancel(); // Remove the constraint before applying momentum.
+        objects_.drop(); // Remove the constraint before applying momentum.
         if (glm::distance(center, camera.position()) <= 5)
             prop->applyImpulse(objectThrowImpulse(camera.direction(), prop->mass(), strength), center);
     } else if (const auto heldDoor = doors_.grabbedDoor()) {
@@ -58,7 +60,7 @@ bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors,
         if (!chargeStarted_) { chargeStarted_ = seconds; chargingGrip_ = grabbing(); }
         return true;
     }
-    if (charging() || grabbing()) return false;
+    if (charging() || (grabbing() && !craftingMode())) return false;
     const auto prop = raycastPhysicsProp(boxes.physicsWorld(),camera.position(),camera.direction(),ObjectInteraction::rayReach(camera.direction()));
     const auto door = doors.raycast(camera.position(), camera.direction(), 1.5f);
     if (door && (!prop || door->distance <= prop->distance)) return doors_.press(camera, doors, world);

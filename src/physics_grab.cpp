@@ -7,7 +7,10 @@
 
 namespace viewer {
 PhysicsGrab::PhysicsGrab(const PhysicsProp& prop, glm::vec3 localPoint, float maxForce)
-    : world_(prop.world_), prop_(prop.body()), maxTorque_(maxForce * .2f) {
+    : world_(prop.world_), prop_(prop.body()), maxTorque_(maxForce * .2f), localPoint_(localPoint) {
+    world_->resumeCraftingProp(prop_);
+    const auto initialRotation = b3Body_GetRotation(prop_);
+    rotation_ = {initialRotation.s, initialRotation.v.x, initialRotation.v.y, initialRotation.v.z};
     const auto point = prop.pointState(localPoint).point;
     if (!std::isfinite(maxForce) || maxForce <= 0) throw std::invalid_argument("Invalid grab force");
     auto anchor = b3DefaultBodyDef();
@@ -32,6 +35,7 @@ PhysicsGrab::PhysicsGrab(const PhysicsProp& prop, glm::vec3 localPoint, float ma
     }
 }
 PhysicsGrab::~PhysicsGrab() {
+    if (crafting_) world_->endCraftingHold(prop_);
     world_->endGrab(prop_);
     // Destroying either attached body also destroys the joint.
     if (b3Body_IsValid(anchor_)) b3DestroyBody(anchor_);
@@ -41,6 +45,13 @@ void PhysicsGrab::setTarget(glm::vec3 point) {
     if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z))
         throw std::invalid_argument("Invalid grab target");
     if (!valid()) return;
+    if (crafting_) {
+        const auto center = point - rotation_ * localPoint_;
+        b3Body_SetTransform(prop_, {center.x,center.y,center.z}, {{rotation_.x,rotation_.y,rotation_.z},rotation_.w});
+        b3Body_SetLinearVelocity(prop_, b3Vec3_zero);
+        b3Body_SetAngularVelocity(prop_, b3Vec3_zero);
+        return;
+    }
     b3Body_SetTransform(anchor_,{point.x,point.y,point.z},{{rotation_.x,rotation_.y,rotation_.z},rotation_.w});
     b3Joint_WakeBodies(joint_);
 }
@@ -55,6 +66,7 @@ void PhysicsGrab::setRotationTarget(glm::quat rotation) {
         throw std::invalid_argument("Invalid grab rotation");
     if (!valid()) return;
     rotation_ = glm::normalize(rotation);
+    if (crafting_) return;
     b3MotorJoint_SetAngularHertz(joint_, 4);
     b3MotorJoint_SetAngularDampingRatio(joint_, 1);
     b3MotorJoint_SetMaxSpringTorque(joint_, maxTorque_);
@@ -62,4 +74,15 @@ void PhysicsGrab::setRotationTarget(glm::quat rotation) {
     b3Body_SetTransform(anchor_, point, {{rotation_.x,rotation_.y,rotation_.z},rotation_.w});
     b3Joint_WakeBodies(joint_);
 }
+void PhysicsGrab::setCraftingMode(bool enabled) {
+    if (crafting_ == enabled || !valid()) return;
+    if (enabled) {
+        const auto q = b3Body_GetRotation(prop_);
+        rotation_ = {q.s,q.v.x,q.v.y,q.v.z};
+        world_->beginCraftingHold(prop_);
+    } else world_->endCraftingHold(prop_);
+    crafting_ = enabled;
+}
+void PhysicsGrab::park() { if (crafting_ && valid()) world_->parkCraftingProp(prop_); }
+void PhysicsGrab::resume() { world_->resumeCraftingProp(prop_); }
 } // namespace viewer

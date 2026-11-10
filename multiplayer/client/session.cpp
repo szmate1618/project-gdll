@@ -14,6 +14,7 @@
 #include "signals.hpp"
 #include "boid/replica.hpp"
 #include "camera.hpp"
+#include "interaction_camera.hpp"
 #include "weapon_motion.hpp"
 #include "weapon_accuracy.hpp"
 #include "action_selection.hpp"
@@ -70,6 +71,10 @@ struct Input {
     bool equipmentCursor = false, equipmentGripHeld = false;
     bool craftingReturnCapture = true, craftingReturnEquipmentCursor = false;
     bool craftingHandling = false; // Also retained until a grip outlives the frame.
+    bool craftingExitPending = false;
+    std::uint64_t craftingExitSequence = 0; // Preserve queued retrievals until this command is acknowledged.
+    glm::ivec2 renderSize{1280,720};
+    glm::vec2 cursorFraction{.5f};
     bool leftPressed = false, rightPressed = false, leftHeld = false;
     bool rightHeld = false, wheelOpen = false, signalMouseSuppressed = false;
     bool throwHeld = false, throwPressed = false, suppressThrowUntilRelease = false;
@@ -107,6 +112,13 @@ struct Input {
             (craftingHandling || altHeld[0] || altHeld[1]);
     }
     bool handling() const { return equippedSlot == viewer::handlingSlot || temporaryHandling(); }
+    bool crafting() const {
+#ifdef MP_GRAPHICS
+        return hudScreen == viewer::HudScreen::Crafting && !driver.occupied();
+#else
+        return false;
+#endif
+    }
 };
 #ifdef MP_GRAPHICS
 Input& input(GLFWwindow* window) { return *static_cast<Input*>(glfwGetWindowUserPointer(window)); }
@@ -115,15 +127,18 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
     if (in.hudScreen == screen) return;
     const bool preserveGrip = viewer::hudShowsGameplay(in.hudScreen) && viewer::hudShowsGameplay(screen);
     if (screen == viewer::HudScreen::Crafting) {
+        in.craftingExitPending = false; in.craftingExitSequence = 0;
         in.craftingReturnCapture = in.capture;
         in.craftingReturnEquipmentCursor = in.equipmentCursor;
         in.equipmentGripHeld |= in.handling() && in.leftHeld;
         in.capture = false; in.equipmentCursor = true; in.craftingHandling = true;
         while (in.camera.viewMode() != viewer::Camera::ViewMode::original) in.camera.cycleViewMode();
     } else if (in.hudScreen == viewer::HudScreen::Crafting) {
+        in.craftingExitPending = screen == viewer::HudScreen::Gameplay;
+        in.craftingExitSequence = 0;
         in.capture = in.craftingReturnCapture;
         // A drawer press can still be awaiting its authoritative retrieval.
-        const bool holding = in.holdingProp || in.handInventoryActive || in.equipmentGripHeld || in.leftHeld;
+        const bool holding = in.holdingProp || in.handInventoryActive || in.equipmentGripHeld || in.leftHeld || in.craftingExitPending;
         in.equipmentCursor = in.craftingReturnEquipmentCursor || (!in.capture && preserveGrip && holding);
         in.craftingHandling = preserveGrip && holding;
     }
@@ -140,6 +155,7 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
     in.actionSelection.close();
     in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
     if (!preserveGrip) {
+        in.craftingExitPending = false; in.craftingExitSequence = 0;
         in.craftingHandling = screen == viewer::HudScreen::Crafting;
         in.equipmentGripHeld = false;
         if (screen != viewer::HudScreen::Crafting) in.equipmentCursor = false;
@@ -260,7 +276,10 @@ void key(GLFWwindow* window, int code, int, int action, int) {
 }
 void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
     int width, height; glfwGetWindowSize(window, &width, &height);
-    if (hud && width > 0 && height > 0) hud->pointerMove(float(x / width), float(y / height));
+    if (width > 0 && height > 0) {
+        input(window).cursorFraction = {float(x / width),float(y / height)};
+        if (hud) hud->pointerMove(float(x / width), float(y / height));
+    }
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
@@ -327,7 +346,8 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
         return;
     }
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE && in.capture && in.handling())
-        in.inventoryActions.push_back({viewer::InventoryDragActionKind::HandRelease, "", ""});
+        in.inventoryActions.push_back({in.crafting() ? viewer::InventoryDragActionKind::HandEndDrag :
+            viewer::InventoryDragActionKind::HandRelease, "", ""});
     if (!in.capture || in.driver.occupied() || in.wheelOpen || in.signalMouseSuppressed || action != GLFW_PRESS || !viewer::hudShowsGameplay(in.hudScreen)) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT && in.actionSelection.open()) {
         const auto target = in.actionSelection.confirm(in.actions, in.equippedSlot);
@@ -426,6 +446,7 @@ struct Graphics {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << std::endl;
         int width = 0, height = 0; glfwGetFramebufferSize(window, &width, &height);
         const auto renderSize = options.display.renderSize();
+        in.renderSize = renderSize;
         std::cout << (options.display.fullscreen ? "Fullscreen" : "Windowed") << "; render resolution "
                   << renderSize.x << 'x' << renderSize.y << "; GUI resolution " << width << 'x' << height << '\n';
         bindInput(in);
@@ -499,6 +520,14 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling(), swayScale);
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
+    c.crafting = in.crafting() || std::exchange(in.craftingExitPending,false);
+#ifdef MP_GRAPHICS
+    if (c.crafting && window) {
+        int width = 0, height = 0; glfwGetFramebufferSize(window,&width,&height);
+        c.interactionDirection = in.capture ? std::optional<glm::vec3>(in.camera.direction()) :
+            viewer::cursorInteractionDirection(in.camera,in.cursorFraction,in.renderSize,{width,height});
+    }
+#endif
     c.flashlight = in.flashlight;
     if (in.inSleepSession) { c.cancelInteraction = true; return c; }
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
@@ -650,12 +679,14 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
             if (settingsChanged || previousDistance != graphics.preferences.graphics.distantScenery)
                 viewer::writeSettings(options.settingsFile, graphics.preferences);
             graphics.hud->setSettings(graphics.preferences);
+            in.renderSize = graphics.settings->renderSize();
         }
         if (in.hud) {
             if (const auto action = in.hud->takeSleepAction()) in.sleepAction = *action;
             auto actions = in.hud->takeInventoryActions();
             for (const auto& action : actions)
-                if (action.kind == viewer::InventoryDragActionKind::HandStore || action.kind == viewer::InventoryDragActionKind::HandRelease)
+                if (action.kind == viewer::InventoryDragActionKind::HandStore || action.kind == viewer::InventoryDragActionKind::HandRelease ||
+                    action.kind == viewer::InventoryDragActionKind::HandEndDrag)
                     in.equipmentGripHeld = false;
             in.inventoryActions.insert(in.inventoryActions.end(), actions.begin(), actions.end());
         }
@@ -743,8 +774,11 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.handInventoryActive = p.handInventoryActive;
 #ifdef MP_GRAPHICS
                     if (in.hudScreen != viewer::HudScreen::Crafting && !in.holdingProp && !in.handInventoryActive &&
-                        !in.equipmentGripHeld && !in.leftHeld)
+                        !in.equipmentGripHeld && !in.leftHeld && !in.craftingExitPending &&
+                        (!in.craftingExitSequence || p.resolved >= in.craftingExitSequence)) {
                         in.craftingHandling = false;
+                        in.craftingExitSequence = 0;
+                    }
 #endif
                     in.weaponSwitching = p.weaponSwitchRemaining > 0;
                     in.weaponReloading = p.reloadRemaining > 0;
@@ -849,6 +883,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
 #endif
             while (accumulator >= 1.0 / 60) {
                 auto nextCommand = command(in, graphics.window, options.bot, now, swayScale());
+                if (nextCommand.crafting && !in.crafting()) in.craftingExitSequence = prediction.nextSequence();
                 in.sword.trigger(nextCommand.slot == viewer::swordSlot && nextCommand.left && !nextCommand.objectHandling);
                 if (nextCommand.slot != viewer::swordSlot || nextCommand.cancelInteraction ||
                     nextCommand.objectHandling || nextCommand.reload || in.actionSelection.open() || in.weaponSwitching || in.driver.occupied()) in.sword.cancel();

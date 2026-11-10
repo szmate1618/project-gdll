@@ -10,7 +10,8 @@ namespace viewer {
 class HandInventory {
 public:
     explicit HandInventory(PlayerInventory& inventory) : inventory_(inventory), drag_(inventory) {}
-    bool begin(const std::string& item);
+    bool begin(const std::string& item, bool crafting = false);
+    bool finishCraftingPlacement(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons);
     void update(double dt, const Camera& camera, PlayerInteraction& interaction,
                 BoxLayer& boxes, GroundItems& ground, Weapons& weapons, const CollisionWorld& collision);
     bool store(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons);
@@ -30,5 +31,6 @@ private:
     std::optional<std::uint64_t> groundId_;
     double remaining_ = 0, duration_ = 0;
     std::uint32_t rejectedStores_ = 0; // Counts failed returns of held equippable items.
+    bool singleNail_ = false, finishWhenRetrieved_ = false;
 };
 } // namespace viewer

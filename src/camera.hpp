@@ -32,6 +32,9 @@ public:
     [[nodiscard]] ViewMode viewMode() const { return viewMode_; }
     void setPosition(glm::vec3 position);
     void setOrientation(float yawDegrees, float pitchDegrees);
+    // A ray-oriented clone for interaction queries, including exact vertical
+    // rays. Ordinary viewing controls retain their +/-89 degree pitch limits.
+    [[nodiscard]] Camera aimed(glm::vec3 direction) const;
 
 private:
     [[nodiscard]] glm::vec3 forward() const;

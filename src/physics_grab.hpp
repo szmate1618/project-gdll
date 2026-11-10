@@ -22,11 +22,17 @@ public:
     void setTarget(glm::vec3 point); // World metres.
     glm::quat rotation() const; // Current prop orientation in world space.
     void setRotationTarget(glm::quat rotation);
+    void setCraftingMode(bool enabled);
+    void park(); // Keep this pose after the hand releases/replaces its grip.
+    void resume();
+    void setGripPoint(glm::vec3 localPoint) { localPoint_ = localPoint; }
 private:
     std::shared_ptr<PhysicsWorld> world_;
     b3BodyId prop_, anchor_{};
     b3JointId joint_{};
     glm::quat rotation_{1, 0, 0, 0};
     float maxTorque_;
+    glm::vec3 localPoint_{0};
+    bool crafting_ = false;
 };
 } // namespace viewer

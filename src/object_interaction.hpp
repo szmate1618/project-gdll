@@ -7,6 +7,7 @@
 
 namespace viewer {
 class CollisionWorld;
+class NailInteraction;
 enum class Hand { Left, Right, Throw }; // Grip, rotate, and charged throw/push actions.
 
 // One persistent prop grip. The ordinary BoxLayer must outlive the grip.
@@ -14,7 +15,12 @@ class ObjectInteraction {
 public:
     bool press(const Camera& camera, BoxLayer& boxes, const CollisionWorld& world);
     bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop);
-    void cancel(); // Drops without adding momentum.
+    void cancel(); // Releases input; crafting poses remain parked.
+    void drop(); // Explicit drop/throw also releases a suspended crafting pose.
+    void setCraftingMode(bool enabled, NailInteraction* nails = nullptr);
+    bool craftingMode() const { return crafting_; }
+    void endCraftingDrag();
+    bool takeNailDriven();
     bool grabbing() const { return heldProp().has_value(); }
     std::optional<std::size_t> heldBox() const;
     std::optional<PhysicsProp> heldProp() const;
@@ -39,7 +45,12 @@ private:
         glm::vec3 localPoint, eyeOffset, right;
         glm::vec2 drag{0};
         std::optional<Rotation> rotation;
+        glm::vec3 target{0};
+        glm::vec3 rayOrigin{0}, rayDirection{0};
     };
     std::optional<Grab> grab_;
+    NailInteraction* nails_ = nullptr; // Borrowed from the world-owned GroundItems.
+    bool crafting_ = false, dragging_ = false, nailDriven_ = false;
+    bool pendingDrive_ = false;
 };
 } // namespace viewer

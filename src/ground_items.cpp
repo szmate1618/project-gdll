@@ -5,12 +5,40 @@
 #include "collision_world.hpp"
 #include "physics_scene.hpp"
 #include "item_model_geometry.hpp"
+#include "nail_placement.hpp"
 #include <algorithm>
 #include <cmath>
 #include <map>
 
 namespace viewer {
 namespace {
+std::vector<PropCollider> modelColliders(const Item& item,bool nailPreview=false) {
+    const auto& model=item.inventory().model;
+    const auto bounds=itemModelBounds(model);
+    const auto center=(bounds.minimum+bounds.maximum)*.5f;
+    if (nailPreview && item.hasTag("nail")) {
+        const float radius=glm::length((bounds.maximum-bounds.minimum)*.5f);
+        return {{PropColliderShape::Sphere,{},glm::vec3(radius),0}};
+    }
+    std::vector<PropCollider> parts;
+    for (const auto& part:model.parts) {
+        auto size=part.size;
+        if (part.shape==ItemModelShape::Frustum) {
+            size.x=std::max(size.x,part.topSize.x); size.z=std::max(size.z,part.topSize.y);
+        }
+        auto material = propMaterialId(part.material);
+        if (!material && item.hasTag("wood")) material = propMaterialId("wood");
+        else if (!material && item.hasTag("cardboard")) material = propMaterialId("cardboard");
+        parts.push_back({PropColliderShape::Box,part.center-center,size*.5f,material});
+    }
+    return parts;
+}
+bool previewSphere(const Item& item,glm::vec3 halfExtents) {
+    if (!item.hasTag("nail") || item.inventory().model.parts.empty()) return false;
+    const auto bounds=itemModelBounds(item.inventory().model);
+    const float radius=glm::length((bounds.maximum-bounds.minimum)*.5f);
+    return glm::all(glm::lessThan(glm::abs(halfExtents-glm::vec3(radius)),glm::vec3(1e-5f)));
+}
 bool insertGroundItem(const GroundItem& entry, PlayerInventory& inventory, Weapons& weapons,
     const ItemPlacement& destination) {
     if (entry.weapon && weapons.state(entry.weapon->slot).owned) return false;
@@ -53,12 +81,10 @@ std::uint64_t GroundItems::add(const Item& item, int quantity, std::optional<Wea
     motion.mass = weapon ? masses.at(weapon->slot) : .3f;
     motion.friction = 1;
     motion.continuous = true;
+    if (item.hasTag("wood")) motion.materialId=propMaterialId("wood");
+    else if (item.hasTag("cardboard")) motion.materialId=propMaterialId("cardboard");
     auto size = weapon ? sizes_.at(weapon->slot) : glm::vec3(.16f,.08f,.12f);
     if (!item.inventory().model.parts.empty()) {
-        const auto bounds = itemModelBounds(item.inventory().model);
-        // Box3D's stable prop bodies require at least 1 cm per axis. The mesh
-        // keeps its authored dimensions, including millimetre-wide nails.
-        size = glm::max(bounds.maximum - bounds.minimum, glm::vec3(.01f));
         motion.mass = item.inventory().model.massKg;
     } else if (item.hasTag("stake")) { size = sizes_[stakeSlot]; motion.mass = 1.2f; }
     if (item.hasTag("canopy")) {
@@ -68,7 +94,8 @@ std::uint64_t GroundItems::add(const Item& item, int quantity, std::optional<Wea
         center += rotation*Canopy::panelOffset(Canopy::rootPanel);
         size = {Canopy::panelSize,Canopy::thickness,Canopy::panelSize};
     }
-    const auto index = bodies_.add(center,size,motion);
+    const bool modeled=!item.inventory().model.parts.empty() && !item.hasTag("canopy");
+    const auto index = modeled ? bodies_.addCompound(center,modelColliders(item),motion) : bodies_.add(center,size,motion);
     const auto id = nextId_++;
     try {
         if (item.hasTag("canopy")) canopies_.emplace(id,std::make_unique<Canopy>(bodies_.prop(index),replica_));
@@ -132,6 +159,17 @@ bool GroundItems::takeImpl(std::uint64_t id, PlayerInventory& inventory, Weapons
     if (!inReach(index, reachOrigin) || (found->weapon && weapons.state(found->weapon->slot).owned)) return false;
     auto candidateInventory = inventory;
     auto candidateWeapons = weapons;
+    for (const auto& [targetId, placement] : inventory.placements()) {
+        if (placement.storage != destination.storage || placement.x != destination.x || placement.y != destination.y) continue;
+        const auto& target = *inventory.find(targetId);
+        const int count = inventory.quantity(targetId);
+        if (!itemStacksCompatible(found->item,target) || found->quantity > target.inventory().maxStack-count) continue;
+        if (!candidateInventory.setQuantity(targetId,count+found->quantity)) return false;
+        inventory = std::move(candidateInventory);
+        weapons.syncAmmo(inventory);
+        remove(index);
+        return true;
+    }
     if (!insertGroundItem(*found, candidateInventory, candidateWeapons, destination)) return false;
     inventory = std::move(candidateInventory);
     weapons = std::move(candidateWeapons);
@@ -158,6 +196,23 @@ std::optional<std::uint64_t> GroundItems::idOf(const PhysicsProp& prop) const {
     if (index) return entries_[*index].id;
     for (const auto& [id,canopy] : canopies_) if (canopy->owns(prop)) return id;
     return {};
+}
+const GroundItem* GroundItems::find(const PhysicsProp& prop) const {
+    const auto id=idOf(prop);
+    if (!id) return nullptr;
+    for (const auto& entry:entries_) if (entry.id==*id) return &entry;
+    return nullptr;
+}
+void GroundItems::setNailPreviewSphere(const PhysicsProp& prop,bool enabled) {
+    const auto index=bodies_.indexOf(prop);
+    if (!index || !entries_[*index].item.hasTag("nail") || entries_[*index].item.inventory().model.parts.empty()) return;
+    const auto& item=entries_[*index].item;
+    if (previewSphere(item,bodies_.pose(*index).halfExtents)==enabled) return;
+    bodies_.replaceColliders(*index,modelColliders(item,enabled));
+}
+NailPlacement& GroundItems::nails() {
+    if (!nails_) nails_=std::make_unique<NailPlacement>(*this,bodies_.physicsWorld());
+    return *nails_;
 }
 bool GroundItems::erase(std::uint64_t id) {
     for (std::size_t i = 0; i < entries_.size(); ++i)
@@ -284,11 +339,19 @@ void GroundItems::synchronize(const std::vector<GroundItemPose>& poses) {
             motion.rotation=pose.body.rotation;
             if (!pose.entry.item.inventory().model.parts.empty()) motion.mass=pose.entry.item.inventory().model.massKg;
             motion.acoustics=pose.entry.item.inventory().acoustics.empty() ? "crate" : pose.entry.item.inventory().acoustics;
-            bodies_.add(pose.body.center,pose.body.halfExtents*2.f,motion);
+            const bool modeled=!pose.entry.item.inventory().model.parts.empty() && !pose.entry.item.hasTag("canopy");
+            if (modeled) bodies_.addCompound(pose.body.center,modelColliders(pose.entry.item,
+                previewSphere(pose.entry.item,pose.body.halfExtents)),motion);
+            else bodies_.add(pose.body.center,pose.body.halfExtents*2.f,motion);
             if (pose.entry.item.hasTag("canopy"))
                 canopies_.emplace(pose.entry.id,std::make_unique<Canopy>(bodies_.prop(index),true));
             entries_.push_back(pose.entry);
-        } else entries_[index]=pose.entry;
+        } else {
+            entries_[index]=pose.entry;
+            if (pose.entry.item.hasTag("nail") && !pose.entry.item.inventory().model.parts.empty() &&
+                previewSphere(pose.entry.item,bodies_.pose(index).halfExtents)!=previewSphere(pose.entry.item,pose.body.halfExtents))
+                bodies_.replaceColliders(index,modelColliders(pose.entry.item,previewSphere(pose.entry.item,pose.body.halfExtents)));
+        }
         bodies_.setPose(index,pose.body.center,pose.body.rotation);
         if (const auto canopy=canopies_.find(pose.entry.id); canopy!=canopies_.end()) canopy->second->synchronize(pose.panels);
         nextId_=std::max(nextId_,pose.entry.id+1);

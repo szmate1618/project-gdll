@@ -4,6 +4,8 @@
 #include "physics_scene.hpp"
 #include "camera.hpp"
 #include "physics_grab.hpp"
+#include "collision_box.hpp"
+#include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -11,9 +13,58 @@
 
 namespace {
 void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
+void compoundQueries() {
+    auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    viewer::BoxSpawnMotion motion; motion.mass=2;
+    const std::vector<viewer::PropCollider> parts{
+        {viewer::PropColliderShape::Box,{-.4f,0,0},{.1f,.2f,.1f},viewer::propMaterialId("wood")},
+        {viewer::PropColliderShape::Box,{.4f,0,0},{.1f,.2f,.1f},viewer::propMaterialId("cardboard")}};
+    const auto index=boxes.addCompound({0,1,0},parts,motion);
+    const auto original=boxes.prop(index);
+    require(boxes.query({-1,0,-1},{1,2,1}).size()==1,"Compound broadphase queries must report each body once");
+    require(std::abs(boxes.mass(index)-2)<1e-5f,"Compound part density changed the authored total mass");
+    require(!boxes.raycast({0,1,1},{0,0,-1},2) && !boxes.blocksSight({0,1,1},{0,1,-1}) &&
+        !boxes.groundAt(0,0,0,2),"The empty gap between parts must remain empty for rays, sight and ground support");
+    const auto wood=boxes.raycast({-.4f,1,1},{0,0,-1},2), cardboard=boxes.raycast({.4f,1,1},{0,0,-1},2);
+    require(wood && cardboard && wood->materialId==viewer::propMaterialId("wood") &&
+        cardboard->materialId==viewer::propMaterialId("cardboard") && wood->normal.z>.99f,
+        "Compound ray hits must retain each part's surface material and normal");
+    std::vector<viewer::Contact> contacts;
+    boxes.appendContacts({0,.8f,0},.05f,.3f,0,contacts);
+    boxes.appendContacts(viewer::CollisionBox{{0,1,0},{.05f,.05f,.05f}},0,contacts);
+    require(contacts.empty(),"Compound capsule/box contact queries must not fill the gap between parts");
+    boxes.appendContacts({-.4f,.8f,0},.05f,.3f,0,contacts);
+    require(!contacts.empty(),"Compound contacts missed an actual solid part");
+    const auto ray=b3World_CastRayClosest(physics->id(),{-.4f,1,1},{0,0,-2},b3DefaultQueryFilter());
+    require(ray.hit && ray.userMaterialId==viewer::propMaterialId("wood"),"Box3D shape queries lost authored material classification");
+    const auto body=b3Shape_GetBody(ray.shapeId);
+    require(b3Body_GetShapeCount(body)==2,"Each model part must create a separate physical shape on one body");
+    physics->beginCraftingHold(body);
+    contacts.clear(); boxes.appendContacts({-.4f,.8f,0},.05f,.3f,0,contacts);
+    boxes.appendContacts(viewer::CollisionBox{{-.4f,1,0},{.05f,.05f,.05f}},0,contacts);
+    boxes.push({-.4f,.8f,.12f},.1f,.3f,{0,0,-2},.02f);
+    require(contacts.empty() && !boxes.groundAt(-.4f,0,0,2) && boxes.raycast({-.4f,1,1},{0,0,-1},2),
+        "A Crafting-held prop must leave support/contact queries while remaining ray selectable");
+    boxes.replaceColliders(index,{{viewer::PropColliderShape::Sphere,{},glm::vec3(.3f),0}});
+    require(boxes.prop(index)==original && boxes.pose(index).halfExtents==glm::vec3(.3f),
+        "Replacing preview shapes must preserve the body and update its conservative envelope");
+    physics->endCraftingHold(body);
+    require(std::abs(boxes.mass(index)-2)<1e-5f && b3Body_GetShapeCount(body)==1,
+        "Sphere preview replacement lost the body mass or left old shapes attached");
+    require(!boxes.raycast({.25f,1.25f,1},{0,0,-1},2) && !boxes.groundAt(.25f,.25f,0,2),
+        "Sphere narrow queries must not use the enclosing box's corner volume");
+    contacts.clear();
+    boxes.appendContacts(viewer::CollisionBox{{.25f,1.25f,0},{.01f,.01f,.01f}},0,contacts);
+    require(contacts.empty(),"Sphere/box contacts incorrectly filled the enclosing box's corner");
+    boxes.replaceColliders(index,parts);
+    require(boxes.prop(index)==original && b3Body_GetShapeCount(body)==2 &&
+        !boxes.raycast({0,1,1},{0,0,-1},2),"Restoring primitive parts must restore their original empty space");
+}
 }
 int main() {
     try {
+        compoundQueries();
         const std::filesystem::path root(VIEWER_ITEM_ROOT);
         auto inventory = viewer::loadPlayerInventory(root);
         viewer::Weapons weapons(root / "storage/weapons", root / "inventory.toml", true);
@@ -124,12 +175,31 @@ int main() {
                 const auto prop=modeled.prop(pose.entry.id);
                 require(prop && prop->valid() && std::abs(prop->mass()-expectedMass)<1e-5f,
                     "A modeled ground item lost its authored physical mass");
-                if (std::string(instance)=="nails")
-                    require(std::abs(pose.body.halfExtents.y*2-.1f)<1e-6f && pose.body.halfExtents.z>=.005f,
-                        "Nail collision must retain its 10 cm length and stable transverse padding");
+                if (std::string(instance)=="nails") {
+                    require(std::abs(pose.body.halfExtents.y*2-.1f)<1e-6f && std::abs(pose.body.halfExtents.z-.0045f)<1e-6f,
+                        "An ordinary nail must use its authored head/shaft colliders");
+                    modeled.setNailPreviewSphere(*prop,true);
+                    const auto preview=modeled.poses().at(0);
+                    require(preview.body.halfExtents.x>.05f && preview.body.halfExtents==glm::vec3(preview.body.halfExtents.x) &&
+                        modeled.prop(pose.entry.id)==prop,"Nail preview must enclose the whole nail without replacing its physical identity");
+                    auto replicaPhysics=std::make_shared<viewer::PhysicsWorld>();
+                    viewer::GroundItems replica(replicaPhysics,true);
+                    replica.synchronize(modeled.poses());
+                    require(replica.poses().at(0).body.halfExtents==preview.body.halfExtents,
+                        "Replicas must reconstruct the nail's enclosing sphere from the authoritative envelope");
+                    modeled.setNailPreviewSphere(*prop,false); replica.synchronize(modeled.poses());
+                    require(replica.poses().at(0).body.halfExtents==pose.body.halfExtents && modeled.find(*prop),
+                        "Replicas must restore primitive parts when the nail preview ends");
+                }
                 if (std::string(instance)=="broom")
                     require(std::abs(pose.body.halfExtents.y*2-1.3f)<1e-6f,
                         "Broom collision does not match its rendered height");
+                if (std::string(instance)=="broom") {
+                    const auto rayAt=[&](float x,float localY) {
+                        return raycastPhysicsProp(modeledPhysics,pose.body.center+glm::vec3(x,localY,1),{0,0,-1},2);
+                    };
+                    require(!rayAt(.1f,.35f) && rayAt(0,.35f),"The broom handle must not inherit its broad brush width");
+                }
                 {
                     viewer::PhysicsGrab grip(*prop,{0,0,0},400);
                     require(grip.valid() && prop->grabbed(),"A modeled ground item cannot be physically gripped");

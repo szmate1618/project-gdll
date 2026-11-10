@@ -8,6 +8,7 @@
 #include "frame_stage_profile.hpp"
 #include "door_layer.hpp"
 #include "player_interaction.hpp"
+#include "interaction_camera.hpp"
 #include "hand_inventory.hpp"
 #include "physics_world.hpp"
 #include "box_layer.hpp"
@@ -530,6 +531,8 @@ struct AppState {
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
     bool proneToggleQueued = false;
     int width = 1280, height = 720;
+    glm::ivec2 renderSize{1280,720};
+    glm::vec2 cursorFraction{.5f};
     bool capture = true, firstMouse = true, hidden = false;
     bool equipmentCursor = false;
     bool craftingReturnCapture = true, craftingReturnEquipmentCursor = false;
@@ -549,6 +552,14 @@ struct AppState {
             weapons.slot() != viewer::handlingSlot && (crafting || keys[GLFW_KEY_LEFT_ALT] || keys[GLFW_KEY_RIGHT_ALT]);
     }
     bool handling() const { return weapons.slot() == viewer::handlingSlot || temporaryHandling(); }
+    std::optional<glm::vec3> craftingDirection() const {
+        if (hudScreen != viewer::HudScreen::Crafting || driver.occupied()) return {};
+        if (capture) return rig.camera().direction();
+        return viewer::cursorInteractionDirection(rig.camera(),cursorFraction,renderSize,{width,height});
+    }
+    viewer::Camera handlingCamera() const {
+        return viewer::interactionCamera(rig.camera(),craftingDirection());
+    }
 };
 
 void emitNoise(AppState& app, const viewer::NoiseEvent& noise) {
@@ -588,12 +599,16 @@ void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
         while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
             app.rig.camera().cycleViewMode();
     } else if (app.hudScreen == viewer::HudScreen::Crafting) {
+        if (app.groundItems) app.handInventory.finishCraftingPlacement(app.interaction,*app.groundItems,app.weapons);
         app.capture = app.craftingReturnCapture;
         const bool holding = app.interaction.grabbing() || app.handInventory.active();
         app.equipmentCursor = app.craftingReturnEquipmentCursor || (!app.capture && preserveGrip && holding);
         app.craftingHandling = preserveGrip && holding;
     }
     app.hudScreen = screen;
+    app.interaction.setCraftingMode(screen == viewer::HudScreen::Crafting,app.groundItems);
+    if (app.interaction.takeNailDriven() && app.groundItems)
+        app.handInventory.finishCraftingPlacement(app.interaction,*app.groundItems,app.weapons);
     app.keys.fill(false); app.proneToggleQueued = false; app.firstMouse = true;
     app.actionSelection.close(); app.weapons.cancelTrigger();
     if (!preserveGrip) {
@@ -633,7 +648,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         return;
     }
     if (key == GLFW_KEY_F && action == GLFW_RELEASE && app.doors && app.boxes) {
-        app.interaction.release(viewer::Hand::Throw, app.rig.camera(), *app.doors, *app.boxes,
+        app.interaction.release(viewer::Hand::Throw, app.handlingCamera(), *app.doors, *app.boxes,
             app.world, viewer::SimulationClock::instance().seconds());
         return;
     }
@@ -703,7 +718,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
         if (app.handling()) {
             if (app.doors && app.boxes)
-                app.interaction.press(viewer::Hand::Throw, app.rig.camera(), *app.doors, *app.boxes,
+                app.interaction.press(viewer::Hand::Throw, app.handlingCamera(), *app.doors, *app.boxes,
                     app.world, viewer::SimulationClock::instance().seconds());
         } else if (app.groundItems && app.groundItems->discard(app.weapons,app.inventory,app.rig.camera(),app.world,app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
@@ -711,11 +726,11 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         }
     } else if (key == GLFW_KEY_G && (app.capture || app.equipmentCursor) && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
-        if (app.handInventory.pickUp(app.interaction, *app.groundItems, app.weapons, app.rig.camera(), app.world))
+        if (app.handInventory.pickUp(app.interaction, *app.groundItems, app.weapons, app.handlingCamera(), app.world))
             std::cout << "Stored item in backpack | " << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_H && (app.capture || app.equipmentCursor) && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending() || app.actionSelection.open()) return;
-        if (app.handInventory.equip(app.interaction, *app.groundItems, app.weapons, app.rig.camera(), app.world, app.playerVelocity)) {
+        if (app.handInventory.equip(app.interaction, *app.groundItems, app.weapons, app.handlingCamera(), app.world, app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Equipped picked up weapon | " << app.weapons.status() << '\n';
         }
@@ -747,14 +762,19 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
 void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
-    if (hud && width > 0 && height > 0) hud->pointerMove(float(x / width), float(y / height));
+    if (width > 0 && height > 0) {
+        state(window).cursorFraction = {float(x / width),float(y / height)};
+        if (hud) hud->pointerMove(float(x / width), float(y / height));
+    }
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
     if (app.sleepPlan && app.sleepPlan->state().asleep(1) && app.capture && viewer::hudShowsGameplay(app.hudScreen)) { app.firstMouse = true; return; }
     if (!viewer::hudShowsGameplay(app.hudScreen) || !app.capture) {
         hudPointer(window, app.hud, x, y);
-        if (app.equipmentCursor && !app.firstMouse) app.interaction.moveGrip(float(x - app.lastX), float(app.lastY - y));
+        if (app.equipmentCursor && !app.firstMouse &&
+            (app.hudScreen != viewer::HudScreen::Crafting || app.interaction.rotating()))
+            app.interaction.moveGrip(float(x - app.lastX), float(app.lastY - y));
         app.lastX = x; app.lastY = y; app.firstMouse = false; return;
     }
     if (!app.capture || !viewer::hudShowsGameplay(app.hudScreen)) return;
@@ -765,7 +785,9 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
             glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             app.weapons.directionalMelee().drag(drag);
             app.weapons.directionalMelee().update(viewer::SimulationClock::instance().seconds());
-        } else app.interaction.look(app.rig.camera(), drag.x, drag.y);
+        } else if (app.hudScreen == viewer::HudScreen::Crafting && !app.interaction.rotating())
+            app.rig.camera().look(drag.x,drag.y);
+        else app.interaction.look(app.rig.camera(), drag.x, drag.y);
     }
     app.lastX = x;
     app.lastY = y;
@@ -781,10 +803,10 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         if (viewer::hudShowsGameplay(app.hudScreen) && app.equipmentCursor && app.handling() &&
             button == GLFW_MOUSE_BUTTON_RIGHT && app.doors && app.boxes) {
             if (action == GLFW_PRESS)
-                app.interaction.press(viewer::Hand::Right, app.rig.camera(), *app.doors, *app.boxes,
+                app.interaction.press(viewer::Hand::Right, app.handlingCamera(), *app.doors, *app.boxes,
                     app.world, viewer::SimulationClock::instance().seconds());
             else if (action == GLFW_RELEASE)
-                app.interaction.release(viewer::Hand::Right, app.rig.camera(), *app.doors, *app.boxes,
+                app.interaction.release(viewer::Hand::Right, app.handlingCamera(), *app.doors, *app.boxes,
                     app.world, viewer::SimulationClock::instance().seconds());
         }
         double x, y; glfwGetCursorPos(window, &x, &y);
@@ -793,15 +815,27 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         return;
     }
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE && app.handInventory.active() && app.groundItems) {
+        if (app.hudScreen == viewer::HudScreen::Crafting) {
+            app.interaction.endCraftingDrag();
+            (void)app.interaction.takeNailDriven();
+            app.handInventory.finishCraftingPlacement(app.interaction,*app.groundItems,app.weapons);
+            return;
+        }
         app.handInventory.release(app.interaction, *app.groundItems, app.weapons); return;
     }
-    if (app.handInventory.active() && button != GLFW_MOUSE_BUTTON_RIGHT) return;
+    if (app.handInventory.active() && button != GLFW_MOUSE_BUTTON_RIGHT &&
+        !(app.hudScreen == viewer::HudScreen::Crafting && button == GLFW_MOUSE_BUTTON_LEFT)) return;
     if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_RELEASE) {
         if (button == GLFW_MOUSE_BUTTON_LEFT) app.weapons.trigger(false);
         if (app.handling() && !app.weaponSwitch.pending() && app.capture &&
-            app.doors && app.boxes)
-            app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right,
-                app.rig.camera(), *app.doors, *app.boxes, app.world, viewer::SimulationClock::instance().seconds());
+            app.doors && app.boxes) {
+            if (button == GLFW_MOUSE_BUTTON_LEFT && app.hudScreen == viewer::HudScreen::Crafting) {
+                app.interaction.endCraftingDrag();
+                (void)app.interaction.takeNailDriven();
+                if (app.groundItems) app.handInventory.finishCraftingPlacement(app.interaction,*app.groundItems,app.weapons);
+            } else app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right,
+                app.handlingCamera(), *app.doors, *app.boxes, app.world, viewer::SimulationClock::instance().seconds());
+        }
         return;
     }
     if (action != GLFW_PRESS || !app.capture || app.driver.occupied() || !viewer::hudShowsGameplay(app.hudScreen)) return;
@@ -824,7 +858,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
     if (app.handling()) {
         const auto hand = button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right;
-        if (app.doors && app.boxes && app.interaction.press(hand, app.rig.camera(), *app.doors, *app.boxes, app.world,
+        if (app.doors && app.boxes && app.interaction.press(hand, app.handlingCamera(), *app.doors, *app.boxes, app.world,
                 viewer::SimulationClock::instance().seconds()) &&
             app.interaction.grabbedDoor() && hand == viewer::Hand::Left) {
             const auto id = *app.interaction.grabbedDoor();
@@ -834,6 +868,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
                 if (added) std::cout << "Interior: spawned " << added << " physical boxes\n";
             }
         }
+        if (app.interaction.takeNailDriven() && app.groundItems)
+            app.handInventory.finishCraftingPlacement(app.interaction,*app.groundItems,app.weapons);
         return;
     }
     app.weapons.trigger(true);
@@ -977,13 +1013,17 @@ void moveCamera(AppState& app, float dt) {
         app.playerVelocity.y = app.rig.player().verticalVelocity();
     }
     if (dt > 0) app.proneToggleQueued = false;
+    app.interaction.setCraftingMode(app.hudScreen == viewer::HudScreen::Crafting,app.groundItems);
+    const auto handlingCamera = app.handlingCamera();
     if (app.doors && app.boxes)
-        app.interaction.update(app.rig.camera(), dt, *app.doors, *app.boxes, app.world,
+        app.interaction.update(handlingCamera, dt, *app.doors, *app.boxes, app.world,
                                viewer::SimulationClock::instance().seconds());
+    if (app.interaction.takeNailDriven() && app.groundItems)
+        app.handInventory.finishCraftingPlacement(app.interaction,*app.groundItems,app.weapons);
     if (app.groundItems && app.boxes) {
         if (app.handInventory.active() && (!app.handling() || !viewer::hudShowsGameplay(app.hudScreen) || app.actionSelection.open()))
             app.handInventory.release(app.interaction, *app.groundItems, app.weapons);
-        else app.handInventory.update(dt, app.rig.camera(), app.interaction, *app.boxes, *app.groundItems, app.weapons, app.world);
+        else app.handInventory.update(dt, handlingCamera, app.interaction, *app.boxes, *app.groundItems, app.weapons, app.world);
     }
 }
 
@@ -1332,9 +1372,23 @@ void inputSelfTest(GLFWwindow* window) {
         key(window, GLFW_KEY_F5, 0, GLFW_PRESS, 0);
         if (!handling.interaction.grabbing() || !handling.temporaryHandling())
             throw std::runtime_error("Opening Crafting must preserve the physical grip and enable handling");
+        const auto eyeBeforeCursor = handling.rig.camera();
+        handling.cursorFraction = {.7f,.4f};
+        const auto cursorCamera = handling.handlingCamera();
+        if (cursorCamera.position() != eyeBeforeCursor.position() ||
+            glm::dot(cursorCamera.direction(),eyeBeforeCursor.direction()) > .999f ||
+            handling.rig.camera().view() != eyeBeforeCursor.view())
+            throw std::runtime_error("Crafting cursor aim must change the interaction ray without moving the viewing camera");
+        key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        if (!handling.interaction.grabbing())
+            throw std::runtime_error("Crafting left release must preserve the physical item");
+        const auto parked = boxes.pose(0).center;
         key(window, GLFW_KEY_F5, 0, GLFW_PRESS, 0);
-        if (!handling.interaction.grabbing() || !handling.temporaryHandling() || handling.capture)
-            throw std::runtime_error("Closing Crafting must preserve its grip and the previous free cursor");
+        physics->step(.2f);
+        if (handling.interaction.grabbing() || handling.temporaryHandling() || handling.capture ||
+            glm::distance(boxes.pose(0).center,parked) > .001f)
+            throw std::runtime_error("Closing Crafting must leave its item parked and restore the previous free cursor");
         key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
         if (handling.interaction.grabbing() || handling.temporaryHandling())
             throw std::runtime_error("Opening the full inventory must still end physical handling");
@@ -2324,6 +2378,7 @@ int run(const Options& options) {
         renderer.updateVegetationBlasts(grenades.explosions(simulationClock.seconds()));
         renderer.setExplosionLights(grenades.lights(simulationClock.seconds()));
         const auto renderSize = graphics.renderSize();
+        app.renderSize = renderSize;
         const int renderWidth = renderSize.x, renderHeight = renderSize.y;
         renderer.resize(renderWidth, renderHeight);
         if (zombies && !sleepPlan.state().asleep(1)) renderer.updateZombies(*zombies);
@@ -2429,7 +2484,7 @@ int run(const Options& options) {
             if (*action == viewer::MissionMenuAction::Abandon) glfwSetWindowShouldClose(window.get(), GLFW_TRUE);
             else showHudScreen(window.get(), viewer::HudScreen::Gameplay);
         }
-        if (const auto requested = hud.takeScreenRequest()) showHudScreen(window.get(), *requested);
+        const auto requestedScreen = hud.takeScreenRequest();
         if (const auto action = hud.takeSleepAction()) sleepPlan.apply(1, *action, simulationClock.seconds());
         if (sleepPlan.state().ready() && !sleepPlan.state().sleeping && !app.rig.walking() && !app.driver.occupied())
             app.rig.enterWalking(app.rig.camera().position());
@@ -2446,7 +2501,23 @@ int run(const Options& options) {
                 break;
             case viewer::InventoryDragActionKind::HandPickUp:
                 if (app.handling() && !app.weaponSwitch.pending() && !app.weaponReload.pending())
-                    app.handInventory.begin(action.item);
+                    app.handInventory.begin(action.item,app.hudScreen == viewer::HudScreen::Crafting);
+                break;
+            case viewer::InventoryDragActionKind::HandGrabWorld:
+                if (app.hudScreen == viewer::HudScreen::Crafting && app.craftingDirection() && app.doors && app.boxes &&
+                    !app.weaponSwitch.pending() && !app.weaponReload.pending()) {
+                    app.interaction.press(viewer::Hand::Left,app.handlingCamera(),*app.doors,*app.boxes,app.world,
+                        simulationClock.seconds());
+                    if (app.interaction.takeNailDriven())
+                        app.handInventory.finishCraftingPlacement(app.interaction,groundItems,app.weapons);
+                }
+                break;
+            case viewer::InventoryDragActionKind::HandEndDrag:
+                if (app.hudScreen == viewer::HudScreen::Crafting) {
+                    app.interaction.endCraftingDrag();
+                    (void)app.interaction.takeNailDriven();
+                    app.handInventory.finishCraftingPlacement(app.interaction,groundItems,app.weapons);
+                }
                 break;
             case viewer::InventoryDragActionKind::HandStore:
                 app.handInventory.store(app.interaction, groundItems, app.weapons); break;
@@ -2455,6 +2526,7 @@ int run(const Options& options) {
             default: break; // Full inventory page already applies its operations locally.
             }
         }
+        if (requestedScreen) showHudScreen(window.get(),*requestedScreen);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         if (frameProfile) frameProfile->endGpu();

@@ -4,13 +4,16 @@
 #include <cmath>
 
 namespace viewer {
-bool HandInventory::begin(const std::string& item) {
-    if (inventory_.held()) return false;
+bool HandInventory::begin(const std::string& item, bool crafting) {
+    if (active() || inventory_.held()) return false;
     const auto placement = inventory_.placements().find(item);
     if (placement == inventory_.placements().end()) return false;
     const auto access = inventoryAccess(inventory_.layout().at(placement->second.storage),
         inventoryRectangle(*inventory_.find(item), placement->second));
-    if (!drag_.pickUp(item)) return false;
+    singleNail_ = crafting && inventory_.find(item)->hasTag("nail");
+    if (singleNail_) {
+        if (!inventory_.consume(item, 1)) { singleNail_ = false; return false; }
+    } else if (!drag_.pickUp(item)) return false;
     item_ = item;
     remaining_ = duration_ = access.seconds;
     return true;
@@ -18,6 +21,13 @@ bool HandInventory::begin(const std::string& item) {
 void HandInventory::release(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons) {
     if (!active()) { interaction.cancel(); return; }
     interaction.cancel();
+    if (singleNail_) {
+        if (groundId_ && ground.prop(*groundId_)) ground.reserve(*groundId_, false);
+        else inventory_.setQuantity(item_, inventory_.quantity(item_) + 1);
+        singleNail_ = finishWhenRetrieved_ = false;
+        item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+        return;
+    }
     if (groundId_) {
         // A removed/broken body cannot consume the reserved inventory item.
         ground.reserve(*groundId_, false);
@@ -28,7 +38,7 @@ void HandInventory::release(PlayerInteraction& interaction, GroundItems& ground,
             drag_.release();
         } else drag_.cancel();
     } else drag_.cancel();
-    item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+    item_.clear(); groundId_.reset(); remaining_ = duration_ = 0; finishWhenRetrieved_ = false;
     weapons.syncAmmo(inventory_);
 }
 void HandInventory::update(double dt, const Camera& camera, PlayerInteraction& interaction,
@@ -45,34 +55,67 @@ void HandInventory::update(double dt, const Camera& camera, PlayerInteraction& i
     if (!collision.lineOfSight(camera.position(), center + camera.direction() * .2f)) {
         release(interaction, ground, weapons); return;
     }
-    const auto& item = *inventory_.find(drag_.held()->item);
+    const auto& item = *inventory_.find(item_);
     std::optional<WeaponItem> weapon;
     for (std::size_t slot = 0; slot < weaponIds.size(); ++slot)
         if (item.id() == weaponIds[slot]) {
             const auto& state = weapons.state(slot);
             weapon = WeaponItem{slot, state.loaded, state.readyAt};
         }
-    groundId_ = ground.add(item, inventory_.quantity(item.id()), weapon, center);
+    groundId_ = ground.add(item, singleNail_ ? 1 : inventory_.quantity(item.id()), weapon, center);
     ground.reserve(*groundId_, true);
+    const bool restoreMode = finishWhenRetrieved_ && !interaction.craftingMode();
+    if (restoreMode) interaction.setCraftingMode(true,&ground);
     if (!interaction.grip(camera, boxes, *ground.prop(*groundId_))) {
         ground.erase(*groundId_); groundId_.reset();
         release(interaction, ground, weapons);
+    } else if (finishWhenRetrieved_) {
+        interaction.endCraftingDrag();
+        finishCraftingPlacement(interaction, ground, weapons);
     }
+    if (restoreMode) interaction.setCraftingMode(false);
+}
+bool HandInventory::finishCraftingPlacement(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons) {
+    if (!active()) return false;
+    if (!groundId_) { finishWhenRetrieved_ = true; return false; }
+    if (!ground.prop(*groundId_)) { release(interaction, ground, weapons); return false; }
+    ground.reserve(*groundId_, false);
+    if (!singleNail_) {
+        for (std::size_t slot = 0; slot < weaponIds.size(); ++slot)
+            if (item_ == weaponIds[slot]) weapons.discard(slot);
+        drag_.release();
+    }
+    item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+    singleNail_ = finishWhenRetrieved_ = false;
+    weapons.syncAmmo(inventory_);
+    return true;
 }
 bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons) {
     if (active() && groundId_ && !(interaction.heldProp() == ground.prop(*groundId_)))
         release(interaction, ground, weapons);
     if (active()) {
+        if (singleNail_) {
+            const auto* source = inventory_.find(item_);
+            if (!source || !inventory_.setQuantity(item_, inventory_.quantity(item_) + 1)) {
+                ++rejectedStores_;
+                return false;
+            }
+            interaction.cancel();
+            if (groundId_) ground.erase(*groundId_);
+            singleNail_ = finishWhenRetrieved_ = false;
+            item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+            return true;
+        }
         interaction.cancel();
         if (groundId_) ground.erase(*groundId_);
-        item_.clear(); groundId_.reset(); remaining_ = duration_ = 0;
+        item_.clear(); groundId_.reset(); remaining_ = duration_ = 0; finishWhenRetrieved_ = false;
         drag_.cancel(); // Restores the exact reserved position and orientation.
         weapons.syncAmmo(inventory_);
         return true;
     }
     const auto prop = interaction.heldProp();
     const auto id = prop ? ground.idOf(*prop) : std::nullopt;
-    if (!id) { interaction.cancel(); return false; }
+    if (!id) { if (!interaction.craftingMode()) interaction.cancel(); return false; }
     // The existing grip establishes reach even when cursor motion has lifted
     // the item beyond the ground query radius measured from the player feet.
     const auto reachOrigin = prop->center();
@@ -81,11 +124,12 @@ bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, W
         return true;
     }
     ++rejectedStores_;
-    interaction.cancel();
+    if (!interaction.craftingMode()) interaction.cancel();
     return false;
 }
 bool HandInventory::pickUp(PlayerInteraction& interaction, GroundItems& ground, Weapons& weapons,
     const Camera& camera, const CollisionWorld& collision) {
+    if (active() && singleNail_) return store(interaction, ground, weapons);
     if (active()) {
         const auto prop = interaction.heldProp();
         if (!groundId_ || !prop || !(ground.prop(*groundId_) == prop)) return false;

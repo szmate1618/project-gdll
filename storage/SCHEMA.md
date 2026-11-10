@@ -150,6 +150,11 @@ the same descriptor. Each part has a name and material; those fields also serve
 as component metadata, such as the wooden `handle` and `head` of a broom. Model
 coordinates and sizes use local Y-up metres, independently of inventory cells
 or stack quantities. See [item definitions](items/README.md) for authored models.
+Collision shapes follow the same part definitions: boxes stay boxes and frusta
+use their widest rectangular footprint. Part material names `wood` and
+`cardboard` identify nailable surfaces; an unspecified material falls back to
+those item tags. The `nail` tag identifies a nail for single-unit Crafting
+retrieval and tip placement.
 
 ## Coordinates and layout
 

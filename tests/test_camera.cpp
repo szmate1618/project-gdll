@@ -1,4 +1,5 @@
 #include "camera.hpp"
+#include "interaction_camera.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -258,6 +259,42 @@ void testZoomLookSensitivity() {
     }
 }
 
+void testCursorInteractionRay() {
+    viewer::Camera camera;
+    camera.setPosition({3000,40,-2000}); camera.setOrientation(37,-20);
+    for (const auto display : {glm::ivec2{1280,720},glm::ivec2{1920,1200},glm::ivec2{1600,700}}) {
+        const glm::ivec2 scene{1280,720};
+        const auto fit = viewer::presentationViewport(scene.x,scene.y,display.x,display.y);
+        for (const auto fraction : {glm::vec2{.5f,.5f},glm::vec2{.2f,.7f},glm::vec2{.8f,.3f}}) {
+            const glm::vec2 pointer{(fit.x + fraction.x * fit.width) / display.x,
+                (fit.y + fraction.y * fit.height) / display.y};
+            const auto direction = viewer::cursorInteractionDirection(camera,pointer,scene,display);
+            require(direction && viewer::validInteractionDirection(*direction), "A scene cursor must produce a normalized interaction ray");
+            const auto point = camera.position() + *direction * 10.f;
+            const auto clip = camera.projection(float(scene.x)/scene.y) * camera.view() * glm::vec4(point,1);
+            require(glm::length(glm::vec2(clip)/clip.w - glm::vec2(2*fraction.x-1,1-2*fraction.y)) < .0002f,
+                "The cursor ray must intersect the rendered cursor position through the fitted scene");
+            const auto aim = viewer::interactionCamera(camera,direction);
+            require(aim.position() == camera.position() && near(aim.direction(),*direction,.00001f),
+                "Interaction aim must preserve the authoritative eye and leave the viewing camera unchanged");
+        }
+        if (fit.y > 0)
+            require(!viewer::cursorInteractionDirection(camera,{.5f,0},scene,display), "A letterbox bar must not produce a world interaction ray");
+        if (fit.x > 0)
+            require(!viewer::cursorInteractionDirection(camera,{0,.5f},scene,display), "A pillarbox bar must not produce a world interaction ray");
+    }
+    require(!viewer::cursorInteractionDirection(camera,{std::numeric_limits<float>::quiet_NaN(),.5f},{1280,720},{1280,720}) &&
+            !viewer::cursorInteractionDirection(camera,{.5f,.5f},{0,720},{1280,720}),
+        "Invalid cursor coordinates or view dimensions must have no interaction ray");
+    require(viewer::interactionCamera(camera,-camera.direction()).direction() == camera.direction(),
+        "A backwards interaction ray must not change the authoritative viewing direction");
+    camera.setOrientation(0,-60);
+    const auto vertical = viewer::cursorInteractionDirection(camera,{.5f,1},{1280,720},{1280,720});
+    require(vertical && near(*vertical,{0,-1,0},.000001f) &&
+            near(viewer::interactionCamera(camera,vertical).direction(),*vertical,.000001f),
+        "A vertical cursor ray must remain exact rather than inheriting the viewing pitch clamp");
+}
+
 }  // namespace
 
 void testReversedProjection() {
@@ -285,6 +322,7 @@ int main() {
         testScopeDepthPrecision();
         testAimAlignmentAtMapEdges();
         testZoomLookSensitivity();
+        testCursorInteractionRay();
         std::cout << "Camera framing, movement, mouse look, speed, and view-cycle checks passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

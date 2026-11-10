@@ -39,7 +39,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 65; // Articulated canopy ground items and general equipment.
+constexpr std::uint32_t protocolVersion = 66; // Persistent crafting gestures and cursor interaction rays.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -102,6 +102,8 @@ struct Command {
     bool throwHeld = false; // F-held state for physical object throws; independent of right-drag rotation.
     bool preserveEquippedSlot = false; // Awaiting an equip/discard shortcut acknowledgement.
     bool objectHandling = false; // Temporary on-foot handling; slot remains the equipped weapon.
+    bool crafting = false; // Persistent manipulation; distinct from ordinary hold-to-grab handling.
+    std::optional<glm::vec3> interactionDirection{}; // Normalized world ray; authoritative eye remains server-owned.
     std::uint8_t slot = 0;
     bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
     std::vector<viewer::InventoryDragAction> inventoryActions{};
