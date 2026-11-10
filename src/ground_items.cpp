@@ -4,6 +4,7 @@
 #include "door_layer.hpp"
 #include "collision_world.hpp"
 #include "physics_scene.hpp"
+#include "item_model_geometry.hpp"
 #include <algorithm>
 #include <cmath>
 #include <map>
@@ -53,7 +54,13 @@ std::uint64_t GroundItems::add(const Item& item, int quantity, std::optional<Wea
     motion.friction = 1;
     motion.continuous = true;
     auto size = weapon ? sizes_.at(weapon->slot) : glm::vec3(.16f,.08f,.12f);
-    if (item.hasTag("stake")) { size = sizes_[stakeSlot]; motion.mass = 1.2f; }
+    if (!item.inventory().model.parts.empty()) {
+        const auto bounds = itemModelBounds(item.inventory().model);
+        // Box3D's stable prop bodies require at least 1 cm per axis. The mesh
+        // keeps its authored dimensions, including millimetre-wide nails.
+        size = glm::max(bounds.maximum - bounds.minimum, glm::vec3(.01f));
+        motion.mass = item.inventory().model.massKg;
+    } else if (item.hasTag("stake")) { size = sizes_[stakeSlot]; motion.mass = 1.2f; }
     if (item.hasTag("canopy")) {
         auto cloth = Canopy::motion(bodies_.physicsWorld(),replica_);
         cloth.velocity = velocity; cloth.angularVelocity = angularVelocity; cloth.rotation = rotation;
@@ -275,6 +282,8 @@ void GroundItems::synchronize(const std::vector<GroundItemPose>& poses) {
         if (found==slots.end()) {
             auto motion=pose.entry.item.hasTag("canopy") ? Canopy::motion(bodies_.physicsWorld(),true) : BoxSpawnMotion{};
             motion.rotation=pose.body.rotation;
+            if (!pose.entry.item.inventory().model.parts.empty()) motion.mass=pose.entry.item.inventory().model.massKg;
+            motion.acoustics=pose.entry.item.inventory().acoustics.empty() ? "crate" : pose.entry.item.inventory().acoustics;
             bodies_.add(pose.body.center,pose.body.halfExtents*2.f,motion);
             if (pose.entry.item.hasTag("canopy"))
                 canopies_.emplace(pose.entry.id,std::make_unique<Canopy>(bodies_.prop(index),true));

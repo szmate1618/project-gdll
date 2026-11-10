@@ -431,13 +431,24 @@ target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus:
 viewer_warnings(viewer_weapon_config)
 include(cmake/Inventory.cmake)
 
+add_library(viewer_item_models STATIC src/item_model_geometry.cpp)
+target_link_libraries(viewer_item_models PUBLIC viewer_model viewer_items)
+viewer_warnings(viewer_item_models)
+if(BUILD_TESTING)
+    add_executable(test_item_model tests/test_item_model.cpp)
+    target_link_libraries(test_item_model PRIVATE viewer_item_models)
+    target_compile_definitions(test_item_model PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_item_model)
+    add_test(NAME viewer_item_model COMMAND test_item_model)
+endif()
+
 add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_reload.cpp src/weapon_motion.cpp src/weapon_accuracy.cpp src/weapon_switch.cpp src/action_selection.cpp src/sword_melee.cpp src/sword_geometry.cpp src/axe_geometry.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
 add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/basic_floorplan.cpp src/authored_floorplan.cpp src/house_basement.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp src/canopy.cpp src/hand_inventory.cpp)
-target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction)
+target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility viewer_interaction viewer_item_models)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)
 

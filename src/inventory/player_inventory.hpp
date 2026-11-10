@@ -16,7 +16,7 @@ struct InventoryContents {
     std::map<std::string, ItemPlacement> placements;
     std::array<std::string, 10> hotbar; // Owned item IDs or skill:<registered ID>.
     std::map<std::string, std::string> skills; // Registered action labels; no storage or combat state.
-    std::map<std::string, int> quantities; // Ammo stack ID -> rounds; empty stacks remain owned and placed.
+    std::map<std::string, int> quantities; // Stack ID -> item quanta (counts or millimetres); empty stacks remain placed.
 };
 struct HeldInventoryItem {
     std::string item;
@@ -40,7 +40,7 @@ public:
     PlayerInventory(StorageLoadout storage, InventoryContents contents);
     bool owns(const std::string& id) const;
     const Item* find(const std::string& id) const;
-    int quantity(const std::string& id) const;
+    int quantity(const std::string& id) const; // Raw item quanta; use formatItemQuantity for display.
     bool setQuantity(const std::string& id, int amount);
     bool consume(const std::string& id, int amount);
     int ammoCount(std::string_view ammoType) const;

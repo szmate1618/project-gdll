@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "item_model_geometry.hpp"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -32,6 +33,7 @@ void Renderer::drawDroppedWeapons(const glm::mat4& projectionView) {
     if ((!droppedSource_ || !droppedSource_->count()) && (!groundSource_ || !groundSource_->count())) return;
     const Frustum frustum(projectionView);
     std::array<std::vector<glm::mat4>,weaponIds.size()+2> visible;
+    std::map<std::string,std::vector<glm::mat4>> primitiveItems;
     if (droppedSource_) for (const auto& pose : droppedSource_->poses())
         if (frustum.intersects(pose.minimum,pose.maximum)) visible[pose.slot].push_back(pose.transform);
     if (groundSource_) for (const auto& pose : groundSource_->poses()) {
@@ -47,6 +49,23 @@ void Renderer::drawDroppedWeapons(const glm::mat4& projectionView) {
         }
         const auto half = glm::vec3(glm::length(pose.body.halfExtents));
         if (!frustum.intersects(pose.body.center - half, pose.body.center + half)) continue;
+        const auto& definition = pose.entry.item.inventory().model;
+        if (!definition.parts.empty()) {
+            const auto key = itemModelGeometryKey(definition);
+            auto found = groundItemModels_.find(key);
+            if (found == groundItemModels_.end()) {
+                const auto model = buildItemModel(definition);
+                DroppedModelGPU gpu;
+                uploadModel(model, gpu.model);
+                gpu.draws = model.draws;
+                gpu.center = (model.boundsMin + model.boundsMax) * .5f;
+                setupInstanceMatrices(gpu.model, gpu.instances);
+                found = groundItemModels_.emplace(key, std::move(gpu)).first;
+            }
+            primitiveItems[key].push_back(glm::translate(glm::mat4(1), pose.body.center) *
+                glm::mat4_cast(pose.body.rotation) * glm::translate(glm::mat4(1), -found->second.center));
+            continue;
+        }
         const auto slot = pose.entry.item.hasTag("stake") ? stakeSlot : pose.entry.weapon ? pose.entry.weapon->slot : weaponIds.size();
         const auto transform = slot<weaponIds.size() ?
             glm::translate(glm::mat4(1), pose.body.center) * glm::mat4_cast(pose.body.rotation) *
@@ -56,19 +75,20 @@ void Renderer::drawDroppedWeapons(const glm::mat4& projectionView) {
     glUniform1i(instancedLocation_,GL_TRUE);
     glUniform1i(animatedLocation_,GL_FALSE);
     glUniform1i(treeCanopyLocation_,GL_FALSE);
-    for (std::size_t i=0; i<visible.size(); ++i) {
-        if (visible[i].empty()) continue;
-        const auto& gpu = droppedModels_[i];
+    const auto drawInstances = [&](const DroppedModelGPU& gpu, const std::vector<glm::mat4>& transforms) {
+        if (transforms.empty()) return;
         glBindBuffer(GL_ARRAY_BUFFER,gpu.instances);
-        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(visible[i].size()*sizeof(glm::mat4)),visible[i].data(),GL_STREAM_DRAW);
+        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(transforms.size()*sizeof(glm::mat4)),transforms.data(),GL_STREAM_DRAW);
         for (const auto& draw : gpu.draws) {
             const auto& mesh = gpu.model.meshes.at(draw.primitive);
             applyMaterial(gpu.model,mesh.material,glm::determinant(glm::mat3(draw.transform))<0);
             glUniformMatrix4fv(modelLocation_,1,GL_FALSE,glm::value_ptr(draw.transform));
             glBindVertexArray(mesh.vao);
-            glDrawElementsInstanced(GL_TRIANGLES,mesh.count,GL_UNSIGNED_INT,nullptr,GLsizei(visible[i].size()));
+            glDrawElementsInstanced(GL_TRIANGLES,mesh.count,GL_UNSIGNED_INT,nullptr,GLsizei(transforms.size()));
         }
-    }
+    };
+    for (std::size_t i=0; i<visible.size(); ++i) drawInstances(droppedModels_[i], visible[i]);
+    for (const auto& [key, transforms] : primitiveItems) drawInstances(groundItemModels_.at(key), transforms);
     glUniform1i(instancedLocation_,GL_FALSE);
     glBindBuffer(GL_ARRAY_BUFFER,0);
     glFrontFace(GL_CCW);
@@ -78,5 +98,11 @@ void Renderer::releaseDroppedWeapons() noexcept {
         releaseModel(gpu.model);
         glDeleteBuffers(1,&gpu.instances);
     }
+    for (auto& [key, gpu] : groundItemModels_) {
+        (void)key;
+        releaseModel(gpu.model);
+        glDeleteBuffers(1,&gpu.instances);
+    }
+    groundItemModels_.clear();
 }
 } // namespace viewer

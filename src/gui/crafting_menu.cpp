@@ -1,7 +1,9 @@
 #include "crafting_menu.hpp"
+#include "inventory/player_inventory.hpp"
 #include "presentation_viewport.hpp"
 #include <RmlUi/Core.h>
 #include <utility>
+#include <sstream>
 
 namespace viewer {
 void CraftingMenu::open() {
@@ -27,8 +29,29 @@ std::string CraftingMenu::control() const {
         if (contains(id)) return id;
     return {};
 }
+void CraftingMenu::populate() {
+    std::ostringstream markup;
+    const auto encode = [](const std::string& value) { return Rml::StringUtilities::EncodeRml(value); };
+    for (const auto& [id, item] : inventory_.items()) {
+        const bool crafting = item.hasTag("crafting"), bind = item.hasTag("bind");
+        if (!crafting && !bind) continue;
+        markup << "<div class=\"crafting-item\" data-item=\"" << encode(id) << "\">"
+               << "<div class=\"crafting-item-name\">" << encode(item.inventory().name) << "</div>";
+        if (item.inventory().stackable)
+            markup << "<div class=\"crafting-quantity\">" << formatItemQuantity(item.inventory(), inventory_.quantity(id)) << "</div>";
+        markup << "<div class=\"crafting-item-tags\">" << (crafting ? "CRAFTING" : "")
+               << (crafting && bind ? " · " : "") << (bind ? "BIND" : "") << "</div></div>";
+    }
+    auto html = markup.str();
+    if (html.empty()) html = "<div class=\"crafting-empty\">No crafting items</div>";
+    if (signature_ != html) {
+        signature_ = std::move(html);
+        document_.GetElementById("crafting-list")->SetInnerRML(signature_);
+    }
+}
 std::vector<HudPointerEvent> CraftingMenu::process(const std::vector<HudPointerEvent>& events,
     int width, int height, const PresentationViewport& presentation) {
+    populate();
     std::vector<HudPointerEvent> remaining;
     for (const auto& event : events) {
         if (event.action == HudPointerAction::Move)
@@ -53,6 +76,10 @@ std::vector<HudPointerEvent> CraftingMenu::process(const std::vector<HudPointerE
                 }
             }
             continue;
+        }
+        if (event.action == HudPointerAction::Wheel && contains("crafting-list")) {
+            auto* list = document_.GetElementById("crafting-list");
+            list->SetScrollTop(list->GetScrollTop() - event.x * 48 * document_.GetContext()->GetDensityIndependentPixelRatio());
         }
         if ((event.action == HudPointerAction::Wheel || event.action == HudPointerAction::RightPress) && inMenu) continue;
         remaining.push_back(event);

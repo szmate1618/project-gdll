@@ -1,4 +1,5 @@
 #include "item_config.hpp"
+#include "item_model_config.hpp"
 
 #include <toml++/toml.hpp>
 #include <algorithm>
@@ -27,6 +28,13 @@ std::string label(const toml::table& table, const char* key, const Path& file) {
     if (value.empty()) invalid(file, std::string(key) + " must not be empty");
     return value;
 }
+void appendTag(std::vector<std::string>& tags, std::string tag, const Path& file) {
+    if (tag.empty() || !std::all_of(tag.begin(), tag.end(), [](char c) {
+            return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+        })) invalid(file, "tags must use nonempty lowercase letters, digits and underscores");
+    if (std::find(tags.begin(), tags.end(), tag) != tags.end()) invalid(file, "duplicate tag " + tag);
+    tags.push_back(std::move(tag));
+}
 std::vector<std::string> readTags(const Path& file) {
     std::ifstream input(file, std::ios::binary);
     if (!input) invalid(file, "cannot read tag file");
@@ -39,15 +47,23 @@ std::vector<std::string> readTags(const Path& file) {
         const auto first = tag.find_first_not_of(" \t\r\n");
         if (first == std::string::npos) invalid(file, "empty tag in comma-separated list");
         tag = tag.substr(first, tag.find_last_not_of(" \t\r\n") - first + 1);
-        if (!std::all_of(tag.begin(), tag.end(), [](char c) {
-            return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
-        })) invalid(file, "tags must use lowercase letters, digits and underscores");
-        if (std::find(result.begin(), result.end(), tag) != result.end()) invalid(file, "duplicate tag " + tag);
-        result.push_back(std::move(tag));
+        appendTag(result, std::move(tag), file);
         if (end == std::string::npos) break;
         start = end + 1;
     }
     return result;
+}
+std::vector<std::string> readTags(const toml::table& table, const Path& file, const Path& sidecar) {
+    if (!table.contains("tags")) return readTags(sidecar);
+    const auto* entries = table["tags"].as_array();
+    if (!entries || entries->empty()) invalid(file, "tags must be a nonempty array of strings");
+    std::vector<std::string> tags;
+    for (const auto& entry : *entries) {
+        const auto tag = entry.value<std::string>();
+        if (!tag) invalid(file, "tags must be a nonempty array of strings");
+        appendTag(tags, *tag, file);
+    }
+    return tags;
 }
 } // namespace
 
@@ -76,10 +92,20 @@ Item loadItem(const Path& directory, const std::string& id) {
         if (item.type == "ammo") item.ammoType = label(table, "ammo_type", file);
         item.stackable = required<bool>(table, "stackable", file);
         if (!item.stackable) invalid(file, "consumables must be stackable");
-        if (!table["max_stack"].is_integer()) invalid(file, "max_stack must be a positive integer");
-        item.maxStack = required<int>(table, "max_stack", file);
-        if (item.maxStack < 1) invalid(file, "max_stack must be a positive integer");
     } else if (item.type != "equipment") invalid(file, "type must be 'weapon', 'ammo', 'medical' or 'equipment'");
+    if (item.type == "equipment" && table.contains("stackable")) item.stackable = required<bool>(table, "stackable", file);
+    if (table.contains("quantity_unit")) item.quantityUnit = label(table, "quantity_unit", file);
+    if (item.quantityUnit != "count" && item.quantityUnit != "m") invalid(file, "quantity_unit must be 'count' or 'm'");
+    if (item.quantityUnit == "m" && (item.type != "equipment" || !item.stackable))
+        invalid(file, "quantity_unit = 'm' requires stackable equipment");
+    if (item.stackable) {
+        if (item.quantityUnit == "count" && !table["max_stack"].is_integer())
+            invalid(file, "max_stack must be a positive integer");
+        const auto amount = table["max_stack"].value<double>();
+        const auto quantity = amount ? itemQuantityFromDisplay(item, *amount) : std::nullopt;
+        if (!quantity || *quantity < 1) invalid(file, "max_stack must be positive and fit the item's quantity precision and range");
+        item.maxStack = *quantity;
+    }
     const auto dimension = [&](const char* key) {
         if (!table[key].is_integer()) invalid(file, std::string(key) + " must be an integer cell count");
         const auto value = required<std::int64_t>(table, key, file);
@@ -88,7 +114,8 @@ Item loadItem(const Path& directory, const std::string& id) {
     };
     item.width = dimension("width");
     item.height = dimension("height");
+    if (table.contains("model")) item.model = loadItemModelConfig(file);
     return Item(id, std::move(item), std::move(gameplay),
-        readTags(directory / (id + ".tags.txt")));
+        readTags(table, file, directory / (id + ".tags.txt")));
 }
 } // namespace viewer

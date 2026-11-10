@@ -2,6 +2,7 @@
 #include "inventory/inventory_config.hpp"
 #include "inventory/inventory_drag.hpp"
 #include "inventory/item_config.hpp"
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
@@ -122,6 +123,30 @@ void constructionRejectsInvalidState() {
     contents.quantities["pistol"] = 1;
     rejects(contents);
 }
+void metreQuantities() {
+    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    const auto* tape = inventory.find("duct_tape");
+    const auto* wire = inventory.find("wire_spool");
+    require(tape && wire && inventory.quantity("duct_tape") == 10000 && inventory.quantity("wire_spool") == 20000 &&
+            viewer::itemQuantityScale(tape->inventory()) == 1000,
+        "Starting tape and wire supplies must retain authored metre quantities as millimetres");
+    require(inventory.consume("duct_tape",1275) && inventory.quantity("duct_tape") == 8725 &&
+            viewer::formatItemQuantity(tape->inventory(),inventory.quantity("duct_tape")) == "8.725 m",
+        "Fractional consumption must be exact in runtime quanta");
+    require(!inventory.setQuantity("duct_tape",50001) && !inventory.consume("duct_tape",8726) &&
+            inventory.quantity("duct_tape") == 8725 && inventory.setQuantity("duct_tape",1),
+        "Metre-stack limits and failed consumption must preserve the remaining quantity");
+    require(inventory.consume("duct_tape",1) && inventory.owns("duct_tape") && inventory.quantity("duct_tape") == 0,
+        "The final millimetre must be consumable without discarding the empty item");
+    const auto* broom = inventory.find("broom");
+    require(broom && !broom->inventory().stackable, "A broom must remain one equippable item");
+    for (const auto* name : {"handle","head"}) {
+        const auto& parts = broom->inventory().model.parts;
+        const auto found = std::find_if(parts.begin(),parts.end(),[&](const auto& part) { return part.name == name; });
+        require(found != parts.end() && found->material == "wood",
+            "Broom handle and head must retain wood component metadata");
+    }
+}
 void authoritativePlacements() {
     auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
     inventory.consume("pistol_rounds_1", 3);
@@ -150,7 +175,7 @@ void authoritativePlacements() {
 }
 } // namespace
 int main() {
-    try { definitionsAndQueries(); queriesFollowTransactions(); ammoQuantities(); constructionRejectsInvalidState(); authoritativePlacements();
+    try { definitionsAndQueries(); queriesFollowTransactions(); ammoQuantities(); metreQuantities(); constructionRejectsInvalidState(); authoritativePlacements();
         std::cout << "Player inventory components and query checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

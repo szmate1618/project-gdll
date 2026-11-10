@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "inventory/inventory_config.hpp"
+#include "inventory/item_config.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
@@ -56,9 +57,23 @@ int main(int argc, char** argv) {
                    {0,.65f,-.25f}, {}, glm::angleAxis(glm::radians(65.f),glm::vec3(1,0,0)));
         renderer.render(camera);
         require(changed(weapon,pixels())>100,"Stake model did not render");
+        viewer::GroundItems materials(std::make_shared<viewer::PhysicsWorld>());
+        renderer.setGroundItems(materials,models);
+        camera.setPosition({0,.9f,1.6f}); camera.setOrientation(-90,-25);
+        renderer.render(camera);
+        auto beforeItem=pixels();
+        const std::array<const char*,4> ids{"duct_tape","wire_spool","nail","broom"};
+        const std::array<glm::vec3,4> positions{{{.1f,.06f,.3f},{.4f,.06f,.3f},{.7f,.055f,.3f},{-.45f,.65f,-.25f}}};
+        for (std::size_t index=0; index<ids.size(); ++index) {
+            const auto item=viewer::loadItem(root/"storage/items",ids[index]);
+            materials.add(item,item.inventory().stackable ? 1 : 0,{},positions[index]);
+            renderer.render(camera); const auto current=pixels();
+            require(changed(beforeItem,current)>(index==2 ? 5u : 25u),"A configured crafting item model did not render");
+            beforeItem=current;
+        }
         require(glGetError()==GL_NO_ERROR,"Ground item rendering generated a GL error");
         if (argc>1) {
-            camera.setPosition({2,1.6f,2.6f}); camera.setOrientation(-125,-14);
+            camera.setPosition({1.7f,1.1f,2.8f}); camera.setOrientation(-115,-12);
             renderer.render(camera); renderer.writeScreenshot(argv[1]);
         }
         std::cout<<"Ground item rendering checks passed\n";

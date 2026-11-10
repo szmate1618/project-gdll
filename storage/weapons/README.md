@@ -71,7 +71,7 @@ pattern. See [viewer accuracy behavior](../../docs/VIEWER.md#prototype-weapons-a
 
 ## Tags files
 
-Tags are read from `<id>.tags.txt`, independently of the inventory TOML:
+Existing weapon tags are read from `<id>.tags.txt`, independently of the inventory TOML:
 
 ```text
 handgun, ranged
@@ -79,8 +79,10 @@ handgun, ranged
 
 Use one or more comma-separated tags, without quotes. Surrounding spaces and
 newlines are trimmed. Tags contain lowercase letters, digits and underscores;
-empty values, duplicate tags and missing files are rejected. Inventory schema
-version 2 replaces the old inline `tags` array with this sidecar file. Storage
+empty values, duplicate tags and missing files are rejected. Descriptors may
+instead provide a nonempty inline `tags = ["crafting", "bind"]` array using
+the same tag syntax. Inline tags are authoritative when present; omitting them
+retains the sidecar source used by existing weapon definitions. Storage
 catalogs retain their independent version 1 schema.
 
 | Weapon | Tags |

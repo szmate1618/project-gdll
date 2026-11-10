@@ -18,6 +18,7 @@
 #include <thread>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -1552,7 +1553,11 @@ int main(int argc, char** argv) {
             require(rejectionPixels() > 500, "A later rejected return must trigger a fresh highlight");
         }
         {
-            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
+            auto contents = viewer::loadInventoryContents(root);
+            const auto wire = contents.owned.at("wire_spool");
+            contents.owned.insert_or_assign("wire_spool", viewer::Item(wire.id(), wire.inventory(), {}, {"bind"}));
+            viewer::PlayerInventory inventory(viewer::loadStorageLoadout(root / "storage"), std::move(contents));
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             viewer::HudState crafting;
             crafting.screen = viewer::HudScreen::Crafting;
@@ -1595,6 +1600,21 @@ int main(int argc, char** argv) {
             require(mode && mode->IsVisible(true) && mode->GetInnerRML() == "OBJECT HANDLING" &&
                     mode->GetAbsoluteOffset().y > height * .8f,
                 "Crafting must retain the existing interaction-mode text at the bottom");
+            auto* materials = gameplay->GetElementById("crafting-list");
+            std::set<std::string> listed;
+            for (int index = 0; index < materials->GetNumChildren(); ++index)
+                listed.insert(materials->GetChild(index)->GetAttribute<Rml::String>("data-item", ""));
+            require(materials->GetNumChildren() == 4 && listed == std::set<std::string>{"duct_tape", "wire_spool", "nails", "broom"},
+                "Crafting must list tagged supplies once each and exclude ordinary inventory");
+            require(materials->GetInnerRML().find("10 m") != std::string::npos &&
+                    materials->GetInnerRML().find("20 m") != std::string::npos,
+                "Crafting must show tape and wire in metres instead of raw quantity quanta");
+            require(inventory.setQuantity("duct_tape", 1250), "Could not set a fractional tape quantity");
+            draw();
+            require(materials->GetInnerRML().find("1.25 m") != std::string::npos,
+                "Crafting quantities must refresh after fractional material consumption");
+            require(inventory.setQuantity("duct_tape", 10000), "Could not restore the tape quantity");
+            draw();
             if (argc > 1) capture((std::string(argv[1]) + "-crafting.ppm").c_str(),frame,width,height);
 
             crafting.mouseCaptured = false;

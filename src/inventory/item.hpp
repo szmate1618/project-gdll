@@ -1,6 +1,8 @@
 #pragma once
 
 #include "weapon_config.hpp"
+#include "item_model.hpp"
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -12,7 +14,16 @@ struct ItemInventoryConfig {
     bool stackable = false;
     int maxStack = 1;
     std::string acoustics{}; // Definition ID, retained when stacks receive instance IDs.
+    // Quantities and maxStack use integer quanta: counts, or millimetres for "m".
+    std::string quantityUnit = "count";
+    ItemModelConfig model{};
 };
+
+int itemQuantityScale(const ItemInventoryConfig& inventory);
+// Convert authored/display units to exact nonnegative quanta; no silent rounding.
+std::optional<int> itemQuantityFromDisplay(const ItemInventoryConfig& inventory, double amount);
+// Counts have no suffix; metre quantities include " m" and omit trailing zeros.
+std::string formatItemQuantity(const ItemInventoryConfig& inventory, int amount);
 
 // One immutable equippable item definition, with inventory and gameplay
 // components. Placement/ammo/cooldown state belongs to their runtime owners.
@@ -35,4 +46,5 @@ private:
     WeaponConfig gameplay_;
     std::vector<std::string> tags_;
 };
+bool itemStacksCompatible(const Item& source, const Item& target);
 } // namespace viewer

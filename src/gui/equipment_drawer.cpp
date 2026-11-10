@@ -47,7 +47,9 @@ void EquipmentDrawer::populate() {
         const auto encode = [](const std::string& value) { return Rml::StringUtilities::EncodeRml(value); };
         html << "<div class=\"equipment-row\" item=\"" << encode(id) << "\"><div class=\"equipment-name\">"
              << encode(item.inventory().name);
-        if (item.inventory().stackable) html << " × " << inventory_.quantity(id);
+        if (item.inventory().stackable)
+            html << (item.inventory().quantityUnit == "m" ? " · " : " × ")
+                 << formatItemQuantity(item.inventory(), inventory_.quantity(id));
         html << "</div><div class=\"equipment-access\">" << std::fixed << std::setprecision(1)
              << access.seconds << "s · " << encode(storageName(inventory_.storage(), placement.storage)) << "</div></div>";
     }

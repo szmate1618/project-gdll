@@ -185,7 +185,7 @@ struct Hud::Impl {
             }
             commandWheel = std::make_unique<CommandWheelView>(*document);
             equipmentDrawer = std::make_unique<EquipmentDrawer>(*document, inventory);
-            craftingMenu = std::make_unique<CraftingMenu>(*document);
+            craftingMenu = std::make_unique<CraftingMenu>(*document, inventory);
             sleepDrawer = std::make_unique<SleepDrawer>(*document);
             for (std::size_t i = 0; i < backdropGroups.size(); ++i) {
                 backdropElements[i] = document->GetElementById(backdropGroups[i].id);

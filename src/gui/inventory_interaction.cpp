@@ -146,7 +146,9 @@ void InventoryInteraction::ghost() {
             {Rml::PropertyId::Width, rectangle.width * cellWidth_}, {Rml::PropertyId::Height, rectangle.height * cellHeight_}})
         ghost_->SetProperty(property.first, Rml::Property(property.second, Rml::Unit::PX));
     ghost_->SetInnerRML(Rml::StringUtilities::EncodeRml(item.inventory().name) +
-        (item.inventory().stackable ? "<span class='storage-item-quantity'>" + std::to_string(groundHeld_ ? groundHeld_->quantity : inventory_.quantity(held.item)) + "</span>" : ""));
+        (item.inventory().stackable ? "<span class='storage-item-quantity'>" +
+            (item.inventory().quantityUnit == "m" ? std::string("m") :
+                formatItemQuantity(item.inventory(), groundHeld_ ? groundHeld_->quantity : inventory_.quantity(held.item))) + "</span>" : ""));
     if (drag_.pending()) {
         const float scale = document_.GetContext()->GetDensityIndependentPixelRatio();
         const auto dimensions = document_.GetContext()->GetDimensions();

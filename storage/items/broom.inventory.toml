@@ -1,0 +1,36 @@
+schema_version = 2
+id = "broom"
+name = "Broom"
+type = "equipment"
+tags = ["crafting"]
+width = 1
+height = 6
+
+[model]
+mass_kg = 0.63
+
+# The brush flares toward the floor; all positions and dimensions are metres.
+[[model.parts]]
+name = "brush"
+shape = "frustum"
+material = "fiber"
+center = [0.0, -0.59, 0.0]
+size = [0.25, 0.12, 0.07]
+top_size = [0.20, 0.045]
+color = [0.62, 0.52, 0.28]
+
+[[model.parts]]
+name = "head"
+shape = "box"
+material = "wood"
+center = [0.0, -0.5075, 0.0]
+size = [0.22, 0.045, 0.055]
+color = [0.42, 0.24, 0.10]
+
+[[model.parts]]
+name = "handle"
+shape = "box"
+material = "wood"
+center = [0.0, 0.075, 0.0]
+size = [0.026, 1.15, 0.026]
+color = [0.59, 0.39, 0.19]

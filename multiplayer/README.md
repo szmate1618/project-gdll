@@ -640,7 +640,8 @@ its details. Inventory supports timed moves, rotation, swaps and ammo stack merg
 F5 opens the shared [Crafting frame](../docs/VIEWER.md#hud), keeping the world
 visible with Object handling active, Inventory on the right and Crafting on the
 left. The existing interaction-mode text remains at the bottom. F5 or Escape
-closes it; Tab switches cursor and mouse look. No crafting recipes are defined yet.
+closes it; Tab switches cursor and mouse look. Its item list includes carried
+supplies tagged `crafting` or `bind`, with tape and wire quantities in metres.
 
 The lower right ground grid scrolls through equippable items within two metres.
 Placing an item there drops it physically; clicking a ground item and then free

@@ -1,9 +1,52 @@
-# Shelter equipment
+# General items and shelter equipment
 
 General equipment definitions use inventory schema 2 and `type = "equipment"`.
-They have `.inventory.toml`, `.tags.txt` and `.acoustics.toml` sidecars, without a
-weapon gameplay file. `[equipment.<instance>]` in root `inventory.toml` references
-the definition with `item = "<id>"`; placements use the existing storage API.
+They have an `.inventory.toml` descriptor and `.acoustics.toml` impact profile,
+without a weapon gameplay file. Tags can be declared in the descriptor as
+`tags = ["crafting", "bind"]`; existing definitions retain their `.tags.txt`
+sidecars. `[equipment.<instance>]` in root `inventory.toml` references the
+definition with `item = "<id>"`; placements use the existing storage API.
+
+## Crafting supplies
+
+The Crafting drawer lists carried items with the `crafting` or `bind` tag.
+The starter backpack contains:
+
+| Item | Inventory cells | Starting quantity | Tags |
+| --- | --- | --- | --- |
+| Duct tape | 1×1 | 10 m | `crafting`, `bind` |
+| Spool of wire | 1×1 | 20 m | `crafting`, `bind` |
+| Nails | 1×1 | 20 | `crafting` |
+| Broom | 1×6 | 1 | `crafting` |
+
+Tape and wire define `stackable = true`, `quantity_unit = "m"` and
+`max_stack = 50.0`. Their root inventory `quantity` is a length in metres and
+may be fractional; it is not a count of rolls or spools. Counted stacks such as
+nails omit `quantity_unit` and use an integer `max_stack` and `quantity`.
+The broom is a single, nonstackable item. The inventory cell footprint is
+separate from the model's physical dimensions.
+
+## Primitive item models
+
+The same inventory TOML describes each item's low-poly model through a `[model]`
+table with a positive `mass_kg`, followed by separate `[[model.parts]]` records.
+Every part has a unique `name`, `shape`, `material`, `center`, `size` and RGB
+`color`. Coordinates and full dimensions are in metres in the runtime frame:
+X right/east, Y up, Z forward/south. Colors are normalized values from 0 to 1.
+
+`shape = "box"` uses all three full dimensions in `size`. A rectangular
+`shape = "frustum"` uses `size.x` and `size.z` for its lower footprint,
+`size.y` for its full height, and `top_size = [width, depth]` for the upper
+footprint. `center` is the midpoint of that height. Each closed primitive has
+12 triangles, keeping the models deliberately simple.
+
+Tape is a small grey box; wire is a blue-grey box. The steel nail is exactly
+10 cm long, with a tapered rectangular shaft and a box head. The 1.30 m broom
+has three separately described parts: a straw-colored `fiber` brush frustum,
+a `wood` box head and a long `wood` box handle. Per-part materials remain item
+metadata; the separate acoustic profile describes the overall object's impacts.
+
+## Shelter equipment
 
 - `canopy`: 2×2 packed cells, unfolding into a 3×3 m sheet of 36 rigid panels.
 - `support_stake`: 1×6 cells, a 1.5 m wooden support with the same point-first

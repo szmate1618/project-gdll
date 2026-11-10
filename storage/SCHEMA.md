@@ -115,10 +115,41 @@ height and access time. An item must have at least one of the listed tags in its
 must be unique, nonempty strings containing lowercase letters, digits or underscores.
 The same optional field works inside a backpack's main `grid` table.
 
+Item descriptors may provide `tags = ["crafting", "bind"]` inline. The array
+must be nonempty, contain only unique strings, and use lowercase letters,
+digits and underscores without spaces. If present it is authoritative and
+replaces the legacy `<id>.tags.txt` source; an absent inline field retains
+the sidecar parser and its validation.
+
 The hip holster accepts `handgun`; both shoulder slings accept `long_gun`.
 The vest, chest pouch and backpacks remain unrestricted. Both startup placement
 validation and drag/drop previews enforce the rule, including swaps and rotated
 items. Rotation never changes item tags. The item must also fit the grid.
+
+## Equippable item quantities and models
+
+Item descriptors use `schema_version = 2`. Equipment in `storage/items/`
+defaults to a single item. A stackable supply adds `stackable = true` and a
+positive `max_stack`; its `[equipment.<instance-id>]` entry in `inventory.toml`
+must then include `quantity`. Nonstackable equipment omits that field.
+
+| Descriptor field | Meaning |
+| --- | --- |
+| `quantity_unit = "count"` | Default; `max_stack` and instance `quantity` are integers |
+| `quantity_unit = "m"` | Stackable equipment measured in metres, to 0.001 m precision |
+| `max_stack` | Maximum authored quantity in that unit; positive and within runtime integer range |
+
+For metre stacks, `max_stack = 50.0` and instance `quantity = 12.5` mean a
+50-metre maximum with 12.5 metres remaining. Configured values are validated and
+converted once to integer millimetres. Negative/nonfinite values, quantities
+above the maximum, and amounts that require submillimetre precision are rejected.
+Counted ammo and medical definitions retain their integer-only quantities.
+
+Optional `[model]` mass and `[[model.parts]]` geometry/material fields live in
+the same descriptor. Each part has a name and material; those fields also serve
+as component metadata, such as the wooden `handle` and `head` of a broom. Model
+coordinates and sizes use local Y-up metres, independently of inventory cells
+or stack quantities. See [item definitions](items/README.md) for authored models.
 
 ## Coordinates and layout
 
@@ -166,7 +197,8 @@ TOMLs and tag sidecars are included in fingerprints and content packs. See
 
 Root `inventory.toml` continues to control ownership, ammunition, placements and
 shortcuts. Gameplay behavior is defined in `storage/weapons/*.gameplay.toml`;
-inventory names and footprints use `*.inventory.toml`, and tags use `*.tags.txt`.
+inventory names and footprints use `*.inventory.toml`, and tags use an inline
+array or the legacy `*.tags.txt` fallback.
 Ammo stack descriptors live in `storage/ammo/`; each `[ammo.<instance-id>]`
 in the root config names an `item` descriptor and `quantity` from zero to
 `max_stack`, plus its own `[placements.<instance-id>]`. Zero stacks stay in

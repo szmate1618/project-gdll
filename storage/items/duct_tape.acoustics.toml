@@ -1,0 +1,7 @@
+schema_version = 1
+material = "soft"
+hollowness = 0.1
+size = 0.35
+gain = 0.25
+min_speed = 0.70
+noise_db = 25.0

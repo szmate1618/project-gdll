@@ -133,7 +133,7 @@
             <button id="crafting-tab-handle">C<br/>R<br/>A<br/>F<br/>T<br/>I<br/>N<br/>G</button>
             <div id="crafting-panel">
                 <div class="crafting-title">CRAFTING <button id="crafting-collapse">−</button></div>
-                <div class="crafting-empty">No recipes available</div>
+                <div id="crafting-list"></div>
             </div>
         </div>
         <div id="crafting-footer"><button id="crafting-close"><span>F5 / ESC</span>Close</button></div>

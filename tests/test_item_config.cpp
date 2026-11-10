@@ -52,8 +52,8 @@ struct Fixture {
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 6> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade", "molotov"};
-    require(inventory.owned.size() == 22 && inventory.quantities.size() == 13,
-        "All seven equippable weapons, twelve ammo stacks the medical stack and two shelter items must have owned item definitions");
+    require(inventory.owned.size() == 27 && inventory.quantities.size() == 16,
+        "Starting ownership must include weapons, consumables, shelter items and four crafting supplies");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–7");
         const auto& item = inventory.owned.at(expected[slot]);
@@ -124,6 +124,57 @@ void ammoDefinitionsAndStacks() {
     fixture.replace("storage/ammo/pistol_rounds.inventory.toml", "max_stack = 0", "max_stack = 60");
     fixture.replace("storage/ammo/pistol_rounds.inventory.toml", "stackable = true", "stackable = false");
     fixture.rejects("pistol_rounds.inventory.toml", "stackable");
+}
+void craftingDefinitionsAndQuantities() {
+    Fixture fixture;
+    const std::string descriptor =
+        "schema_version=2\nid='test_tape'\nname='Test tape'\ntype='equipment'\n"
+        "width=1\nheight=1\nstackable=true\nquantity_unit='m'\nmax_stack=50.0\n";
+    const auto define = [&](const std::string& tags) {
+        std::ofstream(fixture.root / "storage/items/test_tape.inventory.toml") << descriptor << "tags=" << tags << '\n';
+    };
+    define("['crafting','bind']");
+    fixture.inventory("[weapons]\n[equipment.tape]\nitem='test_tape'\nquantity=1.275\n");
+    auto contents = viewer::loadInventoryContents(fixture.root);
+    const auto& tape = contents.owned.at("tape");
+    require(tape.inventory().stackable && tape.inventory().maxStack == 50000 &&
+            tape.inventory().quantityUnit == "m" && contents.quantities.at("tape") == 1275 &&
+            tape.inventory().acoustics == "test_tape" && tape.tags() == std::vector<std::string>{"crafting","bind"},
+        "Inline equipment descriptors must retain tags, definition identity and fractional metres as integer millimetres");
+    require(viewer::formatItemQuantity(tape.inventory(),1275) == "1.275 m" &&
+            viewer::formatItemQuantity(tape.inventory(),12300) == "12.3 m" &&
+            viewer::formatItemQuantity(tape.inventory(),1001) == "1.001 m" &&
+            viewer::formatItemQuantity(tape.inventory(),0) == "0 m",
+        "Metre quantities must display their exact useful precision and unit");
+    std::ofstream(fixture.root / "storage/items/test_tape.tags.txt") << "invalid sidecar";
+    require(viewer::loadInventoryContents(fixture.root).owned.at("tape").hasTag("bind"),
+        "Inline tags must be authoritative when a legacy sidecar also exists");
+    for (const auto* quantity : {"-1.0", "50.001", "0.0001", "inf", "nan", "'2'", "5000000"}) {
+        fixture.inventory((std::string("[weapons]\n[equipment.tape]\nitem='test_tape'\nquantity=") + quantity + "\n").c_str());
+        fixture.rejects("inventory.toml", "quantity");
+    }
+    fixture.inventory("[weapons]\n[equipment.tape]\nitem='test_tape'\nquantity=0\n");
+    require(viewer::loadInventoryContents(fixture.root).quantities.at("tape") == 0,
+        "Empty metre stacks must retain their configured identity");
+    for (const auto* tags : {"[]", "'crafting'", "['crafting','crafting']", "['crafting',4]", "['']", "['wrong tag']"}) {
+        define(tags);
+        fixture.rejects("test_tape.inventory.toml", "tag");
+    }
+    define("['crafting','bind']");
+    fixture.replace("storage/items/test_tape.inventory.toml", "max_stack=50.0", "max_stack=0.0001");
+    fixture.rejects("test_tape.inventory.toml", "max_stack");
+    define("['crafting','bind']");
+    fixture.replace("storage/items/test_tape.inventory.toml", "quantity_unit='m'", "quantity_unit='kg'");
+    fixture.rejects("test_tape.inventory.toml", "quantity_unit");
+    define("['crafting','bind']");
+    fixture.replace("storage/items/test_tape.inventory.toml", "quantity_unit='m'", "quantity_unit='count'");
+    fixture.replace("storage/items/test_tape.inventory.toml", "max_stack=50.0", "max_stack=50");
+    fixture.inventory("[weapons]\n[equipment.tape]\nitem='test_tape'\nquantity=1.5\n");
+    fixture.rejects("inventory.toml", "integer");
+    fixture.inventory("[weapons]\n[equipment.tape]\nitem='test_tape'\nquantity=12\n");
+    contents = viewer::loadInventoryContents(fixture.root);
+    require(contents.quantities.at("tape") == 12 && viewer::formatItemQuantity(contents.owned.at("tape").inventory(),12) == "12",
+        "Counted equipment stacks must retain the existing integer quantity contract");
 }
 void invalidInventory() {
     Fixture fixture;
@@ -209,7 +260,7 @@ void invalidDefinitions() {
 } // namespace
 int main() {
     try {
-        starterInventory(); ammoDefinitionsAndStacks(); invalidInventory(); invalidDefinitions();
+        starterInventory(); ammoDefinitionsAndStacks(); craftingDefinitionsAndQuantities(); invalidInventory(); invalidDefinitions();
         std::cout << "Item definitions and inventory shortcuts passed\n";
         return 0;
     } catch (const std::exception& error) {

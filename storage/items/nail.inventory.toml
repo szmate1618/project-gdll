@@ -1,0 +1,31 @@
+schema_version = 2
+id = "nail"
+name = "Nails"
+type = "equipment"
+tags = ["crafting"]
+width = 1
+height = 1
+stackable = true
+max_stack = 100
+
+[model]
+mass_kg = 0.006
+
+# Local Y is the nail's length axis. The head and tapered rectangular shaft
+# together span exactly 0.10 m, without rounded edges.
+[[model.parts]]
+name = "shaft"
+shape = "frustum"
+material = "steel"
+center = [0.0, -0.0015, 0.0]
+size = [0.0003, 0.097, 0.0003]
+top_size = [0.0045, 0.003]
+color = [0.55, 0.58, 0.61]
+
+[[model.parts]]
+name = "head"
+shape = "box"
+material = "steel"
+center = [0.0, 0.0485, 0.0]
+size = [0.012, 0.003, 0.009]
+color = [0.61, 0.63, 0.65]

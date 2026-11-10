@@ -11,7 +11,7 @@ PlayerInventory::PlayerInventory(StorageLoadout storage, InventoryContents conte
         const auto count = contents_.quantities.find(id);
         if (item.inventory().stackable && (count == contents_.quantities.end() || count->second < 0 ||
             count->second > item.inventory().maxStack))
-            throw std::invalid_argument("Missing or invalid ammo quantity for " + id);
+            throw std::invalid_argument("Missing or invalid stack quantity for " + id);
     }
     for (const auto& [id, count] : contents_.quantities) {
         (void)count;

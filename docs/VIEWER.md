@@ -202,8 +202,9 @@ and left Crafting drawer. Each drawer can be collapsed independently. The
 existing interaction-mode text appears in the bottom frame; the other gameplay
 HUD groups are hidden while this frame is open. Tab switches between cursor and
 mouse look. F5 or Escape closes the frame and restores the prior cursor state;
-an existing grip stays in Object handling until it ends. No recipes are defined
-yet, so the Crafting drawer shows an empty state.
+an existing grip stays in Object handling until it ends. The Crafting drawer
+lists carried items with the `crafting` or `bind` tag. Tape and wire quantities
+are shown in metres, including fractional lengths.
 
 Map tool buttons brighten on hover, retain a coral bottom edge while focused,
 and mark the active measurement tool with a coral left edge. The radial signal

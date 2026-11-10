@@ -1,0 +1,21 @@
+schema_version = 2
+id = "duct_tape"
+name = "Duct tape"
+type = "equipment"
+tags = ["crafting", "bind"]
+width = 1
+height = 1
+stackable = true
+quantity_unit = "m"
+max_stack = 50.0
+
+[model]
+mass_kg = 0.25
+
+[[model.parts]]
+name = "tape"
+shape = "box"
+material = "plastic"
+center = [0.0, 0.0, 0.0]
+size = [0.09, 0.045, 0.09]
+color = [0.46, 0.48, 0.47]

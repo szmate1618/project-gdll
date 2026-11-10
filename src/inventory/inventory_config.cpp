@@ -27,6 +27,15 @@ std::string label(const toml::table& table, const char* key, const Path& file) {
     if (value.empty()) invalid(file, std::string(key) + " must not be empty");
     return value;
 }
+int stackQuantity(const toml::table& table, const Item& item, const Path& file, const std::string& field) {
+    if (item.inventory().quantityUnit == "count" && !table["quantity"].is_integer())
+        invalid(file, field + ".quantity must be an integer");
+    const auto amount = table["quantity"].value<double>();
+    const auto quantity = amount ? itemQuantityFromDisplay(item.inventory(), *amount) : std::nullopt;
+    if (!quantity || *quantity > item.inventory().maxStack)
+        invalid(file, field + ".quantity exceeds stack limits or quantity precision");
+    return *quantity;
+}
 } // namespace
 
 InventoryContents loadInventoryContents(const Path& root) {
@@ -58,6 +67,9 @@ InventoryContents loadInventoryContents(const Path& root) {
             })) invalid(file,"invalid equipment ID "+id);
             if (!result.owned.emplace(id,Item(id,item.inventory(),{},item.tags())).second)
                 invalid(file,"duplicate owned item ID "+id);
+            if (item.inventory().stackable)
+                result.quantities.emplace(id, stackQuantity(*entry, item, file, "equipment." + id));
+            else if (entry->contains("quantity")) invalid(file, "equipment." + id + ".quantity requires a stackable item");
         }
     }
     for (const auto* category : {"ammo", "medical"}) if (table.contains(category)) {
@@ -73,13 +85,10 @@ InventoryContents loadInventoryContents(const Path& root) {
             const auto definitionId = label(*stack, "item", file);
             const auto definition = loadItem(root / "storage" / category, definitionId);
             if (definition.inventory().type != category) invalid(file, std::string(category) + "." + id + " must reference a " + category + " item");
-            if (!(*stack)["quantity"].is_integer()) invalid(file, std::string(category) + "." + id + ".quantity must be an integer");
-            const auto quantity = required<std::int64_t>(*stack, "quantity", file);
-            if (quantity < 0 || quantity > definition.inventory().maxStack)
-                invalid(file, std::string(category) + "." + id + ".quantity exceeds stack limits");
+            const int quantity = stackQuantity(*stack, definition, file, std::string(category) + "." + id);
             if (!result.owned.emplace(id, Item(id, definition.inventory(), {}, definition.tags())).second)
                 invalid(file, "duplicate owned item ID " + id);
-            result.quantities.emplace(id, static_cast<int>(quantity));
+            result.quantities.emplace(id, quantity);
         }
     }
     if (table.contains("placements")) {

@@ -6,7 +6,7 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 | Responsibility | Module |
 | --- | --- |
 | Item definition with inventory/gameplay components and shared tags | `src/inventory/item.hpp/.cpp` |
-| Read one item's three definition files | `src/inventory/item_config.hpp/.cpp` |
+| Read item descriptors, tags and optional weapon gameplay | `src/inventory/item_config.hpp/.cpp` |
 | Parse weapon gameplay settings for both items and combat | `src/weapon_config.hpp/.cpp` |
 | Read player ownership, placements and shortcuts | `src/inventory/inventory_config.hpp/.cpp` |
 | Read storage catalogs and equipped loadout | `src/inventory/storage_config.hpp/.cpp` |
@@ -26,10 +26,13 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 
 ## Item components
 
-`Item` is an immutable definition. `inventory()` returns its display name, type
-and N×M footprint, parsed from `<id>.inventory.toml`. `gameplay()` returns the
+`Item` is an immutable definition. `inventory()` returns its display name, type,
+N×M footprint, quantity unit and optional physical model, parsed from
+`<id>.inventory.toml`. `gameplay()` returns the
 actual `WeaponConfig`, parsed from `<id>.gameplay.toml`, including firing/ammo
-settings and grenade parameters. `tags()` and `hasTag()` use `<id>.tags.txt`.
+settings and grenade parameters. `tags()` and `hasTag()` use the descriptor's
+optional inline `tags` array, falling back to `<id>.tags.txt` when absent.
+Inline tags are authoritative; the two sources are never combined.
 Combat's `Weapons` uses the same gameplay parser; there is no second inventory
 interpretation of the gameplay schema.
 
@@ -144,6 +147,42 @@ same retrieval process for another grenade of the matching `ammo_type`.
 Both its shot cooldown and retrieval must complete before the next throw.
 Multiplayer owns the quantities and reload timer on the server and publishes
 them to the client HUD.
+
+## Crafting supplies and physical parts
+
+Equipment descriptors in `storage/items/` may set `stackable = true`. Counted
+supplies such as nails use integer `max_stack` and instance `quantity` values,
+as ammunition does. Tape and wire set `quantity_unit = "m"`; their authored
+`max_stack` and `quantity` values are metres and may contain three decimal
+places. Runtime quantities use integer millimetres, so taking 0.125 m consumes
+125 quanta without accumulating floating-point rounding errors. Nonfinite,
+negative, overflowing and submillimetre amounts are rejected. Omitting
+`quantity_unit` preserves the existing counted-item behavior.
+
+Narrow storage cells mark metre-based stacks with `m`; item details and the
+Inventory and Crafting drawers show the complete length, including decimals.
+
+Each stack starts under `[equipment.<instance-id>]`, referencing its descriptor
+with `item` and providing `quantity`. Nonstackable equipment omits `quantity`.
+For example, `item = "duct_tape"` and `quantity = 10.0` start a ten-metre roll.
+Empty rolls remain owned and placed, following the existing ammo-stack policy.
+Merging requires matching item types and quantity units; non-ammo supplies must
+also share their catalog definition. Tape and wire never merge with each other
+or with medical/count supplies merely because their ammo types are empty.
+
+`PlayerInventory::quantity`, `setQuantity`, `consume`, ground transfers and
+multiplayer snapshots all use integer quanta. Use `itemQuantityFromDisplay`
+to convert authored quantities and `formatItemQuantity` for labels such as
+`12.5 m`. Counted quantities retain their existing numeric values and display.
+The fingerprinted descriptor determines the unit; network quantities retain
+their integer representation.
+
+Optional `[model]` / `[[model.parts]]` entries describe physical geometry and
+named part materials in the same item descriptor. Part coordinates are local
+Y-up metres. A broom's `handle` and `head` parts carry `material = "wood"`;
+there is no separate component list to keep synchronized with its model.
+These fields describe the item; crafting recipes and disassembly rules remain
+separate responsibilities.
 
 ## Current prototype boundary
 

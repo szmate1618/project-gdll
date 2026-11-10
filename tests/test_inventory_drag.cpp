@@ -171,8 +171,42 @@ void ammoMerging() {
         inventory.locationOf("source")->placement->x == 0 && inventory.locationOf("target")->placement->x == 1,
         "An empty source must remain a no-op merge that preserves both stack footprints");
 }
+void craftingStackMerging() {
+    viewer::StorageLoadout storage;
+    viewer::StorageBackpack backpack;
+    backpack.id = "test"; backpack.grid = {4,2,.5}; storage.backpack = backpack;
+    const std::string pack = "backpack/test/main";
+    viewer::ItemInventoryConfig tape{"Duct tape","equipment",1,1,"",true,50000,"duct_tape"};
+    tape.quantityUnit = "m";
+    auto wire = tape; wire.name = "Wire spool"; wire.acoustics = "wire_spool";
+    auto nails = tape; nails.name = "Nails"; nails.acoustics = "nail"; nails.quantityUnit = "count"; nails.maxStack = 100;
+    viewer::InventoryContents contents;
+    contents.owned.emplace("source",viewer::Item("source",tape,{}, {"crafting","bind"}));
+    contents.owned.emplace("target",viewer::Item("target",tape,{}, {"crafting","bind"}));
+    contents.owned.emplace("wire",viewer::Item("wire",wire,{}, {"crafting","bind"}));
+    contents.owned.emplace("nails",viewer::Item("nails",nails,{}, {"crafting"}));
+    contents.quantities = {{"source",1250},{"target",49500},{"wire",2000},{"nails",20}};
+    for (const auto& placement : std::array<std::pair<const char*,int>,4>{{{"source",0},{"target",1},{"wire",2},{"nails",3}}})
+        contents.placements[placement.first] = {pack,placement.second,0};
+    viewer::PlayerInventory inventory(storage,contents);
+    viewer::InventoryDrag drag(inventory);
+    require(drag.pickUp("source") && drag.preview(pack,2,0).result == viewer::InventoryDrop::Swap &&
+            drag.preview(pack,3,0).result == viewer::InventoryDrop::Swap,
+        "Different crafting definitions or quantity units must swap instead of merging");
+    drag.cancel();
+    require(drag.pickUp("source") && drag.drop(pack,1,0).result == viewer::InventoryDrop::Merge && drag.pending(),
+        "Stacks of the same metre-based item must begin a timed merge");
+    require(inventory.quantity("source") == 1250 && inventory.quantity("target") == 49500,
+        "A pending fractional merge must preserve all source quantities");
+    drag.advance(drag.pending()->durationSeconds);
+    require(inventory.quantity("source") == 750 && inventory.quantity("target") == 50000 &&
+            inventory.quantity("wire") == 2000 && inventory.quantity("nails") == 20 && !drag.held(),
+        "A fractional merge must fill the target exactly without changing unrelated supplies");
+    require(inventory.locationOf("source")->placement->x == 0 && inventory.locationOf("target")->placement->x == 1,
+        "Metre-stack merging must retain both storage footprints");
+}
 } // namespace
 int main() {
-    try { rotationAndBoundaries(); swapChains(); tagRestrictions(); ammoMerging(); std::cout << "Inventory drag checks passed\n"; return 0; }
+    try { rotationAndBoundaries(); swapChains(); tagRestrictions(); ammoMerging(); craftingStackMerging(); std::cout << "Inventory drag checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

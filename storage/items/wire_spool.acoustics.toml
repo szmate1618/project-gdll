@@ -1,0 +1,7 @@
+schema_version = 1
+material = "metal"
+hollowness = 0.15
+size = 0.25
+gain = 0.4
+min_speed = 0.70
+noise_db = 35.0

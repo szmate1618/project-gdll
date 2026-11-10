@@ -3,7 +3,9 @@
 #include "collision_world.hpp"
 #include "physics_scene.hpp"
 #include "camera.hpp"
+#include "physics_grab.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -103,6 +105,42 @@ int main() {
             require(!quick.pickUp(quickWeapons, quickInventory, camera, wallCollision) &&
                 !quick.equip(quickWeapons, quickInventory, camera, wallCollision, {}) && quick.count() == 1,
                 "Quick pickup and equip must reject an occluded item");
+        }
+        {
+            auto modeledInventory=viewer::loadPlayerInventory(root);
+            viewer::Weapons modeledWeapons(root/"storage/weapons",root/"inventory.toml",true);
+            auto modeledPhysics=std::make_shared<viewer::PhysicsWorld>();
+            viewer::GroundItems modeled(modeledPhysics);
+            for (const auto* instance : {"duct_tape","wire_spool","nails","broom"}) {
+                const auto* item=modeledInventory.find(instance);
+                require(item && !item->inventory().model.parts.empty(),"A modeled starter item is unavailable");
+                const auto location=modeledInventory.placements().at(instance);
+                const auto quantity=modeledInventory.quantity(instance);
+                const float expectedMass=item->inventory().model.massKg;
+                viewer::InventoryDrag modeledDrag(modeledInventory);
+                require(modeledDrag.pickUp(instance) && modeled.drop(modeledInventory,modeledDrag,modeledWeapons,
+                    {0,.05f,0},{0,0,-1},collision),"Could not physically drop a modeled crafting item");
+                const auto pose=modeled.poses().at(0);
+                const auto prop=modeled.prop(pose.entry.id);
+                require(prop && prop->valid() && std::abs(prop->mass()-expectedMass)<1e-5f,
+                    "A modeled ground item lost its authored physical mass");
+                if (std::string(instance)=="nails")
+                    require(std::abs(pose.body.halfExtents.y*2-.1f)<1e-6f && pose.body.halfExtents.z>=.005f,
+                        "Nail collision must retain its 10 cm length and stable transverse padding");
+                if (std::string(instance)=="broom")
+                    require(std::abs(pose.body.halfExtents.y*2-1.3f)<1e-6f,
+                        "Broom collision does not match its rendered height");
+                {
+                    viewer::PhysicsGrab grip(*prop,{0,0,0},400);
+                    require(grip.valid() && prop->grabbed(),"A modeled ground item cannot be physically gripped");
+                    require(!modeled.take(pose.entry.id,modeledInventory,modeledWeapons,location,pose.body.center),
+                        "A ground pickup must not steal a modeled item from an active hand");
+                }
+                require(modeled.take(pose.entry.id,modeledInventory,modeledWeapons,location,pose.body.center),
+                    "A released modeled ground item cannot be picked up into inventory");
+                require(modeledInventory.quantity(instance)==quantity && modeled.count()==0,
+                    "A modeled ground round-trip lost quantity or left a duplicate body");
+            }
         }
         std::cout << "Ground item checks passed\n";
         return 0;

@@ -28,6 +28,11 @@ std::string size(const StorageGrid& grid) {
 std::string position(double x, double y) {
     return "left:" + number(x) + "dp;top:" + number(y) + "dp;";
 }
+std::string quantityBadge(const ItemInventoryConfig& item, int quantity) {
+    // One-cell grids cannot fit fractional lengths. Mark the unit here and
+    // keep exact metre quantities in the details panel and item drawers.
+    return item.quantityUnit == "m" ? "m" : formatItemQuantity(item, quantity);
+}
 std::string gridMarkup(const InventoryContainer& container, double cell, const std::map<std::string, Item>& items, const std::function<int(const std::string&)>& quantity, const std::string& reference, bool ground = false) {
     const auto& grid = container.grid;
     std::string result = "<div class='storage-grid' data-storage=\"" + Rml::StringUtilities::EncodeRml(reference) + "\" style='width:" + number(grid.width * cell) + "dp'>";
@@ -46,7 +51,7 @@ std::string gridMarkup(const InventoryContainer& container, double cell, const s
             result += "<div class='storage-item-label'>" + Rml::StringUtilities::EncodeRml(item.inventory().name) + "</div>";
         if (item.inventory().stackable)
             result += "<span class='storage-item-quantity' id='quantity-" + Rml::StringUtilities::EncodeRml(ground ? "ground-" + rectangle.item : item.id()) + "'>" +
-                std::to_string(quantity(rectangle.item)) + "</span>";
+                quantityBadge(item.inventory(), quantity(rectangle.item)) + "</span>";
         result += "</div>";
     }
     return result + "</div>";
@@ -128,7 +133,7 @@ void refreshInventoryQuantities(Rml::ElementDocument& document, const PlayerInve
         if (!item.inventory().stackable) continue;
         auto* element = document.GetElementById("quantity-" + id);
         if (!element) continue; // The held stack is drawn by the drag ghost.
-        const auto quantity = std::to_string(inventory.quantity(id));
+        const auto quantity = quantityBadge(item.inventory(), inventory.quantity(id));
         if (element->GetInnerRML() != quantity) element->SetInnerRML(quantity);
     }
 }
@@ -149,7 +154,7 @@ void populateInventoryDetails(Rml::ElementDocument& document, const PlayerInvent
     const auto tagged = [&](const char* tag) { return std::find(item.tags().begin(), item.tags().end(), tag) != item.tags().end(); };
     set("inventory-type", tagged("long_gun") ? "Primary weapon" : tagged("handgun") ? "Handgun" : tagged("grenade") ? "Grenade" : item.inventory().type);
     set("inventory-quantity", item.inventory().stackable ?
-        std::to_string(ground ? ground->quantity : inventory.quantity(selected)) + " / " + std::to_string(item.inventory().maxStack) : "1");
+        formatItemQuantity(item.inventory(), ground ? ground->quantity : inventory.quantity(selected)) + " / " + formatItemQuantity(item.inventory(), item.inventory().maxStack) : "1");
     std::string tags;
     for (const auto& tag : item.tags()) { if (!tags.empty()) tags += ", "; tags += tag; }
     set("inventory-tags", tags);

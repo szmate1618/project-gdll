@@ -72,6 +72,21 @@ item = "support_stake"
 [equipment.support_stake_2]
 item = "support_stake"
 
+[equipment.duct_tape]
+item = "duct_tape"
+quantity = 10.0 # Metres, not rolls.
+
+[equipment.wire_spool]
+item = "wire_spool"
+quantity = 20.0 # Metres, not spools.
+
+[equipment.nails]
+item = "nail"
+quantity = 20
+
+[equipment.broom]
+item = "broom"
+
 # Owned item IDs or skill:<ID> references registered in skills.toml.
 [hotbar]
 0 = "skill:object_handling"
@@ -203,3 +218,23 @@ y = 0
 storage = "backpack/tactical_backpack/main"
 x = 5
 y = 0
+
+[placements.duct_tape]
+storage = "backpack/tactical_backpack/main"
+x = 5
+y = 2
+
+[placements.wire_spool]
+storage = "backpack/tactical_backpack/main"
+x = 6
+y = 2
+
+[placements.nails]
+storage = "backpack/tactical_backpack/main"
+x = 5
+y = 3
+
+[placements.broom]
+storage = "backpack/tactical_backpack/main"
+x = 3
+y = 1

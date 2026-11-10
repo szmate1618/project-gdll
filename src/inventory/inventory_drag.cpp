@@ -38,12 +38,11 @@ InventoryDropCheck InventoryDrag::preview(const std::string& storage, int x, int
     if (check.result == InventoryDrop::Swap) {
         const auto& source = inventory_.contents_.owned.at(inventory_.held_->item);
         const auto& target = inventory_.contents_.owned.at(check.displaced);
-        if (source.inventory().stackable && target.inventory().stackable &&
-            source.inventory().ammoType == target.inventory().ammoType) {
+        if (itemStacksCompatible(source, target)) {
             // A merge returns the source stack to its pickup footprint. In a
             // swap chain that footprint may already hold the preceding item.
             // Quantities can change during reloads, so they must not decide
-            // whether the operation moves stack footprints or merges rounds.
+            // whether the operation moves stack footprints or merges quantities.
             const auto sourceRectangle = inventoryRectangle(source, sourcePlacement_);
             const auto& sourceContainer = inventory_.layout_.at(sourcePlacement_.storage);
             const bool sourceFree = std::none_of(sourceContainer.items.begin(), sourceContainer.items.end(), [&](const auto& other) {

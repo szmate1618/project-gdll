@@ -1164,7 +1164,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
     // Leave one vest cell free and make the reserve pistol stack slower to access.
     Command reserve;
     reserve.inventoryActions = {{Action::PickUp, "pistol_rounds_2", "", 0, 0, 0},
-        {Action::Drop, "", "backpack/tactical_backpack/main", 7, 0, 0}};
+        {Action::Drop, "", "backpack/tactical_backpack/main", 7, 6, 0}};
     submit(reserve);
     for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
     require(!player.inventory.held(), "Reserve stack setup must complete");
@@ -1195,7 +1195,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
             "Network stack merge must preserve the source footprint and total ammo");
     const auto snapshot = world.snapshot(id).players[0];
     require(!snapshot.inventoryDragging && snapshot.inventoryPlacements.size() == player.inventory.items().size() &&
-            snapshot.ammoQuantities.size() == 13,
+            snapshot.ammoQuantities.size() == 16,
             "Authoritative idle inventory must publish placements and all stack quantities");
     submit(fire);
     Command outward;
@@ -1219,6 +1219,21 @@ void serverGroundInventory(const std::filesystem::path& asset) {
     using Action = viewer::InventoryDragActionKind;
     Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
     Scene scene(options); scene.model=ground();
+    {
+        auto measured = scene.initialInventory;
+        require(measured.setQuantity("duct_tape", 12375) && measured.setQuantity("wire_spool", 625),
+            "Fractional material replication fixture must accept metre quantities");
+        Snapshot sent;
+        PlayerState owner; owner.id = 1; owner.inventoryState = captureInventory(measured);
+        sent.players.push_back(owner);
+        const auto bytes = encode(sent);
+        const auto received = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+        auto replica = scene.initialInventory;
+        require(applyInventory(replica, scene.initialInventory, *received.players.front().inventoryState) &&
+                replica.quantity("duct_tape") == 12375 && replica.quantity("wire_spool") == 625 &&
+                replica.find("wire_spool")->inventory().quantityUnit == "m",
+            "Inventory replication must preserve fractional metre quantities and their units exactly");
+    }
     scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model,std::vector<viewer::TrunkCollider>{},scene.doors.get());
     scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye={0,1.7f,0};
     World world(scene); const auto id=world.join();

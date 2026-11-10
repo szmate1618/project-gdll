@@ -655,8 +655,10 @@ private:
         ModelGPU model;
         std::vector<DrawInstance> draws;
         GLuint instances = 0;
+        glm::vec3 center{0};
     };
     std::array<DroppedModelGPU,weaponIds.size()+2> droppedModels_;
+    std::map<std::string,DroppedModelGPU> groundItemModels_;
     const GroundItems* groundSource_ = nullptr;
     const DroppedWeapons* droppedSource_ = nullptr;
     bool rainEnabled_ = false;

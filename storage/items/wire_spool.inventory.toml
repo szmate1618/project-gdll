@@ -1,0 +1,21 @@
+schema_version = 2
+id = "wire_spool"
+name = "Spool of wire"
+type = "equipment"
+tags = ["crafting", "bind"]
+width = 1
+height = 1
+stackable = true
+quantity_unit = "m"
+max_stack = 50.0
+
+[model]
+mass_kg = 0.4
+
+[[model.parts]]
+name = "wire"
+shape = "box"
+material = "steel"
+center = [0.0, 0.0, 0.0]
+size = [0.08, 0.06, 0.08]
+color = [0.23, 0.36, 0.47]
