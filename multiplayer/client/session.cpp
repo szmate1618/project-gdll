@@ -773,10 +773,12 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     in.holdingProp = p.holdingProp;
                     in.handInventoryActive = p.handInventoryActive;
 #ifdef MP_GRAPHICS
+                    const bool craftingExitAcknowledged = in.craftingExitSequence && p.resolved >= in.craftingExitSequence;
                     if (in.hudScreen != viewer::HudScreen::Crafting && !in.holdingProp && !in.handInventoryActive &&
-                        !in.equipmentGripHeld && !in.leftHeld && !in.craftingExitPending &&
-                        (!in.craftingExitSequence || p.resolved >= in.craftingExitSequence)) {
+                        (!in.equipmentGripHeld || craftingExitAcknowledged) && !in.leftHeld && !in.craftingExitPending &&
+                        (!in.craftingExitSequence || craftingExitAcknowledged)) {
                         in.craftingHandling = false;
+                        in.equipmentGripHeld = false;
                         in.craftingExitSequence = 0;
                     }
 #endif
