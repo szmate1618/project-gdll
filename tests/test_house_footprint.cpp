@@ -114,8 +114,8 @@ void basicFloor(const std::vector<glm::vec2>& outline) {
     viewer::CollisionWorld collision(model, {}, &doors);
     viewer::FloorplanLayer floors(model, doors, collision);
     doors.setAngle(0, .7f); floors.update({doors.panel(0).center});
-    require(floors.residentCount() == 1 && floors.resident().begin()->second.kind == viewer::HouseFloorplan::Kind::BasicBuilding,
-        "Strongly diagonal or highly indented footprints need a basic floor");
+    require(floors.residentCount() == 1 && floors.resident().begin()->second.kind == viewer::HouseFloorplan::Kind::ComplexBuilding,
+        "Strongly diagonal or highly indented footprints need a connected section layout");
 }
 } // namespace
 int main() {

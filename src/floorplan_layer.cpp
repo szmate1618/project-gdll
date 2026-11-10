@@ -11,6 +11,7 @@
 #include "basic_floorplan.hpp"
 #include "small_building_floorplan.hpp"
 #include "low_rise_floorplan.hpp"
+#include "complex_floorplan.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -56,6 +57,7 @@ struct FloorplanLayer::Impl {
     std::map<std::string, HouseSource> sources;
     std::map<std::string, PrefabBlock> blocks; // Shell metadata only; no generated rooms/meshes.
     std::map<std::string, LowRiseBuilding> lowRise;
+    std::map<std::string, BuildingSections> complex;
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
     std::set<std::string> rejected;
     std::map<std::string, HouseFloorplan> resident;
@@ -131,16 +133,24 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
             source.firstDoor = doors.reserveRuntimeDoors(count);
             continue;
         }
+        const auto upperStoreys = houseUpperStoreyCount(model, source);
+        auto sections=prepareBuildingSections(model,source,*data.footprints);
         if (auto block = classifyPrefabBlock(model, source)) {
-            source.firstDoor = doors.reserveRuntimeDoors(prefabDoorCapacity(*block, source.doors.size()));
+            auto capacity=prefabDoorCapacity(*block, source.doors.size());
+            if (sections) capacity=std::max(capacity,complexDoorCapacity(*sections,upperStoreys+1,source.doors.size()));
+            source.firstDoor = doors.reserveRuntimeDoors(capacity);
             data.blocks.emplace(source.name, std::move(*block));
+            if (sections) data.complex.emplace(source.name,std::move(*sections));
             continue;
         }
-        const auto upperStoreys = houseUpperStoreyCount(model, source);
         auto capacity = source.doors.size() * 3 + 2 + 2 * house_layout::maxUpperRoomsPerSide * std::min<std::size_t>(3, upperStoreys);
         if (auto building = classifyLowRiseBuilding(model, source)) {
             capacity = std::max(capacity, lowRiseDoorCapacity(*building, upperStoreys + 1, source.doors.size()));
             data.lowRise.emplace(source.name, std::move(*building));
+        }
+        if (sections) {
+            capacity=std::max(capacity,complexDoorCapacity(*sections,upperStoreys+1,source.doors.size()));
+            data.complex.emplace(source.name,std::move(*sections));
         }
         source.firstDoor = doors.reserveRuntimeDoors(capacity);
     }
@@ -206,6 +216,17 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers,
             const auto building = data.lowRise.find(name);
             if (building != data.lowRise.end())
                 plan = generateLowRiseFloorplan(*data.source, data.sources.at(name), data.entrances, building->second);
+        }
+        if (!plan) {
+            const auto building=data.complex.find(name);
+            if (building!=data.complex.end()) for (const auto mode:{ComplexLayout::Rooms,ComplexLayout::OpenSections}) {
+                auto candidate=generateComplexFloorplan(*data.source,data.sources.at(name),data.entrances,building->second,mode);
+                if (!candidate) continue;
+                CollisionWorld support(candidate->structure);
+                HouseNavigationGraph navigation(*candidate,*data.doors,support,0);
+                if (!navigation.reachesAllRooms(data.sources.at(name).doors)) continue;
+                plan=std::move(candidate); break;
+            }
         }
         if (!plan) plan = generateBasicFloorplan(*data.source, data.sources.at(name), data.entrances, *data.footprints);
         if (!plan) { data.rejected.insert(name); continue; }

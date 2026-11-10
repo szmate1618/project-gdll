@@ -1,5 +1,6 @@
 #include "house_fixture.hpp"
 #include "apartment_fixture.hpp"
+#include "section_fixture.hpp"
 #include "floorplan_layer.hpp"
 #include "door_layer.hpp"
 #include "collision_world.hpp"
@@ -223,6 +224,43 @@ void renderApartment(const std::filesystem::path& capture) {
     renderer.render(camera);if(!capture.empty())renderer.writeScreenshot(capture.string()+".apartment-stairs.ppm");
     viewer::Renderer::checkErrors("eleven-storey apartment floors, doors and stair core");
 }
+void renderComplex(const std::filesystem::path& capture) {
+    for (int variant=0;variant<2;++variant) {
+        auto model=variant==0 ? section_fixture::courtyard(2) : section_fixture::angled(2);
+        auto physics=std::make_shared<viewer::PhysicsWorld>();
+        viewer::DoorLayer doors(viewer::prepareDoorPanels(model),physics);
+        viewer::CollisionWorld collision(model,{},&doors);
+        viewer::FloorplanLayer layer(model,doors,collision);
+        doors.setAngle(0,1.5f); layer.update({doors.panel(0).center});
+        require(layer.residentCount()==1 && layer.resident().begin()->second.kind==viewer::HouseFloorplan::Kind::ComplexBuilding,
+            "Complex rendering fixture must produce a connected section interior");
+        const auto& plan=layer.resident().begin()->second;
+        for (const auto& door:plan.doors) doors.setAngle(door.id,door.panel.inward ? -1.5f : 1.5f);
+        auto display=model;
+        // Diagnostic roof-off view keeps original draw IDs for live doors.
+        for (auto& draw:display.draws) if (draw.name=="building_sections_roof")
+            draw.transform=glm::translate(glm::mat4(1),{0,-1000,0})*draw.transform;
+        viewer::Renderer renderer(display,VIEWER_SHADER_DIR); renderer.resize(width,height);
+        renderer.setHaze(false); renderer.setGroundFog(false); renderer.setShadows(false);
+        renderer.updateDoors(doors); renderer.updateFloorplans(layer);
+        viewer::Camera camera;
+        const auto aim=[&](glm::vec3 eye,glm::vec3 target) {
+            const auto d=target-eye; camera.setPosition(eye);
+            camera.setOrientation(glm::degrees(std::atan2(d.z,d.x)),glm::degrees(std::atan2(d.y,glm::length(glm::vec2(d.x,d.z)))));
+        };
+        aim({38,37,44},{12,1,12}); renderer.render(camera);
+        if (!capture.empty()) renderer.writeScreenshot(capture.string()+(variant==0 ? ".courtyard.ppm" : ".angled.ppm"));
+        if (!plan.stairs.empty()) {
+            const auto& stair=plan.stairs.front();
+            const auto& room=plan.rooms.at(stair.room);
+            glm::vec2 center(0); for (const auto p:room.polygon) center+=p/float(room.polygon.size());
+            aim({center.x,plan.floorHeight(room.storey)+1.65f,center.y},(stair.bottom+stair.top)*.5f+glm::vec3(0,.6f,0));
+            renderer.setShadows(true); renderer.render(camera);
+            if (!capture.empty()) renderer.writeScreenshot(capture.string()+(variant==0 ? ".courtyard-interior.ppm" : ".angled-interior.ppm"));
+        }
+        viewer::Renderer::checkErrors("complex courtyard/angled interior rendering");
+    }
+}
 } // namespace
 int main(int argc, char** argv) {
     if (!glfwInit()) return 77;
@@ -238,6 +276,7 @@ int main(int argc, char** argv) {
         render(argc > 1 ? argv[1] : std::filesystem::path{});
         renderIrregular(argc > 1 ? argv[1] : std::filesystem::path{});
         renderApartment(argc > 1 ? argv[1] : std::filesystem::path{});
+        renderComplex(argc > 1 ? argv[1] : std::filesystem::path{});
         std::cout << "Floorplan rendering tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();

@@ -3,7 +3,8 @@
 
 namespace viewer {
 std::optional<house_layout::Layout> generateOpenBuildingLayout(const HouseFloorplan& plan,
-        const building_shell::Shell& shell, const std::vector<house_layout::Entrance>& entrances) {
+        const building_shell::Shell& shell, const std::vector<house_layout::Entrance>& entrances,
+        const std::vector<house_layout::Rectangle>& reserved) {
     const house_layout::Rectangle footprint{shell.low, shell.high};
     std::vector<std::size_t> mainDoors;
     for (const auto& entrance : entrances) mainDoors.push_back(entrance.id);
@@ -15,7 +16,7 @@ std::optional<house_layout::Layout> generateOpenBuildingLayout(const HouseFloorp
         const auto room = layout.rooms.size();
         layout.rooms.push_back({HouseRoom::Kind::OpenRoom, footprint, level == 0 ? mainDoors : std::vector<std::size_t>{}, level});
         if (level == plan.upperFloors.size()) break;
-        std::vector<house_layout::Rectangle> blocked;
+        auto blocked = reserved;
         if (!layout.stairs.empty()) {
             const auto& incoming = layout.stairs.back();
             auto landing = incoming.ramp;
@@ -26,7 +27,7 @@ std::optional<house_layout::Layout> generateOpenBuildingLayout(const HouseFloorp
                 landing.high[incoming.axis] = incoming.ramp.low[incoming.axis];
                 landing.low[incoming.axis] -= .8f;
             }
-            blocked = {incoming.opening, landing};
+            blocked.push_back(incoming.opening); blocked.push_back(landing);
         }
         const auto options = house_layout::rules::stairOptions({layout.rooms.back()}, {},
             level == 0 ? entrances : std::vector<house_layout::Entrance>{}, footprint, ceiling - floor, blocked, shell.outline);

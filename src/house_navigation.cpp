@@ -92,6 +92,24 @@ HouseNavigationGraph::HouseNavigationGraph(const HouseFloorplan& plan, const Doo
         attach(bottom, {}, stair.bottom - axis * .45f); attach(top, {}, stair.top + axis * .45f);
         connect(bottom, top, {stair.bottom, stair.top}); ramps_.push_back({bottom, top, stair.ramp});
     }
+    const auto passage = [&](std::size_t first,std::size_t second,glm::vec2 start,glm::vec2 end) {
+        if (first>=rooms_.size() || second>=rooms_.size() || plan.rooms[first].storey!=plan.rooms[second].storey) return;
+        const auto edge=end-start;
+        if (glm::length(edge)<.75f) return;
+        const auto axis=glm::normalize(edge); const glm::vec2 normal(-axis.y,axis.x);
+        for (const float fraction : {.5f,.4f,.6f,.3f,.7f,.2f,.8f,.1f,.9f}) {
+            const auto point=start+edge*fraction;
+            auto left=point-normal*.45f,right=point+normal*.45f;
+            if (!(rooms_[first].geometry.walkable(left) && rooms_[second].geometry.walkable(right))) std::swap(left,right);
+            if (!rooms_[first].geometry.walkable(left) || !rooms_[second].geometry.walkable(right)) continue;
+            const float floor=rooms_[first].geometry.floor+.004f;
+            const auto node=addNode({Kind::Door,{point.x,floor,point.y},plan.rooms[first].storey,std::nullopt});
+            rooms_[first].members.push_back({node,{left.x,floor,left.y}});
+            rooms_[second].members.push_back({node,{right.x,floor,right.y}});
+            break;
+        }
+    };
+    for (const auto& seam:plan.passages) passage(seam.firstRoom,seam.secondRoom,seam.a,seam.b);
     // Apartment common-space polygons meet without physical doors. Represent
     // each walkable shared opening as a door node with no panel ID.
     if (plan.kind == HouseFloorplan::Kind::BasicBuilding || plan.kind == HouseFloorplan::Kind::PrefabApartmentBlock || plan.kind == HouseFloorplan::Kind::AuthoredPalace ||
@@ -109,15 +127,7 @@ HouseNavigationGraph::HouseNavigationGraph(const HouseFloorplan& plan, const Doo
                 const float low = std::max(0.f, std::min(glm::dot(c, axis), glm::dot(d, axis)));
                 const float high = std::min(length, std::max(glm::dot(c, axis), glm::dot(d, axis)));
                 if (high - low < .75f) continue;
-                for (const float fraction : {.5f, .4f, .6f, .3f, .7f, .2f, .8f, .1f, .9f}) {
-                    const auto point = start + axis * glm::mix(low, high, fraction);
-                    const auto left = point - normal * .45f, right = point + normal * .45f;
-                    if (!((rooms_[first].geometry.walkable(left) && rooms_[second].geometry.walkable(right)) ||
-                          (rooms_[first].geometry.walkable(right) && rooms_[second].geometry.walkable(left)))) continue;
-                    const auto node = addNode({Kind::Door, {point.x, rooms_[first].geometry.floor + .004f, point.y},
-                        plan.rooms[first].storey, std::nullopt});
-                    attach(node, {normal.x, 0, normal.y}, std::nullopt); break;
-                }
+                passage(first,second,start+axis*low,start+axis*high);
             }
         }
     }
@@ -143,6 +153,23 @@ HouseNavigationGraph::HouseNavigationGraph(const HouseFloorplan& plan, const Doo
             append(points, nodes_[second.node].point); connect(first.node, second.node, std::move(points));
         }
     }
+}
+
+bool HouseNavigationGraph::reachesAllRooms(const std::vector<std::size_t>& exteriorDoors) const {
+    if (rooms_.empty() || exteriorDoors.empty()) return false;
+    std::vector<bool> visited(nodes_.size());
+    std::vector<std::size_t> pending;
+    for (const auto id:exteriorDoors) {
+        const auto node=std::find_if(nodes_.begin(),nodes_.end(),[&](const auto& entry) { return entry.kind==Kind::Door && entry.door==id; });
+        if (node==nodes_.end()) return false;
+        const auto index=static_cast<std::size_t>(node-nodes_.begin());
+        if (edges_[index].empty()) return false;
+        if (!visited[index]) { visited[index]=true; pending.push_back(index); }
+    }
+    for (std::size_t i=0;i<pending.size();++i) for (const auto& edge:edges_[pending[i]])
+        if (!visited[edge.to]) { visited[edge.to]=true; pending.push_back(edge.to); }
+    for (const auto& room:rooms_) if (!visited[room.center]) return false;
+    return true;
 }
 
 std::optional<std::size_t> HouseNavigationGraph::roomAt(glm::vec3 point) const {

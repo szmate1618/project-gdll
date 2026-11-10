@@ -6,6 +6,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 namespace viewer {
@@ -15,11 +16,31 @@ void Renderer::applyInteriorSunOcclusion(const Camera& camera) {
     std::array<glm::vec2, 128> boundary;
     std::array<GLint, 128> next;
     std::size_t vertexCount = 0;
+    const auto append = [&](const std::vector<glm::vec2>& ring) {
+        const auto start = vertexCount;
+        if (start + ring.size() > boundary.size()) throw std::runtime_error("Interior sun boundary exceeds shader capacity");
+        for (std::size_t i = 0; i < ring.size(); ++i) {
+            boundary[vertexCount] = ring[i];
+            next[vertexCount++] = static_cast<GLint>(start + (i + 1) % ring.size());
+        }
+    };
     if (floorplanSource_) {
         const auto eye = camera.position();
         for (const auto& entry : floorplanSource_->resident()) {
             const auto& plan = entry.second;
-            if (eye.y < plan.floor || eye.y > plan.ceiling) continue;
+            if (eye.y < plan.basementFloor.value_or(plan.floor) || eye.y > plan.ceiling) continue;
+            if (!plan.volumes.empty()) {
+                // Contact shadow containment follows the occupied wing. A
+                // lower roof beside a taller wing remains outdoor scenery.
+                const auto volume=std::find_if(plan.volumes.begin(),plan.volumes.end(),[&](const auto& part) {
+                    return eye.y>=part.floor && eye.y<=part.ceiling && house_polygon::contains(part.footprint,{eye.x,eye.z});
+                });
+                if (volume==plan.volumes.end()) continue;
+                glm::vec2 low(std::numeric_limits<float>::max()),high(-low);
+                for (const auto p:volume->footprint) { low=glm::min(low,p); high=glm::max(high,p); }
+                u={1,0,low.x,high.x}; v={0,1,low.y,high.y}; heights={volume->floor,volume->ceiling};
+                append(volume->footprint); break;
+            }
             const auto& p = plan.envelope;
             const auto axisU = glm::normalize(p[3] - p[0]);
             const auto axisV = glm::normalize(p[1] - p[0]);
@@ -32,18 +53,9 @@ void Renderer::applyInteriorSunOcclusion(const Camera& camera) {
             // Sun shadows already use closed, low-detail building shells.
             // Exact interior containment prevents contact leaks on every wall
             // and floor edge, including where rays miss the top ceiling.
-            u = boundsU; v = boundsV; heights = {plan.floor, plan.ceiling};
+            u = boundsU; v = boundsV; heights = {plan.basementFloor.value_or(plan.floor), plan.ceiling};
             if (!plan.courtyards.empty() || plan.footprint.size() != 4 ||
                 !std::equal(plan.footprint.begin(), plan.footprint.end(), plan.envelope.begin())) {
-                const auto append = [&](const std::vector<glm::vec2>& ring) {
-                    const auto start = vertexCount;
-                    if (start + ring.size() > boundary.size())
-                        throw std::runtime_error("Interior sun boundary exceeds shader capacity");
-                    for (std::size_t i = 0; i < ring.size(); ++i) {
-                        boundary[vertexCount] = ring[i];
-                        next[vertexCount++] = static_cast<GLint>(start + (i + 1) % ring.size());
-                    }
-                };
                 append(plan.footprint);
                 for (const auto& court : plan.courtyards) append(court);
             }

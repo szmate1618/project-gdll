@@ -20,7 +20,7 @@ fitting between them. `house_layout_geometry` emits their planes and door
 panels. `floorplan_layer` owns streaming. Rendering and collision consume the
 same generated result separately.
 
-Buildings that do not produce a specialized family-house, small-building, low-rise, apartment or authored
+Buildings that do not produce a specialized family-house, small-building, low-rise, complex, apartment or authored
 layout still receive a walkable ground floor through
 [`basic_floorplan.cpp`](../src/basic_floorplan.cpp). The slab projects the
 published roof triangles to the main-floor datum, retaining concave boundaries
@@ -155,6 +155,51 @@ from loaded window rows and sorted building identities, and layouts still
 generate lazily through the normal open-door streaming trigger. Client, server
 and viewer share generation, collision and navigation without a new sidecar or
 map regeneration.
+
+## Complex footprints and connected wings
+
+`ComplexBuilding` is a final specialized fallback after authored, prefab,
+family-house, small-building and low-rise interiors. It handles deep L/U
+footprints, courtyard rings and walls outside the existing common-axis tolerance.
+The original generators retain priority and their dimension limits.
+
+`building_sections` reads the actual outer boundary and holes from the footprint
+index. A vertical sweep creates exact convex tiles; adjacent tiles merge only
+when their convex union has the same area. Missing corners and courtyard voids
+cannot be filled by a bounding rectangle. Tiles are construction geometry, not
+individual rooms. Collinear points are simplified, ordering is deterministic,
+and disconnected components receive no invented connections.
+
+Each section has its own wall axes. Room and staircase fitting happens in that
+frame; final meshes, doors, ramp endpoints and passage segments are emitted once
+in world coordinates. The lowest overlapping roof surface sets the section's
+ceiling conservatively. Upper floors derived from window rows are retained only
+where the local roof permits at least 2.4 m of headroom. Mixed-height wings can
+therefore have different numbers of floors. Entrance-level footprint tracing
+ignores upper wall faces at roof-height steps. Missing window rows do not invent
+upper storeys, and incompatible floor datums retain the basic fallback.
+
+Shared section boundaries are explicit open passages. They reserve approaches
+for room layouts; section cuts do not automatically become physical walls.
+Room fitting reuses corridor/landing templates or simpler house subdivision,
+with neutral room labels. Awkward sections remain open rooms. A neighbouring
+wing can provide an upper floor's staircase if a safe flight cannot fit locally.
+Internal doors occupy a deterministic capacity reserved before activation.
+
+Before installation, a navigation graph must connect every retained room and
+every exterior doorway approach to an entrance through supported room paths,
+passages and ramps. If the subdivided layout fails, an open-section layout is
+tried. If that also fails, the basic floor is retained. A 2 mm support overlap
+at ramp landings avoids float32 gaps between independently transformed wings.
+Per-section interior volumes preserve local roof-height containment for lighting
+and encounter lifetime; a lower roof beside a higher wing is outdoors.
+
+Preparation is bounded to 25–10,000 m², at most 128 boundary vertices across
+16 rings, 512 initial tiles, 64 merged sections and 16 evidenced storeys within
+50 m. These are conservative implementation limits, including the existing
+interior-sun boundary capacity. Only footprint/section metadata is cached at
+startup; rooms and meshes remain lazily streamed as one building with the
+existing open-door trigger and 20/30 m activation/eviction distances.
 
 ## Prefab apartment blocks
 

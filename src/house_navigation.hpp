@@ -29,6 +29,9 @@ public:
     const std::vector<std::vector<Edge>>& edges() const { return edges_; }
     std::optional<std::size_t> roomAt(glm::vec3 point) const;
     HouseNavigationPath route(glm::vec3 from, glm::vec3 sound) const;
+    // Every requested exterior door needs an approach, and every room must be
+    // reachable from an exterior entrance through supported graph edges.
+    bool reachesAllRooms(const std::vector<std::size_t>& exteriorDoors) const;
 private:
     struct Member { std::size_t node; glm::vec3 anchor; };
     struct Room { HouseNavigationRoom geometry; std::size_t center; std::vector<Member> members; };

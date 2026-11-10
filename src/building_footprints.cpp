@@ -73,6 +73,21 @@ std::vector<std::vector<glm::vec2>> traceRings(const Shell& shell) {
 
 BuildingFootprints::BuildingFootprints(const Model& model) {
     std::map<std::string, Shell> shells;
+    std::map<std::string,float> mainFloors;
+    for (const auto& draw:model.draws) {
+        const auto door=buildingName(draw.name,"_doors");
+        if (door.empty()) continue;
+        for (const auto& vertex:model.primitives.at(draw.primitive).vertices) {
+            const auto p=glm::vec3(draw.transform*glm::vec4(vertex.position,1));
+            const float floor=p.y-2.1f;
+            const auto found=mainFloors.find(door);
+            if (finite(p) && (found==mainFloors.end() || floor>found->second)) mainFloors[door]=floor;
+        }
+    }
+    for (const auto& draw:model.draws) if (draw.buildingFloor) {
+        const auto wall=buildingName(draw.name,"_walls");
+        if (!wall.empty()) mainFloors[wall]=*draw.buildingFloor;
+    }
     for (const auto& draw : model.draws) {
         if (draw.detailDistance > 0 && !draw.lowDetail) continue;
         const auto wall = buildingName(draw.name, "_walls"), roof = buildingName(draw.name, "_roof");
@@ -88,6 +103,14 @@ BuildingFootprints::BuildingFootprints(const Model& model) {
                 shell.low = std::min(shell.low, p[j].y); shell.high = std::max(shell.high, p[j].y);
             }
             if (wall.empty() || !valid) continue;
+            // Roof-height changes create upper wall faces inside the building.
+            // Trace the entrance-level shell, not those above-ground step walls.
+            const auto floor=mainFloors.find(wall);
+            if (floor!=mainFloors.end()) {
+                const float probe=floor->second+.5f;
+                if (std::min({p[0].y,p[1].y,p[2].y})>probe+.001f ||
+                    std::max({p[0].y,p[1].y,p[2].y})<probe-.001f) continue;
+            }
             const auto normal = glm::cross(p[1] - p[0], p[2] - p[0]);
             if (glm::length(normal) < 1e-6f || std::abs(normal.y) > .1f * glm::length(normal)) continue;
             float longest = 0; std::pair<glm::vec2, glm::vec2> edge;

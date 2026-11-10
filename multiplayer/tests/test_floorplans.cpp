@@ -5,6 +5,7 @@
 #include "session_settings.hpp"
 #include "../../tests/house_fixture.hpp"
 #include "../../tests/apartment_fixture.hpp"
+#include "../../tests/section_fixture.hpp"
 
 #include <iostream>
 #include <stdexcept>
@@ -147,6 +148,47 @@ void lowRise(multiplayer::Scene& server, multiplayer::Scene& client) {
         client.floorplans->update({}); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
         if (internal) require(std::abs(client.doors->angle(*internal)+.8f)<.001f,
             "Low-rise door IDs must survive independent eviction and reentry");
+        world.leave(player); world.step();
+    }
+}
+void complexBuildings(multiplayer::Scene& server,multiplayer::Scene& client) {
+    for (int variant=0;variant<4;++variant) {
+        for (auto* scene:{&server,&client}) {
+            scene->floorplans.reset(); scene->collision.reset(); scene->doors.reset();
+            scene->model=variant==0 ? section_fixture::lShape(2) : variant==1 ? section_fixture::courtyard(3) :
+                variant==2 ? section_fixture::angled(2) : section_fixture::lShape(2,glm::mat4(1),true);
+            auto panels=viewer::prepareDoorPanels(scene->model);
+            scene->spawnEye=panels[0].center+panels[0].outward*2.f+glm::vec3(0,.6f,0);
+            scene->doors=std::make_unique<viewer::DoorLayer>(std::move(panels),scene->physics);
+            scene->collision=std::make_unique<viewer::CollisionWorld>(scene->model,std::vector<viewer::TrunkCollider>{},scene->doors.get());
+            scene->floorplans=std::make_unique<viewer::FloorplanLayer>(scene->model,*scene->doors,*scene->collision);
+        }
+        multiplayer::World world(server); const auto player=world.join(); server.doors->setAngle(0,1.5f); world.step();
+        require(server.floorplans->residentCount()==1,"Server must activate complex wings through the exterior door");
+        const auto& a=server.floorplans->resident().begin()->second;
+        const auto internal=a.doors.empty() ? std::optional<std::size_t>{} : a.doors.back().id;
+        const float angle=!a.doors.empty() && a.doors.back().panel.inward ? -.8f : .8f;
+        if (internal) server.doors->setAngle(*internal,angle);
+        multiplayer::Snapshots playback;
+        require(playback.push(world.snapshot(player),1),"Complex-building snapshot must be accepted");
+        playback.apply(client,1); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
+        require(client.floorplans->residentCount()==1,"Client must independently activate its complex layout");
+        const auto& b=client.floorplans->resident().begin()->second;
+        require(a.kind==viewer::HouseFloorplan::Kind::ComplexBuilding && b.kind==a.kind &&
+                a.rooms.size()==b.rooms.size() && a.doors.size()==b.doors.size() && a.stairs.size()==b.stairs.size() &&
+                a.passages.size()==b.passages.size() && a.volumes.size()==b.volumes.size() && a.courtyards==b.courtyards &&
+                a.structure.primitives.size()==b.structure.primitives.size(),"Peers must generate identical connected section topology");
+        for (std::size_t i=0;i<a.passages.size();++i)
+            require(a.passages[i].firstRoom==b.passages[i].firstRoom && a.passages[i].secondRoom==b.passages[i].secondRoom &&
+                    a.passages[i].a==b.passages[i].a && a.passages[i].b==b.passages[i].b,"Section passage identities must match exactly between peers");
+        for (std::size_t i=0;i<a.structure.primitives.size();++i) {
+            const auto& first=a.structure.primitives[i]; const auto& second=b.structure.primitives[i];
+            require(first.indices==second.indices && first.vertices.size()==second.vertices.size(),"Complex triangulation must match between peers");
+            for (std::size_t j=0;j<first.vertices.size();++j)
+                require(first.vertices[j].position==second.vertices[j].position,"Complex world coordinates must match exactly between peers");
+        }
+        client.floorplans->update({}); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
+        if (internal) require(std::abs(client.doors->angle(*internal)-angle)<.001f,"Section door IDs must retain authoritative state through reentry");
         world.leave(player); world.step();
     }
 }
@@ -326,7 +368,7 @@ int main(int argc, char** argv) {
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
         require(server.doors->restraint(door).broken, "Server eviction must not repair a broken restraint");
-        irregular(server, client); prefab(server,client); smallBuilding(server,client); lowRise(server,client); encounters(server, client);
+        irregular(server, client); prefab(server,client); smallBuilding(server,client); lowRise(server,client); complexBuildings(server,client); encounters(server, client);
         midnightEncounter(server);
         playerHouseMembership(server);
         playerScentEmission(server);

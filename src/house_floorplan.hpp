@@ -40,9 +40,17 @@ struct HouseStaircase {
     std::vector<glm::vec2> ramp, opening; // Rectangles in world X/Z metres.
     glm::vec3 bottom, top; // Centreline endpoints on the walkable plane.
 };
+struct HousePassage {
+    std::size_t firstRoom, secondRoom;
+    glm::vec2 a, b; // An open shared boundary in world X/Z metres, on both rooms' storey.
+};
+struct HouseInteriorVolume {
+    std::vector<glm::vec2> footprint; // One section in world X/Z metres, without holes.
+    float floor, ceiling; // Runtime Y metres; permits lower roofs beside taller wings.
+};
 struct HouseFloorplan {
     static constexpr std::size_t basementStorey = std::numeric_limits<std::size_t>::max();
-    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace, AuthoredBuilding, BasicBuilding, SmallBuilding, LowRiseBuilding };
+    enum class Kind { FamilyHouse, PrefabApartmentBlock, AuthoredPalace, AuthoredBuilding, BasicBuilding, SmallBuilding, LowRiseBuilding, ComplexBuilding };
     Kind kind = Kind::FamilyHouse;
     std::string name;
     glm::vec3 minimum{0}, maximum{0};
@@ -60,11 +68,14 @@ struct HouseFloorplan {
     std::vector<glm::vec2> footprint; // Actual outer shell boundary, X/Z metres.
     std::vector<std::vector<glm::vec2>> courtyards; // Open voids within authored shells.
     bool contains(glm::vec2 p) const; // Horizontal shell membership, excluding courtyards.
+    bool containsInterior(glm::vec3 p) const;
     std::array<glm::vec2, 4> envelope{}; // Oriented rectangle: low, low/high, high, high/low.
     std::vector<HouseRoom> rooms;
     Model structure; // Floors/ceilings and the simplest partition wall quads.
     std::vector<HouseInteriorDoor> doors;
     std::vector<HouseStaircase> stairs;
+    std::vector<HousePassage> passages; // Explicit open section seams; never physical walls.
+    std::vector<HouseInteriorVolume> volumes; // Empty uses the established whole-building height range.
 };
 // Conservative footprint heuristic: approximately orthogonal walls, 45..350 m²
 // envelope, sides 5..30 m, aspect <= 3, at least 75% envelope fill and 45 m²

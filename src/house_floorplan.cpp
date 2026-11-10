@@ -14,6 +14,13 @@ bool HouseFloorplan::contains(glm::vec2 p) const {
     for (const auto& court : courtyards) if (house_polygon::contains(court, p)) return false;
     return true;
 }
+bool HouseFloorplan::containsInterior(glm::vec3 p) const {
+    if (!contains({p.x,p.z})) return false;
+    if (volumes.empty()) return p.y>=basementFloor.value_or(floor) && p.y<=ceiling;
+    return std::any_of(volumes.begin(),volumes.end(),[&](const auto& volume) {
+        return p.y>=volume.floor && p.y<=volume.ceiling && house_polygon::contains(volume.footprint,{p.x,p.z});
+    });
+}
 using building_shell::faces;
 using building_shell::windowHeads;
 std::size_t houseUpperStoreyCount(const Model& model, const HouseSource& source) {
