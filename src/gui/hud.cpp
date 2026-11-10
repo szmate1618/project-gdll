@@ -5,6 +5,7 @@
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
 #include "equipment_drawer.hpp"
+#include "crafting_menu.hpp"
 #include "sleep_drawer.hpp"
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
@@ -128,6 +129,7 @@ struct Hud::Impl {
     const CollisionWorld* collision = nullptr;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
     std::unique_ptr<EquipmentDrawer> equipmentDrawer;
+    std::unique_ptr<CraftingMenu> craftingMenu;
     std::unique_ptr<SleepDrawer> sleepDrawer;
     std::unique_ptr<MapViewUi> mapView;
     std::optional<MinimapSource> mapSource;
@@ -183,6 +185,7 @@ struct Hud::Impl {
             }
             commandWheel = std::make_unique<CommandWheelView>(*document);
             equipmentDrawer = std::make_unique<EquipmentDrawer>(*document, inventory);
+            craftingMenu = std::make_unique<CraftingMenu>(*document);
             sleepDrawer = std::make_unique<SleepDrawer>(*document);
             for (std::size_t i = 0; i < backdropGroups.size(); ++i) {
                 backdropElements[i] = document->GetElementById(backdropGroups[i].id);
@@ -204,6 +207,7 @@ struct Hud::Impl {
         mapView.reset();
         inventoryInteraction.reset();
         equipmentDrawer.reset();
+        craftingMenu.reset();
         sleepDrawer.reset();
         if (context) {
             Rml::RemoveContext("game-hud"); context = nullptr; hudActive = false;
@@ -242,7 +246,7 @@ struct Hud::Impl {
     void showScreen(HudScreen next) {
         if (screen == next) return;
         const auto screenDocument = [&](HudScreen selected) {
-            if (selected == HudScreen::Gameplay) return document;
+            if (hudShowsGameplay(selected)) return document;
             constexpr std::array<const char*, 6> files{"inventory.rml", "skills.rml", "health.rml", "map.rml", "settings.rml", "mission-menu.rml"};
             const auto index = static_cast<std::size_t>(selected) - 1;
             auto*& page = screens.at(index);
@@ -274,6 +278,10 @@ struct Hud::Impl {
         if (next != HudScreen::MissionMenu) missionKeys.clear();
         if (next == HudScreen::MissionMenu) missionMenu->open();
         if (next == HudScreen::Map) mapView->open();
+        if (next == HudScreen::Crafting) {
+            craftingMenu->open();
+            equipmentDrawer->openForCrafting();
+        } else craftingMenu->close();
         if (next == HudScreen::Inventory || next == HudScreen::Skills) populateActionHotbar(*nextDocument, inventory);
         navigation->cancel();
         if (screen == HudScreen::Inventory) {
@@ -282,6 +290,7 @@ struct Hud::Impl {
         }
         if (screen == HudScreen::Map) { mapView->cancel(); pointerEvents.clear(); }
         screenDocument(screen)->Hide();
+        document->SetClass("crafting-screen", next == HudScreen::Crafting);
         nextDocument->Show();
         screen = next;
     }
@@ -310,7 +319,7 @@ struct Hud::Impl {
             pointerEvents.clear();
             return;
         }
-        if (screen != HudScreen::Gameplay) {
+        if (!hudShowsGameplay(screen)) {
             if (screen == HudScreen::Health) healthView->update(state, inventory);
             sleepDrawer->close();
             if (backdrop) backdrop->reset();
@@ -407,7 +416,12 @@ struct Hud::Impl {
             elements.at("weapon")->SetClassNames(equipmentIconClass(static_cast<std::size_t>(slot)));
         }
         renderer.render(*context, width, height, [&] {
-            const auto events = sleepDrawer->process(state, pointerEvents, width, height, presentation);
+            auto events = pointerEvents;
+            if (screen == HudScreen::Crafting) {
+                sleepDrawer->close();
+                events = navigation->process(*document, screen, events, width, height, presentation);
+                events = craftingMenu->process(events, width, height, presentation);
+            } else events = sleepDrawer->process(state, events, width, height, presentation);
             equipmentDrawer->process(state, events, width, height, presentation);
         }, [&] {
             if (!backdrop) renderer.renderExternal([&] { backdrop = std::make_unique<HudBackdrop>(sourceDirectory); });
@@ -446,7 +460,10 @@ void Hud::mouseWheel(float notches) {
 }
 void Hud::cancelInventoryDrag() { cancelPointerInteraction(); }
 void Hud::cancelPointerInteraction() { impl_->pointerEvents.push_back({HudPointerAction::Cancel}); }
-std::optional<HudScreen> Hud::takeScreenRequest() { return impl_->navigation->takeRequest(); }
+std::optional<HudScreen> Hud::takeScreenRequest() {
+    if (const auto requested = impl_->navigation->takeRequest()) return requested;
+    return impl_->craftingMenu->takeScreenRequest();
+}
 void Hud::setSettings(const Settings& settings) {
     impl_->settings = settings;
     if (impl_->settingsView) impl_->settingsView->setSettings(settings);

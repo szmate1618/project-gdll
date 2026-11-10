@@ -2,7 +2,9 @@
 <head>
     <title>Game HUD</title>
     <link type="text/rcss" href="hud.rcss" />
+    <link type="text/rcss" href="loadout.rcss" />
     <link type="text/rcss" href="equipment-drawer.rcss" />
+    <link type="text/rcss" href="crafting-menu.rcss" />
     <link type="text/rcss" href="sleep-drawer.rcss" />
     <link type="text/rcss" href="command-wheel.rcss" />
     <link type="text/rcss" href="palette.rcss" />
@@ -111,10 +113,30 @@
     <div id="equipment-drawer">
         <div id="equipment-tab"><div>I<br/>N<br/>V<br/>E<br/>N<br/>T<br/>O<br/>R<br/>Y</div></div>
         <div id="equipment-panel">
-            <div class="equipment-title">EQUIPMENT <span>TAB · CURSOR</span></div>
+            <div class="equipment-title">EQUIPMENT <span>TAB · CURSOR</span><button id="equipment-close">−</button></div>
             <div id="equipment-list"></div>
             <div id="equipment-status"></div>
         </div>
+    </div>
+    <div id="crafting-frame">
+        <div id="crafting-header-surface"></div>
+        <div id="loadout-header">
+            <button id="inventory-tab" class="page-tab"><span class="key-label">F1</span>INVENTORY</button>
+            <button id="skills-tab" class="page-tab"><span class="key-label">F2</span>SKILLS</button>
+            <button id="health-tab" class="page-tab"><span class="key-label">F3</span>HEALTH</button>
+            <button id="map-tab" class="page-tab"><span class="key-label">F4</span>MAP</button>
+            <button id="crafting-tab" class="page-tab"><span class="key-label">F5</span>CRAFTING</button>
+            <button id="settings-tab" class="page-tab"><span class="key-label">F12</span>SETTINGS</button>
+        </div>
+        <div class="crafting-edge crafting-left-edge"></div><div class="crafting-edge crafting-right-edge"></div>
+        <div id="crafting-drawer">
+            <button id="crafting-tab-handle">C<br/>R<br/>A<br/>F<br/>T<br/>I<br/>N<br/>G</button>
+            <div id="crafting-panel">
+                <div class="crafting-title">CRAFTING <button id="crafting-collapse">−</button></div>
+                <div class="crafting-empty">No recipes available</div>
+            </div>
+        </div>
+        <div id="crafting-footer"><button id="crafting-close"><span>F5 / ESC</span>Close</button></div>
     </div>
 </body>
 </rml>

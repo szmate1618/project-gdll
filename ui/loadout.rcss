@@ -6,6 +6,7 @@ body.loadout { pointer-events: auto; }
 #skills-tab { left: 204dp; }
 #health-tab { left: 408dp; }
 #map-tab { left: 612dp; }
+#crafting-tab { left: 816dp; }
 #settings-tab { right: 0dp; text-align: right; }
 #settings-tab .key-label { width: 36dp; text-align: left; }
 .key-label { display: inline-block; width: 28dp; font-size: 11dp; }

@@ -1,0 +1,37 @@
+/* A transparent game view inside the ordinary menu chrome. */
+#crafting-frame { display: none; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
+.crafting-screen #crafting-frame { display: block; }
+#crafting-header-surface { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 80dp; background-color: #2b2d2f; pointer-events: auto; }
+#crafting-frame #loadout-header { left: 50%; margin-left: -606dp; top: 30dp; pointer-events: auto; }
+.crafting-screen #crafting-tab { color: #f5f6f2; border-bottom: 2dp #ec6962; }
+.crafting-screen #loadout-header { background-color: #2b2d2f; }
+.crafting-edge { position: absolute; top: 78dp; bottom: 40dp; width: 6dp; background-color: #2b2d2f; }
+.crafting-left-edge { left: 0dp; }
+.crafting-right-edge { right: 0dp; }
+#crafting-footer { position: absolute; bottom: 0dp; left: 0dp; width: 100%; height: 40dp; background-color: #2b2d2f; border-top: 1dp #f5f6f226; pointer-events: auto; }
+#crafting-close { position: absolute; right: 26dp; top: 10dp; padding: 0dp; font-size: 11dp; color: #f5f6f299; background-color: transparent; cursor: pointer; }
+#crafting-close span { font-family: plex-mono; font-size: 10dp; margin-right: 10dp; color: #f5f6f2; }
+#crafting-close:hover { color: #f5f6f2; }
+#crafting-drawer { position: absolute; left: 6dp; top: 180dp; width: 32dp; height: 210dp; pointer-events: auto; }
+.crafting-expanded #crafting-drawer { width: 332dp; }
+#crafting-tab-handle { position: absolute; left: 0dp; top: 0dp; width: 32dp; height: 210dp; box-sizing: border-box; padding: 48dp 0dp 0dp; line-height: 13dp; font-family: plex-heading; font-size: 12dp; text-align: center; background-color: #2b2d2f; border: 1dp #f5f6f24d; color: #f5f6f2; cursor: pointer; }
+.crafting-expanded #crafting-tab-handle { left: 300dp; border-bottom-color: #ec6962; }
+#crafting-panel { display: none; position: absolute; left: 0dp; top: 0dp; width: 298dp; height: 208dp; background-color: #383a3c; border: 1dp #f5f6f226; }
+.crafting-expanded #crafting-panel { display: block; }
+.crafting-title { height: 42dp; box-sizing: border-box; padding: 14dp; border-bottom: 1dp #f5f6f226; font-family: plex-heading; font-size: 12dp; letter-spacing: 2dp; }
+#crafting-collapse { position: absolute; right: 12dp; top: 10dp; padding: 0dp; width: 22dp; height: 22dp; text-align: center; background-color: transparent; color: #f5f6f299; cursor: pointer; }
+#crafting-collapse:hover { color: #f5f6f2; }
+.crafting-empty { padding: 28dp 14dp; font-size: 12dp; color: #f5f6f299; }
+#equipment-close { display: none; }
+.crafting-screen #equipment-close { display: block; position: absolute; right: 12dp; top: 10dp; width: 22dp; height: 22dp; padding: 0dp; background-color: transparent; text-align: center; color: #f5f6f299; cursor: pointer; }
+.crafting-screen .equipment-title span { display: none; }
+.crafting-screen #equipment-drawer { right: -274dp; top: 240dp; height: 300dp; transition: none; z-index: 26; }
+.crafting-screen #equipment-drawer.expanded { right: 6dp; top: 240dp; height: 300dp; }
+/* Keep one existing interaction-mode readout, as text in the bottom frame. */
+.crafting-screen #status-strip { left: 26dp; bottom: 7dp; margin-left: 0dp; width: 260dp; height: 26dp; z-index: 30; }
+.crafting-screen #mode-status { width: 260dp; border-right-width: 0dp; }
+.crafting-screen #mode { left: 0dp; top: 5dp; font-family: plex-mono; font-size: 11dp; white-space: nowrap; }
+.crafting-screen #mode-icon, .crafting-screen #movement-status, .crafting-screen #speed-status,
+.crafting-screen #compass, .crafting-screen #navigation, .crafting-screen #vitals,
+.crafting-screen #weapon, .crafting-screen #capture, .crafting-screen #prompt,
+.crafting-screen #sleep-drawer, .crafting-screen #weapon-selection, .crafting-screen #weapon-switch { display: none; }

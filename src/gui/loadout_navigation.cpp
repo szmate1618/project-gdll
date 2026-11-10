@@ -6,10 +6,14 @@
 
 namespace viewer {
 std::optional<HudScreen> LoadoutNavigation::hoveredTab(Rml::ElementDocument& document) const {
-    constexpr std::array<const char*, 5> tabs{"inventory-tab", "skills-tab", "health-tab", "map-tab", "settings-tab"};
+    constexpr std::array<std::pair<const char*, HudScreen>, 6> tabs{{
+        {"inventory-tab", HudScreen::Inventory}, {"skills-tab", HudScreen::Skills},
+        {"health-tab", HudScreen::Health}, {"map-tab", HudScreen::Map},
+        {"settings-tab", HudScreen::Settings}, {"crafting-tab", HudScreen::Crafting}
+    }};
     for (auto* element = context_.GetHoverElement(); element && element != &document; element = element->GetParentNode())
         for (std::size_t i = 0; i < tabs.size(); ++i)
-            if (element->GetId() == tabs[i]) return static_cast<HudScreen>(i + 1);
+            if (element->GetId() == tabs[i].first) return tabs[i].second;
     return {};
 }
 std::vector<HudPointerEvent> LoadoutNavigation::process(Rml::ElementDocument& document, HudScreen screen,
@@ -33,17 +37,18 @@ std::vector<HudPointerEvent> LoadoutNavigation::process(Rml::ElementDocument& do
             context_.ProcessMouseButtonUp(0, 0);
             const auto pressed = std::exchange(pressedTab_, {});
             if (!pressed) break;
-            if (pressed == hoveredTab(document) && *pressed != screen) {
-                requested_ = pressed;
+            if (pressed == hoveredTab(document) && (*pressed != screen || screen == HudScreen::Crafting)) {
+                requested_ = *pressed == screen ? HudScreen::Gameplay : *pressed;
                 // Cancel a held item/pending placement or map gesture before
                 // its time advances, even though the caller switches next frame.
-                remaining.push_back({HudPointerAction::Cancel});
+                if (!(screen == HudScreen::Crafting && *requested_ == HudScreen::Gameplay))
+                    remaining.push_back({HudPointerAction::Cancel});
             }
             continue;
         }
         case HudPointerAction::Cancel: cancel(); break;
         case HudPointerAction::Wheel:
-            if (screen != HudScreen::Inventory) context_.ProcessMouseWheel(-event.x, 0);
+            if (screen != HudScreen::Inventory && screen != HudScreen::Crafting) context_.ProcessMouseWheel(-event.x, 0);
             break;
         default: break;
         }

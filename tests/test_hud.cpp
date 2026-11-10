@@ -1554,6 +1554,122 @@ int main(int argc, char** argv) {
         {
             auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            viewer::HudState crafting;
+            crafting.screen = viewer::HudScreen::Crafting;
+            crafting.objectHandling = true;
+            crafting.mode = "OBJECT HANDLING";
+            int width = 1280, height = 720;
+            const auto draw = [&] {
+                glDisable(GL_SCISSOR_TEST); glClearColor(.2f, .3f, .4f, 1); glClear(GL_COLOR_BUFFER_BIT);
+                glEnable(GL_SCISSOR_TEST);
+                hud.draw(crafting, width, height); checkState();
+            };
+            const auto page = [&](const char* id) -> Rml::ElementDocument* {
+                auto* context = Rml::GetContext("game-hud");
+                for (int index = 0; index < context->GetNumDocuments(); ++index) {
+                    auto* document = context->GetDocument(index);
+                    if (document->IsVisible() && document->GetElementById(id)) return document;
+                }
+                throw std::runtime_error(std::string("Missing visible crafting test element: ") + id);
+            };
+            const auto move = [&](float x, float y) { hud.pointerMove(x / width, y / height); };
+            const auto moveTo = [&](Rml::Element& element) {
+                const auto point = element.GetAbsoluteOffset(Rml::BoxArea::Border);
+                const auto size = element.GetBox().GetSize(Rml::BoxArea::Border);
+                move(point.x + size.x * .5f, point.y + size.y * .5f);
+            };
+            const auto click = [&](const char* id) {
+                moveTo(*page(id)->GetElementById(id));
+                hud.pointerButton(0, true); hud.pointerButton(0, false); draw();
+            };
+            draw(); draw();
+            auto* gameplay = page("equipment-drawer");
+            auto* equipment = gameplay->GetElementById("equipment-drawer");
+            require(equipment->IsVisible(true) && equipment->IsClassSet("expanded"),
+                "Crafting must show the inventory drawer on entry even with the cursor captured");
+            const auto frame = pixels(width, height);
+            for (const auto point : {glm::ivec2{550,300}, glm::ivec2{640,360}, glm::ivec2{740,430}})
+                require(isColor(colorAt(frame,width,height,point.x,point.y),{51,77,102}),
+                    "Crafting must preserve the visible game area instead of dimming the center");
+            auto* mode = gameplay->GetElementById("mode");
+            require(mode && mode->IsVisible(true) && mode->GetInnerRML() == "OBJECT HANDLING" &&
+                    mode->GetAbsoluteOffset().y > height * .8f,
+                "Crafting must retain the existing interaction-mode text at the bottom");
+            if (argc > 1) capture((std::string(argv[1]) + "-crafting.ppm").c_str(),frame,width,height);
+
+            crafting.mouseCaptured = false;
+            draw();
+            auto* list = gameplay->GetElementById("equipment-list");
+            auto* row = list->GetChild(0);
+            require(row && row->HasAttribute("item"), "Crafting inventory fixture must contain an equippable item");
+            moveTo(*row); hud.pointerButton(0,true); draw();
+            auto actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandPickUp &&
+                    !actions.front().item.empty() && !inventory.held(),
+                "Crafting inventory must retrieve equippable items through the existing physical transaction");
+            crafting.handInventoryActive = true;
+            moveTo(*gameplay->GetElementById("crafting-panel")); hud.pointerButton(0,false); draw();
+            actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandRelease,
+                "Releasing an inventory drag over Crafting must drop the item instead of leaving a stale grip");
+            crafting.handInventoryActive = false;
+            moveTo(*list->GetChild(0)); hud.pointerButton(0,true); draw();
+            actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandPickUp,
+                "The crafting inventory must permit another retrieval after an item is released");
+            crafting.handInventoryActive = true;
+            move(width * .5f, height * .5f); draw();
+            require(equipment->IsClassSet("expanded") && hud.takeInventoryActions().empty(),
+                "Moving into the game area must keep the crafting inventory pinned without releasing a grip");
+            moveTo(*gameplay->GetElementById("equipment-tab")); hud.pointerButton(0,true);
+            moveTo(*gameplay->GetElementById("crafting-panel")); hud.pointerButton(0,false); draw();
+            require(equipment->IsClassSet("expanded") && hud.takeInventoryActions().empty(),
+                "Releasing an inventory-tab press over Crafting must clear the gesture without collapsing or releasing a grip");
+            click("crafting-collapse");
+            require(hud.takeInventoryActions().empty(), "Collapsing Crafting must not release an inventory grip");
+            click("crafting-tab-handle");
+            require(hud.takeInventoryActions().empty(), "Reopening Crafting must not release an inventory grip");
+            click("equipment-close");
+            require(!equipment->IsClassSet("expanded") && hud.takeInventoryActions().empty(),
+                "Collapsing the crafting inventory must preserve a held item");
+            move(width * .5f, height * .5f); draw();
+            require(!equipment->IsClassSet("expanded"), "Crafting inventory must stay collapsed until its tab is clicked");
+            click("equipment-tab"); draw();
+            require(equipment->IsClassSet("expanded") && hud.takeInventoryActions().empty(),
+                "The crafting inventory tab must reopen the drawer without releasing a held item");
+            moveTo(*list->GetChild(0)); hud.pointerButton(0,false); draw();
+            actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions.front().kind == viewer::InventoryDragActionKind::HandStore,
+                "Releasing in the crafting inventory must use the existing storage transaction");
+            crafting.handInventoryActive = false;
+
+            width = 640; height = 360; draw(); draw();
+            const auto small = pixels(width,height);
+            require(isColor(colorAt(small,width,height,320,180),{51,77,102}) && mode->IsVisible(true) &&
+                    mode->GetAbsoluteOffset().y > height * .8f,
+                "The small crafting frame must retain a clear game center and bottom interaction mode");
+            if (argc > 1) capture((std::string(argv[1]) + "-crafting-small.ppm").c_str(),small,width,height);
+            width = 1280; height = 720; draw();
+            click("equipment-close");
+            crafting.screen = viewer::HudScreen::Inventory; draw();
+            click("crafting-tab");
+            require(hud.takeScreenRequest() == viewer::HudScreen::Crafting && !hud.takeScreenRequest(),
+                "The F5 Crafting tab must request the crafting frame exactly once");
+            crafting.screen = viewer::HudScreen::Crafting; draw(); draw();
+            require(equipment->IsClassSet("expanded"), "Reentering Crafting from another page must reopen the inventory drawer");
+            click("inventory-tab");
+            require(hud.takeScreenRequest() == viewer::HudScreen::Inventory,
+                "Crafting frame navigation must retain the normal menu page tabs");
+            click("crafting-tab");
+            require(hud.takeScreenRequest() == viewer::HudScreen::Gameplay,
+                "Clicking the active F5 tab must close the crafting frame");
+            click("crafting-close");
+            require(hud.takeScreenRequest() == viewer::HudScreen::Gameplay,
+                "Closing the crafting frame must request ordinary gameplay");
+        }
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             viewer::HudState menuState; menuState.screen = viewer::HudScreen::MissionMenu;
             const auto draw = [&] { clear(); hud.draw(menuState, 1280,720); checkState(); };
             draw();

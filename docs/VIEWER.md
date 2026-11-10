@@ -184,16 +184,26 @@ See [font files and provenance](../ui/fonts/README.md),
 [attribution](../credits/assets/FONTS.txt) and the
 [SIL Open Font License 1.1](../credits/assets/IBM_PLEX_OFL.txt).
 
-F1 opens Inventory; F2 opens Skills, F3 Health and F4 Map.
+F1 opens Inventory; F2 opens Skills, F3 Health and F4 Map. F5 opens Crafting.
 Click the tabs across the top of any of these pages to switch pages. Clicking
-the current tab keeps it open. Tabs brighten on hover; the active tab has bright
+the current full-page tab keeps it open; clicking the active Crafting tab closes
+its frame. Tabs brighten on hover; the active tab has bright
 text and a thin coral underline.
 Press the active key again, or Escape, to return to the gameplay HUD. Opening
-any screen cancels
+the Inventory, Skills, Health, Map or Settings page cancels
 held actions and blocks movement, camera look and gameplay inputs while it is
 visible; simulation continues. F8 and F9 now select free-fly and walking modes.
-F10 toggles the standalone viewer's collision overlay. The same four screens
+F10 toggles the standalone viewer's collision overlay. These screens
 are available in the graphical multiplayer client.
+
+Crafting uses a transparent game view inside the normal menu frame. It enables
+temporary Object handling, frees the cursor and opens the right Inventory drawer
+and left Crafting drawer. Each drawer can be collapsed independently. The
+existing interaction-mode text appears in the bottom frame; the other gameplay
+HUD groups are hidden while this frame is open. Tab switches between cursor and
+mouse look. F5 or Escape closes the frame and restores the prior cursor state;
+an existing grip stays in Object handling until it ends. No recipes are defined
+yet, so the Crafting drawer shows an empty state.
 
 Map tool buttons brighten on hover, retain a coral bottom edge while focused,
 and mark the active measurement tool with a coral left edge. The radial signal
@@ -2088,6 +2098,7 @@ build directory when run by CTest.
 | C | Toggle prone in walking mode; an airborne press waits for landing |
 | F3 | Open / close Health: vitals, body injuries and medical supplies |
 | F4 | Open / close the full Sentinel map |
+| F5 | Open / close the Crafting frame with Object handling and Inventory |
 | F10 | Toggle collision visualization |
 | Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |
 | F12 | Open / close Settings |

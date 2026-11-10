@@ -7,7 +7,8 @@ namespace Rml { class Context; class ElementDocument; }
 namespace viewer {
 struct PresentationViewport;
 // Routes page-tab clicks before inventory/map gestures. The caller owns the
-// selected screen; clicking the current tab keeps that page open.
+// selected screen; the active Crafting tab closes its frame. Other active tabs
+// keep their page open.
 class LoadoutNavigation {
 public:
     explicit LoadoutNavigation(Rml::Context& context) : context_(context) {}

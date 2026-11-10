@@ -636,6 +636,12 @@ without road overlays. Press the active
 key again or Escape to close it. These screens block gameplay inputs while
 visible. Click an item once to pick it up and again to place it; hover to inspect
 its details. Inventory supports timed moves, rotation, swaps and ammo stack merging.
+
+F5 opens the shared [Crafting frame](../docs/VIEWER.md#hud), keeping the world
+visible with Object handling active, Inventory on the right and Crafting on the
+left. The existing interaction-mode text remains at the bottom. F5 or Escape
+closes it; Tab switches cursor and mouse look. No crafting recipes are defined yet.
+
 The lower right ground grid scrolls through equippable items within two metres.
 Placing an item there drops it physically; clicking a ground item and then free
 compatible inventory cells acquires it. The server validates reach and ownership,

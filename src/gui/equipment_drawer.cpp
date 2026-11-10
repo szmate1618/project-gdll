@@ -24,7 +24,13 @@ std::string storageName(const StorageLoadout& storage, const std::string& refere
 }
 EquipmentDrawer::EquipmentDrawer(Rml::ElementDocument& document, PlayerInventory& inventory)
     : document_(document), inventory_(inventory), drawer_(document.GetElementById("equipment-drawer")),
-      list_(document.GetElementById("equipment-list")), status_(document.GetElementById("equipment-status")) {}
+      list_(document.GetElementById("equipment-list")), status_(document.GetElementById("equipment-status")),
+      tab_(document.GetElementById("equipment-tab")), close_(document.GetElementById("equipment-close")) {}
+void EquipmentDrawer::openForCrafting() {
+    open_ = true;
+    pressedToggle_ = nullptr;
+    drawer_->SetClass("expanded", true);
+}
 bool EquipmentDrawer::contains(Rml::Element& element) const {
     const auto origin = element.GetAbsoluteOffset(Rml::BoxArea::Border);
     const auto size = element.GetBox().GetSize(Rml::BoxArea::Border);
@@ -57,25 +63,44 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
     }
     const bool rejected = state.seconds < rejectionUntil_;
     drawer_->SetClass("rejected", rejected);
-    const bool visible = state.objectHandling && state.screen == HudScreen::Gameplay;
+    const bool crafting = state.screen == HudScreen::Crafting;
+    if (crafting != crafting_) {
+        open_ = crafting;
+        pressedToggle_ = nullptr;
+        crafting_ = crafting;
+    }
+    const bool visible = state.objectHandling && hudShowsGameplay(state.screen);
     drawer_->SetClass("available", visible);
     const bool sleepOpen = document_.IsClassSet("sleep-expanded");
-    if (!visible || state.mouseCaptured || sleepOpen) open_ = false;
+    if (!visible || (!crafting && (state.mouseCaptured || sleepOpen))) open_ = false;
     if (visible) populate();
     auto* context = document_.GetContext();
     for (const auto& event : events) {
         if (event.action == HudPointerAction::Cancel) {
             if (pressed_ || state.handInventoryActive) actions_.push_back({InventoryDragActionKind::HandRelease, "", ""});
-            pressed_ = false; open_ = false; pointer_ = {-1,-1};
+            pressed_ = false; pressedToggle_ = nullptr;
+            if (!crafting) open_ = false;
+            pointer_ = {-1,-1};
         }
         if (!visible || state.mouseCaptured || sleepOpen) continue;
         if (event.action == HudPointerAction::Move) {
             pointer_ = presentation.scenePointer(event.x, event.y, width, height);
             context->ProcessMouseMove(int(pointer_.x), int(pointer_.y), 0);
-            open_ = contains(*drawer_);
+            if (!crafting) open_ = contains(*drawer_);
             drawer_->SetClass("expanded", open_);
         }
-        if (event.action == HudPointerAction::Wheel && open_)
+        if (crafting && event.action == HudPointerAction::Press) {
+            if (contains(*tab_)) pressedToggle_ = tab_;
+            else if (open_ && close_ && close_->IsVisible(true) && contains(*close_)) pressedToggle_ = close_;
+            if (pressedToggle_) continue;
+        }
+        if (event.action == HudPointerAction::Release && pressedToggle_) {
+            if (contains(*pressedToggle_)) open_ = !open_;
+            pressedToggle_ = nullptr;
+            drawer_->SetClass("expanded", open_);
+            continue;
+        }
+        if (event.action == HudPointerAction::Wheel && open_ && (!crafting || contains(*list_)))
             list_->SetScrollTop(list_->GetScrollTop() - event.x * 48 * context->GetDensityIndependentPixelRatio());
         if (event.action == HudPointerAction::Press && open_ && contains(*list_)) {
             for (int index = 0; index < list_->GetNumChildren(); ++index) {
@@ -95,7 +120,7 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
     }
     for (int index = 0; index < list_->GetNumChildren(); ++index) {
         auto* row = list_->GetChild(index);
-        row->SetClass("hovered", open_ && contains(*list_) && contains(*row));
+        row->SetClass("hovered", open_ && !state.mouseCaptured && contains(*list_) && contains(*row));
     }
     drawer_->SetClass("expanded", open_);
     std::ostringstream status;
